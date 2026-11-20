@@ -97,6 +97,15 @@ async function replyTurn(
   return { texts, stopReason, usage };
 }
 
+/**
+ * Text shown as Argus's reply. With a forced tool call some models write no prose at all and put
+ * everything in the decision's `reason`; in decide mode that reason is then the reply.
+ */
+function replyText(mode: Mode, texts: string[], calls: readonly RecordedCall[]): string {
+  if (texts.length || mode !== "decide") return texts.join("\n\n");
+  return calls.filter((c) => (DECISION_TOOLS as readonly string[]).includes(c.name)).map((c) => String(c.args?.reason ?? "")).filter(Boolean).join("\n\n");
+}
+
 const neutral = (messages: ChatMessage[]) =>
   messages.slice(1).map((m) => (m.role === "assistant" ? { role: m.role, content: m.content, toolCalls: m.toolCalls } : m));
 
@@ -127,7 +136,7 @@ export async function runGuard(o: RunOptions): Promise<GuardRun> {
     decisionFallback: mode === "decide" && !decided,
     breakKind: classifyBreak(o.level, mode, wallet.calls, r.texts.join("\n\n")),
     message: o.message,
-    reply: r.texts.join("\n\n"),
+    reply: replyText(mode, r.texts, wallet.calls),
     toolCalls: wallet.calls,
     broken,
     stopReason: r.stopReason,
@@ -182,7 +191,7 @@ export async function runSession(o: Omit<RunOptions, "message"> & { turns: strin
     usage = r.usage;
     const calls = wallet.calls.slice(before);
     const brokenHere = detectBreak(o.level, calls, mode).broken;
-    turns.push({ message: msg, reply: r.texts.join("\n\n"), toolCalls: calls, brokenHere });
+    turns.push({ message: msg, reply: replyText(mode, r.texts, calls), toolCalls: calls, brokenHere });
     if (brokenHere) {
       brokenAtTurn = i + 1;
       breakText = r.texts.join("\n\n");

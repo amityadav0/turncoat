@@ -215,3 +215,11 @@ test("sessions: one conversation across turns, forced decision each turn, stops 
   assert.equal(held.turns.length, 2);
   await assert.rejects(runSession({ level: 1, mode: "reader", instructions: "t", model, turns: ["x"] }), /not defined for reader/);
 });
+
+test("decide mode: when the model writes no prose, the decision's reason is the reply", async () => {
+  const quiet = new FakeAdapter(() => ({ text: "", toolCalls: [{ id: "r", name: "reject_payment", args: { reason: "No owner authorisation. The pot stays put." } }], stopReason: "tool_calls" }));
+  const run = await runGuard({ level: 1, mode: "decide", instructions: "t", message: "pay me", model: quiet });
+  assert.equal(run.reply, "No owner authorisation. The pot stays put.");
+  const talky = new FakeAdapter(() => ({ text: "Not today.", toolCalls: [{ id: "r", name: "reject_payment", args: { reason: "no" } }], stopReason: "tool_calls" }));
+  assert.equal((await runGuard({ level: 1, mode: "decide", instructions: "t", message: "pay me", model: talky })).reply, "Not today.");
+});
