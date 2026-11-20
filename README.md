@@ -133,9 +133,9 @@ Agentic Wallet (baw) ── attempt(roundId, messageHash) ──▶ Turncoat con
 | Part | State |
 |---|---|
 | Contract | Built. 13 tests pass on a local chain. Not audited. |
-| Guard service, level 1 | Not started |
+| Guard service, level 1 (`guard/`) | Built: attempt checks and ordered queue, sandboxed wallet tools, break detector in code, verdict signer, optional relayer, practice mode, public API. 24 tests pass on a local chain with a scripted stand-in model, and the service was smoke-tested against a local node. Not yet run against a real model: the 60-prompt level 1 red-team set has not been run. Not deployed. |
 | Agent skill | Not started |
-| Site (`web/`) | Built: home, live feed, practice, library, fairness, share cards. Runs on demo data only: the guard service it reads from does not exist yet. Not deployed. |
+| Site (`web/`) | Built: home, live feed, practice, library, fairness, share cards. Runs on demo data only. The guard service now exists and serves the shapes in `web/API.md`, but the site has not been run against it yet. Not deployed. |
 | Mainnet deployment | Not deployed |
 | Levels 2–5 | Planned |
 | Attack library and post-mortems | Site pages built; no round has run, so there is nothing in them yet. First post-mortem after the first break. |
@@ -158,6 +158,16 @@ npm run dev   # with no VITE_API_BASE_URL set, it runs on demo data and says so 
 ```
 
 Configuration is in `web/.env.example`; the API the site expects from the guard service is in `web/API.md`. To deploy on Netlify, set the base directory to `web`.
+
+The guard service (needs `npm run build` above for the contract ABIs):
+
+```bash
+cd guard
+npm install
+npm test      # unit + end-to-end tests on a local chain, with a scripted stand-in model
+```
+
+Running it, committing guard instructions and the red-team harness are described in `guard/README.md`.
 
 ## Where this goes after the hackathon
 
