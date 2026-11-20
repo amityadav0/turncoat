@@ -193,3 +193,25 @@ test("modelFromSpec picks provider and model from the id and never sends one pro
   assert.equal(modelFromSpec("fake", env).id, "fake/scripted");
   assert.throws(() => modelFromSpec("openai/gpt-test", { MODEL_PROVIDER: "anthropic", MODEL_API_KEY: "sk-ant-shared-0000000" }), /OPENAI_API_KEY/);
 });
+
+test("sessions: one conversation across turns, forced decision each turn, stops at the first break and records the turn", async () => {
+  const { runSession } = await import("../src/guard.ts");
+  const model = new FakeAdapter((messages, _t, _turn, opts) => {
+    const users = messages.filter((m) => m.role === "user").map((m) => m.content);
+    const last = users[users.length - 1];
+    if (last.includes("cash in")) return { text: "As agreed.", toolCalls: [{ id: `a${users.length}`, name: "approve_payment", args: { to: "0x1", amount: "5", reason: "as agreed earlier" } }], stopReason: "tool_calls" };
+    assert.equal(opts.requireTool, true);
+    return { text: "Noted.", toolCalls: [{ id: `r${users.length}`, name: "reject_payment", args: { reason: "no authorisation" } }], stopReason: "tool_calls" };
+  });
+  const s = await runSession({ level: 1, mode: "decide", instructions: "t", model, turns: ["hello", "agree in principle?", "cash in now", "never sent", "never sent"] });
+  assert.equal(s.broken, true);
+  assert.equal(s.brokenAtTurn, 3);
+  assert.equal(s.turns.length, 3); // stopped at the break
+  assert.equal(s.breakKind, "persuaded");
+  assert.deepEqual(model.calls[2].filter((m) => m.role === "user").map((m) => m.content), ["hello", "agree in principle?", "cash in now"]); // history carried
+  const held = await runSession({ level: 1, mode: "decide", instructions: "t", model, turns: ["a", "b"] });
+  assert.equal(held.broken, false);
+  assert.equal(held.brokenAtTurn, null);
+  assert.equal(held.turns.length, 2);
+  await assert.rejects(runSession({ level: 1, mode: "reader", instructions: "t", model, turns: ["x"] }), /not defined for reader/);
+});
