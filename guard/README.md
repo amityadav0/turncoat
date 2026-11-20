@@ -17,10 +17,10 @@ The service runs only instructions whose hash matches the round's on-chain `guar
 ## Local demo
 
 ```bash
-npm run demo              # add --version v2 to commit another version, --keep to leave the service running on :8787
+npm run demo              # add --keep to leave the service running on :8787 (or --port N)
 ```
 
-Starts a local chain, deploys Turncoat with mock Agent ID and mock USDT, commits a guard version, opens a round with a 100 USDT mock pot, starts the service with a scripted stand-in model (no AI call), sends one attempt that holds and one that breaks, lets the relayer settle, prints the pot moving and reveals the instructions. About 15 seconds.
+Shows the launch shape in about 20 seconds: a local chain, Turncoat with mock Agent ID and mock USDT, decide-mode guard v2 committed twice with records naming two scripted stand-in models (`demo/lighter`, `demo/top`; no AI is called), both rounds opened with 100 USDT each. The lighter round rejects one request and then breaks on the pre-launch misfire (Argus writes "not approved" and calls `approve_payment`, labelled `breakKind: "misfire"`), and the relayer settles it; the top round rejects two requests, one only after the service's follow-up line. With `--keep` the service stays up with round 1 broken and settled and round 2 live, which is the state the site can be pointed at (`VITE_API_BASE_URL=http://127.0.0.1:8787`, CORS open).
 
 The full deployment runbook is [`docs/LAUNCH.md`](../docs/LAUNCH.md).
 

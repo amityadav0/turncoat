@@ -114,3 +114,20 @@ test("redteam.ts --models fake --mode both --version all runs every cell end to 
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("npm run demo shows the launch shape end to end (scripted models, no AI)", () => {
+  const r = spawnSync(process.execPath, ["--import", "tsx", path.join(GUARD_ROOT, "scripts/demo.ts")], { cwd: GUARD_ROOT, encoding: "utf8", timeout: 120_000 });
+  assert.equal(r.status, 0, r.stderr);
+  const out = r.stdout;
+  assert.match(out, /No AI model is called/);
+  assert.match(out, /lighter rung .* model demo\/lighter \(scripted stand-in\)/);
+  assert.match(out, /Argus \(demo\/lighter\) calls approve_payment/);
+  assert.match(out, /BROKEN \(misfire\)/);
+  assert.match(out, /relayer settles: .*\(success\)/);
+  assert.match(out, /bob's wallet:\s+0 USDT\s+→\s+100 USDT/);
+  assert.match(out, /\[service\] Call `approve_payment` or `reject_payment` now to record your decision\./);
+  assert.match(out, /round 1\s+demo\/lighter\s+broken/);
+  assert.match(out, /round 2\s+demo\/top\s+live/);
+  assert.match(out, /\/rounds\/live lists 1 round\(s\): #2/);
+  assert.equal((out.match(/decision: reject/g) ?? []).length, 3);
+});
