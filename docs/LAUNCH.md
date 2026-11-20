@@ -1,6 +1,18 @@
 # Launch runbook
 
-One page, top to bottom: deploy the contract, run the guard service, open round 1, point the site at it, and run a round to the end.
+One page, top to bottom: deploy the contract, run the guard service, open the two launch rounds, point the site at it, and run a round to the end.
+
+Launch configuration: level 1 in decide mode, guard version 2, as two rounds at once: the lighter rung on Claude Haiku 5.5 and the top rung on Claude Opus 5.5.
+
+## Pre-flight checklist
+
+- [ ] **Deployer key** with BNB for gas. It becomes the contract owner; keep it off the server.
+- [ ] **Guard signer key**: fresh, no funds, used for nothing else. Goes on the server.
+- [ ] **Relayer key**: fresh, a little BNB for gas, so winners are paid automatically. Goes on the server.
+- [ ] **Anthropic API key** with access to `claude-haiku-5-5` and `claude-opus-5-5`.
+- [ ] **USDT (BSC-USD) for two seeds**, one per round, held by the deployer address.
+- [ ] **A server** (x86-64 Linux) with Docker and Compose v2.17+, a persistent disk, and a domain with HTTPS in front of the guard service.
+- [ ] **A Netlify account** for the site (base directory `web`).
 
 Each command is marked **Ran locally** (rehearsed by the guard session against a local chain, with the results described) or **Not run locally**, with the reason. Commands are run from the repo root unless a `cd` is shown.
 
@@ -15,7 +27,7 @@ npm install && npm run build
 cd guard && npm install && npm test && npm run demo
 ```
 
-**Ran locally.** 32 guard tests pass. `npm run demo` starts a chain, deploys with mock Agent ID and mock USDT, opens a round, runs one attempt that holds and one that breaks, settles, and prints the pot moving from the contract to the attacker. The demo uses a scripted stand-in for the model, so no AI is called.
+**Ran locally.** 57 guard tests pass. `npm run demo` starts a chain, deploys with mock Agent ID and mock USDT, opens a round, runs one attempt that holds and one that breaks, settles, and prints the pot moving from the contract to the attacker. The demo uses a scripted stand-in for the model, so no AI is called.
 
 To rehearse the steps below against a local chain instead of mainnet, start one and deploy mocks:
 
@@ -80,7 +92,7 @@ cp .env.example .env && chmod 600 .env
 | Variable | Put in it |
 |---|---|
 | `MODEL_PROVIDER` | `anthropic` (or `openai`) |
-| `MODEL_NAME` | `claude-opus-5-5`, or the model you picked; required for `openai` |
+| `MODEL_NAME` | `claude-haiku-5-5`: the model practice mode runs on and the default for `npm run commit`. Each round's own model is fixed in its commit record (section 4). |
 | `MODEL_API_KEY` | Your model API key |
 | `MODEL_BASE_URL` | Leave empty unless you use an OpenAI-compatible host |
 | `MODEL_MAX_TOKENS`, `MODEL_EFFORT`, `MODEL_TIMEOUT_MS` | Leave unset for defaults: 4096 output tokens per model call, the model's default effort, 60 s per call (see the cost note below) |
@@ -91,7 +103,8 @@ cp .env.example .env && chmod 600 .env
 | `RELAYER_PRIVATE_KEY` | The relayer key, or empty to only return signed verdicts |
 | `TOKEN_DECIMALS` | `18` |
 | `LOGS_FROM_BLOCK` | `deployBlock` from `deployments/bsc.json` (used to find reveals) |
-| `GUARD_VERSION` | `v1` for round 1 (sets what `npm run commit` commits and what practice mode runs) |
+| `GUARD_VERSION` | `v2` (sets what `npm run commit` commits and what practice mode runs) |
+| `GUARD_MODE` | `decide` (same: commit default and practice mode) |
 | `PORT`, `HOST` | `8787`, `127.0.0.1` (the HTTPS proxy forwards to it) |
 | `CORS_ORIGINS` | The site's origin, e.g. `https://turncoat.example` |
 | `TRUST_PROXY` | `1` when behind one reverse proxy, so practice rate limits see the visitor's IP |
@@ -123,6 +136,8 @@ docker compose logs -f guard
 ```
 
 What the compose file does: builds the image (Node 22, non-root `node` user, production dependencies only; the contract ABI is compiled from `../contracts` in a builder stage), reads every setting and secret from `guard/.env` at run time (nothing secret is in the image; `.env` is excluded from the build), keeps the SQLite database in the named volume `guard-data`, mounts `guard/.secrets/commits` read-only (commit on the host; the running service picks up a new record within 5 seconds), restarts `unless-stopped`, health-checks `/health` every 30 s, and publishes port 8787 on 127.0.0.1 only, for the HTTPS proxy. Inside Docker, `HOST`, `PORT`, `DB_PATH` and `COMMITS_DIR` are set by the compose file. If the chain node runs on the same machine, use `RPC_URL=http://host.docker.internal:8545` (Docker Desktop) or the host's address.
+
+`docker compose up --build` builds for the server's own architecture. The image was also built for x86-64 on an ARM Mac with `docker buildx build --platform linux/amd64 --build-context repo=.. -t turncoat-guard .` (run from `guard/`; **ran locally**, and the native SQLite module loads in it), so building on an x86-64 server works the same way.
 
 Update: `git pull && docker compose up -d --build` (the database volume is kept). Back up the volume and `.secrets/commits` together.
 
@@ -168,48 +183,48 @@ curl -fsS https://guard.example.com/health
 
 ---
 
-## 4. Commit a guard version and open round 1
+## 4. Commit the guard and open the two launch rounds
 
-On the guard server (the service must hold the commit record, or attempts wait as "no local instructions"):
-
-```bash
-cd guard && GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-haiku-5-5   # lighter rung
-cd guard && GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-opus-5-5    # top rung
-```
-
-One commit per round. The record fixes the round's version, mode **and model** before the round opens; the running service uses that model for that round whatever `MODEL_NAME` says later. For the ladder, open one round per record (below); both run at once and `GET /rounds/live` lists them. The service needs a key for every provider named in a live round's record.
-
-**Ran locally.** It prints `guardCommit: 0x…` and stores the salt, the exact instruction bytes and the version in `.secrets/commits/<guardCommit>.json`. A running service picks up a new record within 5 seconds, with no restart (checked locally). Keep that file private until the round is over. Back it up: without it the round cannot be revealed.
-
-Open the round from the machine that holds the owner key:
+On the guard server (the service must hold the commit records, or attempts wait as "no local instructions"):
 
 ```bash
-OWNER_PRIVATE_KEY=0x… RPC_URL=https://bsc-dataseed.bnbchain.org \
-  node scripts/open-round.mjs --commit 0x<guardCommit> --level 1 --hours 72 --seed 100 --confirm-mainnet
+cd guard
+GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-haiku-5-5   # lighter rung
+GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-opus-5-5    # top rung
 ```
 
-**Ran locally** (without `--confirm-mainnet`). It checks the sender is the owner, rounds are not paused, the duration is allowed and the owner holds the seed. It approves the contract for exactly the seed, calls `openRound`, and prints the round id, end time and pot. On chain 56 it sends nothing unless `--confirm-mainnet` is passed. The contract address comes from `TURNCOAT_ADDRESS` or `deployments/bsc.json`.
+Each command prints a `guardCommit: 0x…`; note which is which. One record per round: it fixes that round's guard version, mode **and model** before the round opens, and the running service uses that model for that round whatever `MODEL_NAME` says later. Both rounds run at once and `GET /rounds/live` lists them.
 
-What each `openRound` argument is:
+**Ran locally**, including with real models: both rounds opened on a local chain, each attempt was answered by its own round's model (Haiku in about 2 s, Opus in about 4 s), and nothing crossed between rounds. The records are in `.secrets/commits/<guardCommit>.json`; a running service picks up a new one within 5 seconds. Keep them private until the rounds are over and back them up: without a record its round cannot be revealed.
 
-| Argument | Flag | Round 1 value |
+Open both rounds from the machine that holds the owner key, with these suggested values for the first round on each rung:
+
+```bash
+export OWNER_PRIVATE_KEY=0x… RPC_URL=https://bsc-dataseed.bnbchain.org
+node scripts/open-round.mjs --commit 0x<lighter guardCommit> --level 1 --hours 72 --paid off --base-fee 0 --seed ____ --confirm-mainnet
+node scripts/open-round.mjs --commit 0x<top guardCommit>     --level 1 --hours 72 --paid off --base-fee 0 --seed ____ --confirm-mainnet
+```
+
+| Choice | Suggested | What it means |
 |---|---|---|
-| `level` | `--level` | `1` (direct persuasion) |
-| `duration` | `--hours` | Seconds the round accepts attempts; 1 hour to 30 days. Example: 72 hours. |
-| `baseFee` | `--base-fee` | Fee of the first paid attempt, in USDT. `0` while paid attempts are off. |
-| `paidEnabled` | `--paid on/off` | `off`. The README says round 1 launches free-only until the organizers confirm. Fixed once the round opens. |
-| `guardCommit` | `--commit` | The hash printed by `npm run commit`. Fixed once the round opens. |
-| `seedFromOwner` | `--seed` | USDT pulled from the owner into the pot (exact approval) |
-| `seedFromReserve` | `--seed-from-reserve` | USDT moved from the contract's reserve (fees and rolled-over pots) into the pot |
+| `--level` | `1` | Level 1, payment requests. |
+| `--hours` | `72` | The round takes attempts for 3 days; then there is a 1-day window to settle a break, after which an unbroken pot can be rolled over. Allowed: 1 hour to 30 days. |
+| `--paid` | `off` | Only the free daily attempt per Agent ID; the README says paid attempts stay off until the organisers confirm. Fixed once the round opens. |
+| `--base-fee` | `0` | No fee, because paid attempts are off. |
+| `--seed` | ____ (your choice) | USDT pulled from the owner into this round's pot, with an approval for exactly that amount. A pot nobody wins rolls into the reserve and can seed the next round. |
+| `--commit` | from above | The guard this round runs (version, mode, model). Fixed once the round opens. |
+| `--seed-from-reserve` | omit | USDT moved from the contract's reserve into the pot; there is no reserve before the first round. |
 
-Check it:
+**Ran locally** (without `--confirm-mainnet`). It checks the sender is the owner, rounds are not paused, the duration is allowed and the owner holds the seed. It approves exactly the seed, calls `openRound`, and prints the round id, end time and pot. On chain 56 it sends nothing unless `--confirm-mainnet` is passed. The contract address comes from `TURNCOAT_ADDRESS` or `deployments/bsc.json`.
+
+Check them:
 
 ```bash
-RPC_URL=… node scripts/round-tools.mjs status 1
-curl -fsS https://guard.example.com/rounds/current
+node scripts/round-tools.mjs status 1 && node scripts/round-tools.mjs status 2
+curl -fsS https://guard.example.com/rounds/live
 ```
 
-**Ran locally.** Both show the round live with its pot. The API also shows `guardVersion: "v1"`.
+**Ran locally.** Both rounds show as live with their pots; `/rounds/live` shows each with `mode: "decide"`, `guardVersion: "v2"` and its own `model`.
 
 ---
 
@@ -259,10 +274,10 @@ SENDER_PRIVATE_KEY=0x… RPC_URL=… node scripts/round-tools.mjs reveal <roundI
 
 **Ran locally** (without `--confirm-mainnet`): settle paid the pot to the attacker; rollover refused before the window ended and moved the pot to the reserve after it; reveal was accepted for the matching record and refused for a live round or a record from another round. `SENDER_PRIVATE_KEY` can be any funded key; none of these needs the owner.
 
-**Then the next round:** after a break, publish the post-mortem, write the next version (`guard/levels/level1/v4.md` = v3 plus one rule), add its row to `guard/levels/level1/CHANGELOG.md` naming the round and attempt, and commit it. If the round held, the next round can keep the same version. Commit a fresh record either way, because a new salt means a new commit. Then open the round, seeding from the reserve if you like:
+**Then the next round:** after a break, publish the post-mortem (`docs/postmortems/`), write the next version: a new file under `guard/levels/level1-decide/` that is the running version plus one rule answering the break, with its name added to `VERSIONS` in `guard/src/levels.ts` (today's `v3.md` is a hardened reference, not the planned next guard), add its row to `guard/levels/level1-decide/CHANGELOG.md` naming the round and attempt, and commit it to git. Keep the winning attack out of git until the version it beats is retired (`guard/redteam/private/`). If the round held, the next round can keep the same version. Commit a fresh record either way, because a new salt means a new commit. Then open the round on the same rung, seeding from the reserve if you like:
 
 ```bash
-cd guard && GUARD_VERSION=v2 npm run commit
+cd guard && GUARD_VERSION=<next version> GUARD_MODE=decide npm run commit -- --model anthropic/claude-haiku-5-5
 OWNER_PRIVATE_KEY=0x… RPC_URL=… node scripts/open-round.mjs --commit 0x<new guardCommit> --hours 72 --seed 0 --seed-from-reserve 50 --confirm-mainnet
 ```
 
