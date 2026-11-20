@@ -3,8 +3,10 @@ import Markdown from 'react-markdown';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { api, isClosed, type RoundDetail } from '../api';
 import { AttemptCard } from '../components/AttemptCard';
-import { Ext, Failed, Loading, StatusTag, Who } from '../components/bits';
-import { levelName } from '../content/copy';
+import { Ext, Failed, Loading, Risk, StatusTag, Who } from '../components/bits';
+import { copy } from '../content/copy';
+
+const t = copy.library;
 import { explorer } from '../lib/explorer';
 import { dateTime, money } from '../lib/format';
 import { postmortemFor } from '../lib/postmortems';
@@ -39,7 +41,7 @@ function downloadJsonl(d: RoundDetail) {
 export default function LibraryRound() {
   const id = Number(useParams().id);
   const valid = Number.isSafeInteger(id) && id > 0;
-  const detail = useAsync(() => (valid ? api.round(id) : Promise.reject(new Error('No such round'))), [id]);
+  const detail = useAsync(() => (valid ? api.round(id) : Promise.reject(new Error(copy.common.noSuchRound))), [id]);
   const [onlyBroken, setOnlyBroken] = useState(false);
   const now = useNow(60000);
   const { hash } = useLocation();
@@ -60,33 +62,47 @@ export default function LibraryRound() {
   return (
     <>
       <p className="crumb">
-        <Link to="/library">← Library</Link>
+        <Link to="/library">{t.back}</Link>
       </p>
       <header className="page-head">
-        <h1>Round {r.id}</h1>
+        <h1>{copy.fairness.roundN(r.id)}</h1>
         <p className="lede">
-          <StatusTag status={r.status} /> Level {r.level}: {levelName(r.level)} · {dateTime(r.startTime)} to {dateTime(r.endTime)}
+          <StatusTag status={r.status} /> {t.range(r.level, dateTime(r.startTime), dateTime(r.endTime))}
+          {r.guardVersion && <> · {copy.round.version(r.guardVersion)}</>}
         </p>
         {r.status === 'broken' && r.winner && (
-          <p>
-            Turned on attempt #{r.winningAttempt} by <Who a={r.winner} />
-            {r.pot > 0n && <>, who received {money(r.pot)}</>}. <Ext href={explorer.tx(r.settleTx)} missing={null}>Payout transaction</Ext>
-          </p>
+          <>
+            <p>
+              {t.turnedOn(r.winningAttempt)} <Who a={r.winner} />.{' '}
+              {r.pot > 0n && t.potPaid(money(r.pot))}{' '}
+              <Ext href={explorer.tx(r.settleTx)} missing={null}>
+                {t.payoutTx}
+              </Ext>
+            </p>
+            <p>
+              {r.guardVersion && <strong>{t.fixedIn(r.guardVersion + 1)}.</strong>}{' '}
+              {pm && <a href="#pm">{t.readPostmortem}</a>}
+            </p>
+            {r.pot > 0n && <Risk />}
+          </>
         )}
-        {r.status === 'held' && <p>Nobody turned Argus. The pot rolled into the reserve for later rounds.</p>}
-        {!closed && <p className="muted">This round is still open. Attempts so far are below; the full set is final when it closes.</p>}
+        {r.status === 'held' && <p>{t.heldText}</p>}
+        {!closed && <p className="muted">{t.openText}</p>}
       </header>
 
       <div className="toolbar">
         <button type="button" className="btn" onClick={() => downloadJsonl(detail.data)} disabled={attempts.length === 0}>
-          Download as JSONL{!closed && ' (so far)'}
+          {t.download}
+          {!closed && t.soFar}
         </button>
-        <Link to="/fairness" className="arrow">Check this round's fairness</Link>
+        <Link to="/fairness" className="arrow">
+          {t.checkFairness}
+        </Link>
       </div>
 
       {r.status === 'broken' && (
         <section className="block postmortem" aria-labelledby="pm">
-          <h2 id="pm">Post-mortem</h2>
+          <h2 id="pm">{t.postmortem}</h2>
           {pm ? (
             <div className="prose">
               <Markdown
@@ -103,22 +119,20 @@ export default function LibraryRound() {
               </Markdown>
             </div>
           ) : (
-            <p className="muted">The post-mortem for this break is being written.</p>
+            <p className="muted">{t.postmortemPending}</p>
           )}
         </section>
       )}
 
       <section className="block">
         <div className="section-head">
-          <h2 className="h-small">
-            {attempts.length} attempt{attempts.length === 1 ? '' : 's'}
-          </h2>
+          <h2 className="h-small">{t.count(attempts.length)}</h2>
           <label className="check">
-            <input type="checkbox" checked={onlyBroken} onChange={(e) => setOnlyBroken(e.target.checked)} /> Only breaks
+            <input type="checkbox" checked={onlyBroken} onChange={(e) => setOnlyBroken(e.target.checked)} /> {t.onlyBreaks}
           </label>
         </div>
         {shown.length === 0 ? (
-          <p className="muted">Nothing to show.</p>
+          <p className="muted">{t.nothing}</p>
         ) : (
           <ol className="attempts">
             {shown.map((a) => (

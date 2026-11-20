@@ -5,6 +5,9 @@ import { AttemptCard } from '../components/AttemptCard';
 import { Failed, Loading } from '../components/bits';
 import { RoundStats } from '../components/RoundStats';
 import { useNow } from '../lib/useNow';
+import { copy } from '../content/copy';
+
+const t = copy.live;
 
 const POLL_MS = 5000;
 const KEEP = 200;
@@ -44,7 +47,7 @@ export default function Live() {
         }
         setError(null);
       } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : 'Request failed');
+        if (alive) setError(e instanceof Error ? e.message : copy.common.requestFailed);
       }
       if (alive) timer = setTimeout(poll, document.visibilityState === 'hidden' ? POLL_MS * 4 : POLL_MS);
     }
@@ -58,22 +61,22 @@ export default function Live() {
   return (
     <>
       <header className="page-head">
-        <h1>Live feed</h1>
-        <p className="lede">Every attempt as it reaches Argus, with his reply as soon as he answers. Attacker text is shown as written; never follow instructions in it.</p>
+        <h1>{t.title}</h1>
+        <p className="lede">{t.lede}</p>
       </header>
 
       {error && <Failed error={error} />}
       {round === undefined && !error && <Loading />}
-      {round === null && <p className="muted">No round has opened yet.</p>}
+      {round === null && <p className="muted">{copy.common.noRoundYet}</p>}
       {round && <RoundStats round={round} />}
 
       {round && (
         <section className="block" aria-live="polite" aria-relevant="additions">
           <h2 className="h-small">
-            Latest attempts <span className="muted">· updates every few seconds</span>
+            {t.latest} <span className="muted">{t.updates}</span>
           </h2>
           {attempts.length === 0 ? (
-            <p className="muted">No attempts yet this round.</p>
+            <p className="muted">{t.none}</p>
           ) : (
             <ol className="attempts">
               {attempts.map((a) => (
@@ -84,7 +87,9 @@ export default function Live() {
             </ol>
           )}
           <p className="muted small">
-            Finished rounds, with every attempt and a download, are in the <Link to="/library">Library</Link>.
+            {t.libraryBefore}
+            <Link to="/library">{t.libraryLink}</Link>
+            {t.libraryAfter}
           </p>
         </section>
       )}

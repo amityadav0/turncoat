@@ -1,8 +1,11 @@
 import type { Round } from '../api/types';
-import { levelName } from '../content/copy';
+import { config } from '../config';
+import { copy } from '../content/copy';
 import { money, timeLeft } from '../lib/format';
 import { useNow } from '../lib/useNow';
-import { StatusTag } from './bits';
+import { Risk, StatusTag } from './bits';
+
+const t = copy.round;
 
 export function RoundStats({ round }: { round: Round }) {
   const now = useNow();
@@ -11,24 +14,26 @@ export function RoundStats({ round }: { round: Round }) {
     <section className="round-card" aria-label={`Round ${round.id}`}>
       <div className="round-card-head">
         <span className="eyebrow">
-          Round {round.id} · Level {round.level}: {levelName(round.level)}
+          {config.mock && <span className="tag tag-demo">{copy.common.demoTag}</span>} {t.label(round.id, round.level)}
+          {round.guardVersion && <> · {t.version(round.guardVersion)}</>}
         </span>
         <StatusTag status={round.status} />
       </div>
       <dl className="stats">
         <div>
-          <dt>Pot</dt>
+          <dt>{t.pot}</dt>
           <dd>{money(round.pot)}</dd>
         </div>
         <div>
-          <dt>{live ? 'Time left' : 'Ended'}</dt>
-          <dd>{live ? timeLeft(round.endTime, now) : 'Closed to attempts'}</dd>
+          <dt>{live ? t.timeLeft : t.ended}</dt>
+          <dd>{live ? timeLeft(round.endTime, now) : t.closedToAttempts}</dd>
         </div>
         <div>
-          <dt>Attempts</dt>
+          <dt>{t.attempts}</dt>
           <dd>{round.attemptCount.toLocaleString()}</dd>
         </div>
       </dl>
+      <Risk />
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { copy } from '../content/copy';
 
 export type AsyncState<T> = { status: 'loading' } | { status: 'error'; error: string } | { status: 'ok'; data: T };
 
@@ -9,7 +10,7 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]): AsyncState<T
     setState({ status: 'loading' });
     fn().then(
       (data) => alive && setState({ status: 'ok', data }),
-      (e) => alive && setState({ status: 'error', error: e instanceof Error ? e.message : 'Request failed' }),
+      (e) => alive && setState({ status: 'error', error: e instanceof Error ? e.message : copy.common.requestFailed }),
     );
     return () => {
       alive = false;

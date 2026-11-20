@@ -1,5 +1,6 @@
 import { concatHex, createPublicClient, hexToString, http, keccak256, type Hex } from 'viem';
 import { config } from '../config';
+import { copy } from '../content/copy';
 
 /** Mirrors the contract: keccak256(abi.encodePacked(salt, instructions)). Runs in the visitor's browser. */
 export const commitOf = (salt: Hex, instructions: Hex) => keccak256(concatHex([salt, instructions]));
@@ -8,7 +9,7 @@ export function instructionsText(instructions: Hex) {
   try {
     return hexToString(instructions);
   } catch {
-    return '(instructions are not valid UTF-8; the hash check still uses the exact bytes)';
+    return copy.fairness.badUtf8;
   }
 }
 

@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import type { Attempt } from '../api/types';
+import { copy } from '../content/copy';
 import { explorer } from '../lib/explorer';
 import { ago, dateTime } from '../lib/format';
 import { Ext, OutcomeTag, Who } from './bits';
 import { HostileText } from './HostileText';
 import { SharePanel } from './SharePanel';
+
+const t = copy.attempt;
 
 export function AttemptCard({ attempt: a, now, compact }: { attempt: Attempt; now: number; compact?: boolean }) {
   const [sharing, setSharing] = useState(false);
@@ -22,22 +25,18 @@ export function AttemptCard({ attempt: a, now, compact }: { attempt: Attempt; no
         </span>
       </header>
 
-      {a.message !== undefined && <HostileText label="Message" text={a.message} limit={compact ? 280 : 1200} />}
-      {a.reply !== undefined && <HostileText label="Argus" text={a.reply} limit={compact ? 280 : 1200} />}
-      {a.outcome === 'pending' && (
-        <p className="muted small">{a.status === 'awaiting_message' ? 'Recorded on-chain. Waiting for the message to arrive.' : 'Argus is reading this one.'}</p>
-      )}
-      {a.outcome === 'void' && (
-        <p className="muted small">Never answered{a.note ? `: ${a.note}` : '.'}</p>
-      )}
+      {a.message !== undefined && <HostileText label={t.message} text={a.message} limit={compact ? 280 : 1200} />}
+      {a.reply !== undefined && <HostileText label={t.reply} text={a.reply} limit={compact ? 280 : 1200} />}
+      {a.outcome === 'pending' && <p className="muted small">{a.status === 'awaiting_message' ? t.awaiting : t.reading}</p>}
+      {a.outcome === 'void' && <p className="muted small">{t.never(a.note)}</p>}
 
       <footer className="attempt-foot">
         {answered && (
           <button type="button" className="linkish" aria-expanded={sharing} onClick={() => setSharing(!sharing)}>
-            {sharing ? 'Close share card' : 'Share'}
+            {sharing ? t.closeShare : t.share}
           </button>
         )}
-        {explorer.tx(a.tx) && <Ext href={explorer.tx(a.tx)}>Transaction</Ext>}
+        {explorer.tx(a.tx) && <Ext href={explorer.tx(a.tx)}>{t.tx}</Ext>}
       </footer>
       {sharing && answered && <SharePanel roundId={a.roundId} attemptId={a.id} outcome={a.outcome === 'broken' ? 'turned' : 'held'} />}
     </article>

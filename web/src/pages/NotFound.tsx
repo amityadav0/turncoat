@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
+import { copy } from '../content/copy';
 
 export default function NotFound() {
   return (
     <header className="page-head">
-      <h1>Nothing here</h1>
+      <h1>{copy.common.notFoundTitle}</h1>
       <p className="lede">
-        Argus checked every eye. <Link to="/">Back to the start</Link>.
+        {copy.common.notFoundBody} <Link to="/">{copy.common.notFoundLink}</Link>.
       </p>
     </header>
   );

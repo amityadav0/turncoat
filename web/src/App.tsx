@@ -3,13 +3,14 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Loading } from './components/bits';
 import Home from './pages/Home';
+import { copy } from './content/copy';
 
 function Crashed() {
   return (
     <main className="wrap" style={{ paddingTop: 48 }}>
-      <h1>Something broke</h1>
+      <h1>{copy.common.crashedTitle}</h1>
       <p className="lede">
-        Not Argus, just this page. <a href="/">Reload the site</a>.
+        {copy.common.crashedBody} <a href="/">{copy.common.crashedLink}</a>.
       </p>
     </main>
   );

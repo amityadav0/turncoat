@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { copy } from '../content/copy';
 
 // Attacker-supplied text. Rendered only as React text nodes (never as HTML or Markdown),
 // with invisible and direction-changing characters made visible so they can't hide or
@@ -14,7 +15,7 @@ function reveal(s: string): ReactNode[] {
     if (i > last) out.push(s.slice(last, i));
     const code = m[0].codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0');
     out.push(
-      <span key={i} className="sneaky" title="Hidden or direction-changing character">
+      <span key={i} className="sneaky" title={copy.hostile.hiddenChar}>
         U+{code}
       </span>,
     );
@@ -37,7 +38,7 @@ export function HostileText({ text, label, limit = 1200 }: { text: string; label
       </p>
       {long && (
         <button type="button" className="linkish" onClick={() => setOpen(!open)}>
-          {open ? 'Show less' : `Show all ${text.length.toLocaleString()} characters`}
+          {open ? copy.hostile.showLess : copy.hostile.showAll(text.length)}
         </button>
       )}
     </div>

@@ -124,12 +124,24 @@ code,
 
 /* ---------- header / nav ---------- */
 .demo-banner {
-  background: var(--ink-3);
-  color: var(--bone-dim);
+  background: var(--bone);
+  color: var(--ink);
   font-size: 0.8rem;
+  line-height: 1.35;
   text-align: center;
   padding: 6px var(--gutter);
-  border-bottom: 1px solid var(--line);
+}
+.demo-label {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+.tag-demo {
+  color: var(--ink);
+  background: var(--bone);
+  border-color: var(--bone);
+  margin-right: 4px;
 }
 
 .site-header {
@@ -196,23 +208,29 @@ nav a:hover {
 }
 
 main {
-  padding-top: 40px;
+  padding-top: 28px;
   padding-bottom: 72px;
   min-height: 60vh;
 }
 
 /* ---------- home ---------- */
 .hero {
-  padding: 16px 0 24px;
+  padding: 0 0 24px;
 }
 .hero-logo {
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
-  margin-bottom: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+.hero-argus {
+  font-size: 1.2rem;
+  line-height: 1.4;
+  max-width: 30em;
+  margin-bottom: 18px;
 }
 .hero-cta {
-  margin: 0 0 32px;
+  margin: 0 0 36px;
 }
 .hero-cta p {
   margin: 8px 0 0;
@@ -485,6 +503,23 @@ main {
 .page-head {
   margin-bottom: 32px;
 }
+.page-head-tight {
+  margin-bottom: 20px;
+}
+.page-head-tight .lede {
+  margin-bottom: 0;
+}
+.block-tight {
+  margin-top: 32px;
+}
+.risk-inline {
+  font-size: 0.8rem;
+  color: var(--bone-faint);
+  margin: 14px 0 0;
+}
+.risk-inline strong {
+  color: var(--bone-dim);
+}
 .page-head h1 {
   font-size: clamp(2.4rem, 10vw, 4rem);
 }
@@ -614,7 +649,7 @@ main {
 
 /* ---------- practice ---------- */
 .practice-form {
-  margin-top: 28px;
+  margin: 0 0 16px;
 }
 .levels {
   border: 0;
@@ -736,6 +771,25 @@ textarea:focus {
   padding: 0;
   border-top: 1px solid var(--line);
 }
+.round-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+a.round-link-title {
+  text-decoration: none;
+}
+a.round-link-title:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--signal);
+}
+.learns p {
+  max-width: 36em;
+  color: var(--bone-dim);
+  margin-bottom: 0.6em;
+}
 .round-link {
   display: flex;
   flex-direction: column;
@@ -751,8 +805,9 @@ textarea:focus {
 .round-link-head,
 .fair-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 6px 12px;
 }
 .round-link-title {
   font-family: var(--heavy);

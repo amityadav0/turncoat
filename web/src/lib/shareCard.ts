@@ -1,5 +1,6 @@
 import logoUrl from '../../../assets/logo.svg';
-import { ONE_LINE } from '../content/copy';
+import { config } from '../config';
+import { copy, ONE_LINE } from '../content/copy';
 
 // 1200x630 share image. Deliberately carries no attacker text: only the attempt number,
 // the round, the outcome and the one line.
@@ -16,7 +17,7 @@ function loadImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Logo failed to load'));
+    img.onerror = () => reject(new Error(copy.share.logoFailed));
     img.src = src;
   });
 }
@@ -53,12 +54,12 @@ export async function renderShareCard({ roundId, attemptId, outcome }: CardInput
   ctx.fillStyle = BONE;
   ctx.font = `900 40px ${HEAVY}`;
   ctx.textBaseline = 'middle';
-  ctx.fillText('TURNCOAT', pad + 140, pad + 56);
+  ctx.fillText(copy.share.cardWordmark, pad + 140, pad + 56);
 
   ctx.textBaseline = 'alphabetic';
   ctx.globalAlpha = 0.65;
   ctx.font = `600 26px ${MONO}`;
-  ctx.fillText(`ATTEMPT #${attemptId}  ·  ROUND ${roundId}`, pad, 296);
+  ctx.fillText(copy.share.cardMeta(attemptId, roundId), pad, 296);
   ctx.globalAlpha = 1;
 
   ctx.fillStyle = outcome === 'turned' ? SIGNAL : BONE;
@@ -69,14 +70,27 @@ export async function renderShareCard({ roundId, attemptId, outcome }: CardInput
   ctx.font = `700 50px ${HEAVY}`;
   ctx.fillText(ONE_LINE, pad, CARD_H - pad + 6);
 
+  if (config.mock) {
+    // Demo cards must never pass for a real result.
+    ctx.save();
+    ctx.font = `800 30px ${HEAVY}`;
+    const label = copy.share.cardDemo;
+    const w = ctx.measureText(label).width + 40;
+    ctx.fillStyle = BONE;
+    ctx.fillRect(CARD_W - pad - w, pad + 30, w, 52);
+    ctx.fillStyle = INK;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, CARD_W - pad - w + 20, pad + 57);
+    ctx.restore();
+  }
+
   return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not draw the card'))), 'image/png'),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(copy.share.failed))), 'image/png'),
   );
 }
 
 export function xIntentUrl({ roundId, attemptId, outcome }: CardInput) {
   const link = `${window.location.origin}/library/${roundId}#attempt-${attemptId}`;
-  const verdict = outcome === 'turned' ? 'Argus was turned.' : 'Argus held.';
-  const text = `Attempt #${attemptId}, round ${roundId}. ${verdict}\n\n${ONE_LINE}\n\n${link}\n\n#BinanceWalletHackathon #AgenticWallet`;
+  const text = copy.share.post_text(attemptId, roundId, outcome === 'turned', link);
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
 }

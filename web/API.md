@@ -29,6 +29,7 @@ interface Round {
   pot: string;           // token base units, decimal string
   attemptCount: number;
   guardCommit: Hex;      // as stored on-chain
+  guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (instructions stay secret until reveal); absent if the service holds no record for this guardCommit
   openTx?: Hex;          // RoundOpened transaction
   winner?: Attacker;     // when status = 'broken'
   winningAttempt?: number;
@@ -40,6 +41,7 @@ interface Attempt {
   id: number;            // attemptId from the contract
   attacker: Attacker;
   time: number;          // unix seconds
+  messageDeadline?: number; // unix seconds: the message must reach the guard service by then (time + 900 by default), else the attempt expires
   outcome: 'held' | 'broken' | 'pending';
   status?: string;       // awaiting_message | queued | done | expired | rejected
   note?: string;         // why an attempt was expired or rejected
@@ -74,10 +76,4 @@ On a broken practice run the site shows the first `transfer`, `approve` or `swap
 
 An attempt that is `pending` with `status` `expired` or `rejected` will never be answered; the site shows it as "Not answered" with the `note`.
 
-## Known gaps in guard/ (as of this site build)
-
-- `GuardService.currentRound()` exists but `GET /rounds/current` is not routed in `src/server.ts`. The site falls back to `GET /rounds` on a 404.
-- `GET /rounds/:id/attempts` does not pass `?after=` through to `listAttempts`, so it always returns every attempt. The site copes (it merges by id), but it is wasteful for long rounds.
-- Set `CORS_ORIGINS` to the site's origin.
-
-CORS: allow `GET` and `POST` from the site's origin.
+CORS: set `CORS_ORIGINS` in guard/.env to the site's origin.

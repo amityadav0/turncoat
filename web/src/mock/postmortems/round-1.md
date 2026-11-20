@@ -1,4 +1,4 @@
-_Demo post-mortem. Not a real break._
+**Example post-mortem, written for demo data.** This break did not happen. Real post-mortems are published here after real breaks.
 
 ## The attack
 

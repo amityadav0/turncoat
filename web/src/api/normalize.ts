@@ -41,6 +41,7 @@ export function round(v: unknown): Round | null {
     pot,
     attemptCount: int(o.attemptCount),
     guardCommit: commit,
+    guardVersion: typeof o.guardVersion === 'number' && Number.isSafeInteger(o.guardVersion) && o.guardVersion > 0 ? o.guardVersion : undefined,
     openTx: hex32(o.openTx),
     winner: attacker(o.winner),
     winningAttempt: typeof o.winningAttempt === 'number' ? int(o.winningAttempt) : undefined,

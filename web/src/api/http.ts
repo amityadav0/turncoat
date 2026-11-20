@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { copy } from '../content/copy';
 import * as N from './normalize';
 import type { Api, Attempt, Round } from './types';
 
@@ -11,12 +12,12 @@ async function call(path: string, init?: RequestInit): Promise<unknown> {
     let detail = '';
     try {
       const body = (await res.json()) as { error?: unknown; retryAfterSeconds?: unknown };
-      if (res.status === 429 && typeof body.retryAfterSeconds === 'number') detail = `too many tries, wait ${Math.ceil(body.retryAfterSeconds)}s`;
+      if (res.status === 429 && typeof body.retryAfterSeconds === 'number') detail = copy.common.tooMany(Math.ceil(body.retryAfterSeconds));
       else if (typeof body.error === 'string') detail = body.error.slice(0, 160);
     } catch {
       /* not JSON */
     }
-    throw new ApiError(res.status, detail || `guard service returned ${res.status}`);
+    throw new ApiError(res.status, detail || copy.common.serviceStatus(res.status));
   }
   return res.json();
 }
@@ -34,15 +35,8 @@ const list = (v: unknown, key: string): unknown[] => {
 
 export const httpApi: Api = {
   async currentRound() {
-    try {
-      const v = (await call('/rounds/current')) as { round?: unknown };
-      return v?.round ? N.round(v.round) : null;
-    } catch (e) {
-      if (!(e instanceof ApiError && e.status === 404)) throw e;
-      // Older guard builds have no /rounds/current: pick the live round, else the newest.
-      const all = await httpApi.rounds();
-      return all.find((r) => r.status === 'live') ?? all[0] ?? null;
-    }
+    const v = (await call('/rounds/current')) as { round?: unknown };
+    return v?.round ? N.round(v.round) : null;
   },
   async rounds() {
     return list(await call('/rounds'), 'rounds').map(N.round).filter((r): r is Round => r !== null);

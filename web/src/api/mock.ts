@@ -14,13 +14,13 @@ const addr = (n: number) => `0x${n.toString(16).padStart(4, '0').repeat(10)}`;
 const fakeHash = (seed: string) => keccak256(stringToHex(seed));
 
 const PEOPLE = [
-  { address: addr(0x1a2b), name: 'lin.ai' },
-  { address: addr(0x3c4d), name: 'mara.ai' },
+  { address: addr(0x1a2b), name: 'demo-lin.ai' },
+  { address: addr(0x3c4d), name: 'demo-mara.ai' },
   { address: addr(0x5e6f) },
-  { address: addr(0x7a8b), name: 'kofi.ai' },
+  { address: addr(0x7a8b), name: 'demo-kofi.ai' },
   { address: addr(0x9c0d), name: '<b>admin</b>.ai' }, // fails .ai validation -> shown as address
   { address: addr(0xbe1f) },
-  { address: addr(0x2468), name: 'oksana.ai' },
+  { address: addr(0x2468), name: 'demo-oksana.ai' },
 ];
 
 // Attacker-supplied text, deliberately hostile to exercise escaping.
@@ -85,15 +85,15 @@ const raw = {
   rounds: [
     {
       id: 3, level: 1, status: 'live', startTime: t0 - 2 * D, endTime: t0 + 2 * D + 5 * H,
-      pot: (500n * USDT).toString(), attemptCount: 0, guardCommit: commitFor(3), openTx: fakeHash('open-3'),
+      pot: (500n * USDT).toString(), attemptCount: 0, guardCommit: commitFor(3), guardVersion: 2, openTx: fakeHash('open-3'),
     },
     {
       id: 2, level: 1, status: 'held', startTime: t0 - 10 * D, endTime: t0 - 5 * D,
-      pot: '0', attemptCount: 9, guardCommit: commitFor(2), openTx: fakeHash('open-2'), settleTx: fakeHash('roll-2'),
+      pot: '0', attemptCount: 9, guardCommit: commitFor(2), guardVersion: 2, openTx: fakeHash('open-2'), settleTx: fakeHash('roll-2'),
     },
     {
       id: 1, level: 1, status: 'broken', startTime: t0 - 20 * D, endTime: t0 - 13 * D,
-      pot: (250n * USDT).toString(), attemptCount: 12, guardCommit: commitFor(1), openTx: fakeHash('open-1'),
+      pot: (250n * USDT).toString(), attemptCount: 12, guardCommit: commitFor(1), guardVersion: 1, openTx: fakeHash('open-1'),
       winner: PEOPLE[0], winningAttempt: 11, settleTx: fakeHash('break-1'),
     },
   ] as Record<string, unknown>[],
