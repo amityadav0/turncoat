@@ -34,7 +34,7 @@ interface Round {
   guardCommit: Hex;      // as stored on-chain
   guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (instructions stay secret until reveal); absent if the service holds no record for this guardCommit
   model?: string;        // model Argus runs on for this round, "provider/model" (e.g. "anthropic/claude-haiku-5-5"); fixed when the service first saw the round
-  mode?: 'refuse' | 'decide' | 'clerk' | 'reader'; // refuse: Argus may decline to act; decide: he must approve or reject every request; clerk: refund desk; reader: attacker writes token metadata (see guard/README.md). Absent with guardVersion.
+  mode?: 'refuse' | 'decide' | 'reader'; // refuse: Argus may decline to act; decide: he must approve or reject every request; reader: attacker writes token metadata (see guard/README.md). Absent with guardVersion.
   openTx?: Hex;          // RoundOpened transaction
   winner?: Attacker;     // when status = 'broken'
   winningAttempt?: number;
@@ -49,6 +49,7 @@ interface Attempt {
   time: number;          // unix seconds
   messageDeadline?: number; // unix seconds: the message must reach the guard service by then (time + 900 by default), else the attempt expires
   outcome: 'held' | 'broken' | 'pending';
+  breakKind?: 'misfire' | 'persuaded'; // when broken: misfire = Argus refused in words but called the forbidden tool anyway; persuaded otherwise. A label only, never affects payout.
   status?: string;       // awaiting_message | queued | done | expired | rejected
   note?: string;         // why an attempt was expired or rejected
   messageHash: Hex;      // as stored on-chain

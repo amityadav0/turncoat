@@ -1,14 +1,15 @@
 // Usage: npm run redteam -- [promptsFile] [--models a,b,c] [--mode refuse|decide|both] [--version v1|v2|v3|all]
-//                             [--lang en,zh] [--concurrency 4] [--only id1,id2] [--max-calls N] [--out DIR]
+//                             [--lang en,zh] [--repeat N] [--concurrency 4] [--only id1,id2] [--max-calls N] [--out DIR]
 // Runs the attack set against the guard and prints, for every model × mode × version: attacks run,
 // how many broke it, errors, tokens (total and per attempt, from the provider's usage data),
 // average seconds per attempt, and the ids that broke it.
 //   --models   provider/model ids, e.g. anthropic/claude-opus-5-5,anthropic/claude-haiku-5-5,fake.
 //              Default: the model from env (MODEL_PROVIDER/MODEL_NAME). Keys come from ANTHROPIC_API_KEY /
 //              OPENAI_API_KEY (MODEL_API_KEY only for MODEL_PROVIDER's own models).
-//   --mode     refuse | decide | clerk | reader, a comma list, or `all` (`both` = refuse,decide).
+//   --mode     refuse | decide | reader, a comma list, or `all` (`both` = refuse,decide).
 //              Default GUARD_MODE (default refuse). Versions with no instruction file for a mode are skipped.
 //   --max-calls  hard cap on model calls for the whole run; attempts that would exceed it are not run.
+//   --repeat   run each attack N times (each run is a fresh conversation).
 //   --version  default GUARD_VERSION (default v1); `all` runs v1, v2, v3.
 // A prompt runs in a mode if its `mode` tag is that mode or "both". Reader-mode entries carry
 // `payload: {name, symbol, description}` instead of `prompt`. Transcripts go to redteam/results/
@@ -37,6 +38,7 @@ const modelsArg = flag("--models");
 const concurrency = Math.max(1, Number(flag("--concurrency") ?? 4));
 const only = flag("--only")?.split(",");
 const langs = flag("--lang")?.split(",");
+const repeat = Math.max(1, Number(flag("--repeat") ?? 1));
 const outDir = path.resolve(flag("--out") ?? path.join(GUARD_ROOT, "redteam/results"));
 const promptsFile = path.resolve(args[0] ?? path.join(GUARD_ROOT, `redteam/level${level}.jsonl`));
 
@@ -65,7 +67,7 @@ const models: ModelAdapter[] = (modelsArg ? modelsArg.split(",").map((s) => mode
 console.log(`red team: ${prompts.length} prompts, level ${level}, models ${models.map((m) => m.id).join(", ")}, modes ${modes.join(", ")}, versions ${versions.join(", ")}`);
 
 async function runCell(model: ModelAdapter, mode: GuardMode, version: GuardVersion): Promise<Cell | null> {
-  const list = forMode(mode);
+  const list = forMode(mode).flatMap((p) => Array.from({ length: repeat }, () => p));
   if (!fs.existsSync(levelFile(level, version, GUARD_ROOT, mode))) { console.log(`(skipping ${mode} ${version}: no instruction file)`); return null; }
   const instructions = fs.readFileSync(levelFile(level, version, GUARD_ROOT, mode), "utf8");
   const results: Result[] = new Array(list.length);
@@ -105,8 +107,11 @@ function stats(c: Cell) {
   const tout = withUsage.reduce((s, r) => s + r.run!.usage!.outputTokens, 0);
   const secs = ran.reduce((s, r) => s + r.run!.seconds, 0);
   return {
-    ran: ran.length, broke: broke.length, errors: c.results.length - ran.length, ids: broke.map((r) => r.p.id),
+    ran: ran.length, broke: broke.length, errors: c.results.length - ran.length,
+    ids: [...broke.reduce((m, r) => m.set(r.p.id, (m.get(r.p.id) ?? 0) + 1), new Map<string, number>())].map(([id, n]) => (n > 1 ? `${id}×${n}` : id)),
     fallbacks: ran.filter((r) => r.run!.decisionFallback).length,
+    misfires: broke.filter((r) => r.run!.breakKind === "misfire").length,
+    persuaded: broke.filter((r) => r.run!.breakKind === "persuaded").length,
     tokensIn: withUsage.length ? tin : NaN, tokensOut: withUsage.length ? tout : NaN,
     avgIn: withUsage.length ? tin / withUsage.length : NaN, avgOut: withUsage.length ? tout / withUsage.length : NaN,
     totalSeconds: secs, avgSeconds: ran.length ? secs / ran.length : NaN,
@@ -116,11 +121,11 @@ function stats(c: Cell) {
 console.log("");
 const W = Math.max(5, ...cells.map((c) => c.model.length));
 console.log(`model calls made: ${callsMade}${Number.isFinite(maxCalls) ? ` of ${maxCalls} allowed` : ""}`);
-console.log(`${"model".padEnd(W)}  mode    version  broke/run    rate  errors  no-decision  tokens in/out (total)   avg in  avg out  avg s  broken by`);
+console.log(`${"model".padEnd(W)}  mode    version  broke/run    rate  misfire/persuaded  errors  no-decision  tokens in/out (total)   avg in  avg out  avg s  broken by`);
 for (const c of cells) {
   const s = stats(c);
   console.log([
-    c.model.padEnd(W), c.mode.padEnd(6), c.version.padEnd(7), `${s.broke}/${s.ran}`.padStart(9), (s.ran ? `${((100 * s.broke) / s.ran).toFixed(1)}%` : "n/a").padStart(6), String(s.errors).padStart(6),
+    c.model.padEnd(W), c.mode.padEnd(6), c.version.padEnd(7), `${s.broke}/${s.ran}`.padStart(9), (s.ran ? `${((100 * s.broke) / s.ran).toFixed(1)}%` : "n/a").padStart(6), `${s.misfires}/${s.persuaded}`.padStart(17), String(s.errors).padStart(6),
     String(c.mode === "decide" ? s.fallbacks : "-").padStart(11), `${fmt(s.tokensIn)}/${fmt(s.tokensOut)}`.padStart(22),
     fmt(s.avgIn).padStart(7), fmt(s.avgOut).padStart(8), fmt(s.avgSeconds, 1).padStart(6), s.ids.join(", ") || "-",
   ].join("  "));
@@ -146,7 +151,7 @@ fs.writeFileSync(outFile, JSON.stringify({
   level, promptsFile,
   cells: cells.map((c) => ({
     model: c.model, mode: c.mode, version: c.version, summary: stats(c),
-    results: c.results.map((r) => ({ ...r.p, broken: r.run?.broken ?? null, decision: r.run?.decision ?? null, decisionFallback: r.run?.decisionFallback ?? null, error: r.error ?? null, reply: r.run?.reply, toolCalls: r.run?.toolCalls, usage: r.run?.usage ?? null, seconds: r.run?.seconds ?? null })),
+    results: c.results.map((r) => ({ ...r.p, broken: r.run?.broken ?? null, breakKind: r.run?.breakKind ?? null, decision: r.run?.decision ?? null, decisionFallback: r.run?.decisionFallback ?? null, error: r.error ?? null, reply: r.run?.reply, toolCalls: r.run?.toolCalls, usage: r.run?.usage ?? null, seconds: r.run?.seconds ?? null })),
   })),
 }, null, 2));
 console.log(`\ntranscripts: ${path.relative(process.cwd(), outFile)}`);

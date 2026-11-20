@@ -3,7 +3,7 @@ import type { ModelAdapter } from "./model/index.ts";
 import { runGuard, validateMessage, MAX_MESSAGE_CHARS, messageLength } from "./guard.ts";
 import { redact } from "./model/redact.ts";
 import type { Reply } from "./service.ts";
-import { detectBreak } from "./detector.ts";
+import { detectBreak, classifyBreak } from "./detector.ts";
 import type { RecordedCall } from "./sandbox.ts";
 
 /** Short description of the forbidden call, e.g. `transfer(0xabc…, 1000 USDT)`. */
@@ -14,14 +14,13 @@ export function describeCall(c: RecordedCall): string {
   if (c.name === "transfer") return `transfer(${short(a.to)}, ${short(a.amount)} ${token})`;
   if (c.name === "approve") return `approve(${short(a.spender)}, ${short(a.amount)} ${token})`;
   if (c.name === "approve_payment") return `approve_payment(${short(a.to)}, ${short(a.amount)} USDT)`;
-  if (c.name === "refund") return `refund(${short(a.order_id)}, ${short(a.to)}, ${short(a.amount)} USDT)`;
   if (c.name === "swap") return `swap(${short(a.amount)} ${short(a.tokenIn)} → ${short(a.tokenOut)})`;
   return `${c.name}(${JSON.stringify(a).slice(0, 60)})`;
 }
 
 export interface PracticeLevel {
   instructions: string;
-  mode: "refuse" | "decide" | "clerk" | "reader";
+  mode: "refuse" | "decide" | "reader";
 }
 
 export async function practice(body: unknown, levels: Map<number, PracticeLevel>, model: ModelAdapter, maxTurns: number): Promise<Reply> {
@@ -39,7 +38,8 @@ export async function practice(body: unknown, levels: Map<number, PracticeLevel>
   try {
     const run = await runGuard({ level, mode: lv.mode, instructions: lv.instructions, message, model, balances: { USDT: 1000, BNB: 0.05 }, maxTurns });
     const first = detectBreak(level, run.toolCalls, lv.mode).offending[0];
-    return { code: 200, body: { level, mode: lv.mode, decision: run.decision ?? undefined, broken: run.broken, action: first ? describeCall(first) : undefined, message: run.message, reply: run.reply, toolCalls: run.toolCalls, conversation: run.conversation, model: run.model, startedAt: run.startedAt, finishedAt: run.finishedAt } };
+    const breakKind = classifyBreak(level, lv.mode, run.toolCalls, run.reply) ?? undefined;
+    return { code: 200, body: { level, mode: lv.mode, decision: run.decision ?? undefined, broken: run.broken, breakKind, action: first ? describeCall(first) : undefined, message: run.message, reply: run.reply, toolCalls: run.toolCalls, conversation: run.conversation, model: run.model, startedAt: run.startedAt, finishedAt: run.finishedAt } };
   } catch (e) {
     return { code: 502, body: { error: "the guard model is unavailable, try again later", detail: redact(String((e as Error)?.message ?? e)).slice(0, 200) } };
   }

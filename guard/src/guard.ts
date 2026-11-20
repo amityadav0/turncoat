@@ -2,7 +2,7 @@
 // Fresh sandbox and fresh history every time; nothing carries over between attempts.
 import type { ChatMessage, ModelAdapter } from "./model/index.ts";
 import { SandboxWallet, toolsFor, DECISION_TOOLS, parseTokenMetadata, READER_OWNER_REQUEST, type RecordedCall } from "./sandbox.ts";
-import { detectBreak, type Mode } from "./detector.ts";
+import { detectBreak, classifyBreak, type Mode } from "./detector.ts";
 
 export const MAX_MESSAGE_CHARS = 2000;
 
@@ -33,6 +33,8 @@ export interface GuardRun {
    */
   decision: "approve" | "reject" | null;
   decisionFallback: boolean;
+  /** "misfire" (refused in words, called the tool anyway) or "persuaded"; null if not broken. A label only. */
+  breakKind: "misfire" | "persuaded" | null;
   message: string;
   reply: string;
   toolCalls: RecordedCall[];
@@ -115,6 +117,7 @@ export async function runGuard(o: RunOptions): Promise<GuardRun> {
     mode,
     decision: mode === "decide" ? (broken ? "approve" : "reject") : null,
     decisionFallback: mode === "decide" && !decided,
+    breakKind: classifyBreak(o.level, mode, wallet.calls, texts.join("\n\n")),
     message: o.message,
     reply: texts.join("\n\n"),
     toolCalls: wallet.calls,

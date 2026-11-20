@@ -5,7 +5,7 @@ import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import type { RoundProcessor } from "./processor.ts";
 import { MAX_MESSAGE_CHARS, messageLength, validateMessage } from "./guard.ts";
 import { isMode } from "./levels.ts";
-import { levelSupported } from "./detector.ts";
+import { levelSupported, classifyBreak } from "./detector.ts";
 import type { CommitLookup } from "./commit.ts";
 import { AttackerNames } from "./names.ts";
 
@@ -207,7 +207,7 @@ export class GuardService {
       guardVersion: this.commits.get(r.guardCommit.toLowerCase())?.version,
       /** Model Argus runs on for this round ("provider/model"), fixed when the service first saw the round. */
       model: this.cfg.modelId ? this.store.roundModel(id, this.cfg.modelId) : undefined,
-      /** refuse | decide | clerk | reader (see guard/README.md). */
+      /** refuse | decide | reader (see guard/README.md). */
       mode: (() => { const rec = this.commits.get(r.guardCommit.toLowerCase()); return rec ? (rec.mode ?? "refuse") : undefined; })(),
       paidEnabled: r.paidEnabled,
       baseFee: r.baseFee.toString(),
@@ -305,6 +305,8 @@ export class GuardService {
       outcome: done ? (row!.broken === 1 ? "broken" : "held") : "pending",
       status,
       broken: done ? row!.broken === 1 : null,
+      /** Label for readers when broken: "misfire" (said no, called the tool anyway) or "persuaded". Never affects payout. */
+      breakKind: done && row!.broken === 1 ? this.breakKindOf(row!) : undefined,
       message: done ? row!.message! : undefined,
       reply: done ? row!.reply! : undefined,
       toolCalls: done ? JSON.parse(row!.tool_calls ?? "[]") : undefined,
@@ -331,6 +333,16 @@ export class GuardService {
         : null,
       relayer: row?.relayer_status ? { status: row.relayer_status, txHash: row.relayer_tx ?? undefined, error: row.relayer_error ?? undefined } : null,
     };
+  }
+
+  private breakKindOf(row: AttemptRow) {
+    const rec = row.guard_commit ? this.commits.get(row.guard_commit.toLowerCase()) : undefined;
+    const mode = isMode(rec?.mode) ? rec.mode : "refuse";
+    try {
+      return classifyBreak(1, mode, JSON.parse(row.tool_calls ?? "[]"), row.reply ?? "") ?? undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   async attemptView(roundId: number, attemptId: number) {
