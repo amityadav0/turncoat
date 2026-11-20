@@ -26,7 +26,8 @@ interface Round {
   status: RoundStatus;
   startTime: number;     // unix seconds
   endTime: number;       // unix seconds
-  pot: string;           // token base units, decimal string
+  pot: string;           // token base units, decimal string: the contract's current pot (0 after a payout)
+  payout?: string;       // REQUESTED, not yet sent: amount paid to the winner (GuardBroken.pot), base units
   attemptCount: number;
   guardCommit: Hex;      // as stored on-chain
   guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (instructions stay secret until reveal); absent if the service holds no record for this guardCommit

@@ -93,7 +93,7 @@ const raw = {
     },
     {
       id: 1, level: 1, status: 'broken', startTime: t0 - 20 * D, endTime: t0 - 13 * D,
-      pot: (250n * USDT).toString(), attemptCount: 12, guardCommit: commitFor(1), guardVersion: 'v1', openTx: fakeHash('open-1'),
+      pot: '0', payout: (250n * USDT).toString(), attemptCount: 12, guardCommit: commitFor(1), guardVersion: 'v1', openTx: fakeHash('open-1'),
       winner: PEOPLE[0], winningAttempt: 11, settleTx: fakeHash('break-1'),
     },
   ] as Record<string, unknown>[],

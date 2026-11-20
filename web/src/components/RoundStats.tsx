@@ -22,7 +22,9 @@ export function RoundStats({ round }: { round: Round }) {
       <dl className="stats">
         <div>
           <dt>{t.pot}</dt>
-          <dd>{money(round.pot)}</dd>
+          <dd>
+            {round.status === 'broken' && round.pot === 0n ? (round.payout !== undefined ? t.paidOutAmount(money(round.payout)) : t.paidOut) : money(round.pot)}
+          </dd>
         </div>
         <div>
           <dt>{live ? t.timeLeft : t.ended}</dt>

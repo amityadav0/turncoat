@@ -37,8 +37,8 @@ export function round(v: unknown): Round | null {
   const id = int(o.id, -1);
   const commit = hex32(o.guardCommit);
   if (id < 1 || !commit || !STATUSES.includes(o.status as RoundStatus)) return null;
-  let pot = 0n;
-  if (typeof o.pot === 'string' && /^\d{1,78}$/.test(o.pot)) pot = BigInt(o.pot);
+  const units = (v: unknown) => (typeof v === 'string' && /^\d{1,78}$/.test(v) ? BigInt(v) : undefined);
+  const pot = units(o.pot) ?? 0n;
   return {
     id,
     level: Math.min(int(o.level, 1), 5) || 1,
@@ -46,6 +46,7 @@ export function round(v: unknown): Round | null {
     startTime: int(o.startTime),
     endTime: int(o.endTime),
     pot,
+    payout: units(o.payout),
     attemptCount: int(o.attemptCount),
     guardCommit: commit,
     guardVersion: version(o.guardVersion),

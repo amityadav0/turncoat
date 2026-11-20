@@ -16,6 +16,8 @@ export interface Round {
   startTime: number;
   endTime: number;
   pot: bigint;
+  /** Amount paid to the winner (GuardBroken event). `pot` is the contract balance, 0 after payout. */
+  payout?: bigint;
   attemptCount: number;
   guardCommit: Hex;
   /** Which Argus ran this round, as a number (the API sends "v1", "v2", …). Absent when unknown. */

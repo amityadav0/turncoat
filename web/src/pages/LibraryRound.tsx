@@ -57,6 +57,8 @@ export default function LibraryRound() {
   const { round: r, attempts } = detail.data;
   const closed = isClosed(r);
   const pm = postmortemFor(r.id);
+  // After a payout the contract's pot is 0; the amount paid comes from `payout` when the service sends it.
+  const paid = r.payout ?? (r.pot > 0n ? r.pot : undefined);
   const shown = (onlyBroken ? attempts.filter((a) => a.outcome === 'broken') : attempts).slice().sort((a, b) => b.id - a.id);
 
   return (
@@ -67,14 +69,17 @@ export default function LibraryRound() {
       <header className="page-head">
         <h1>{copy.fairness.roundN(r.id)}</h1>
         <p className="lede">
-          <StatusTag status={r.status} /> {t.range(r.level, dateTime(r.startTime), dateTime(r.endTime))}
+          <StatusTag status={r.status} />{' '}
+          {r.status === 'broken' && r.endTime > now
+            ? t.closedEarly(r.level, dateTime(r.startTime))
+            : t.range(r.level, dateTime(r.startTime), dateTime(r.endTime))}
           {r.guardVersion && <> · {copy.round.version(r.guardVersion)}</>}
         </p>
         {r.status === 'broken' && r.winner && (
           <>
             <p>
               {t.turnedOn(r.winningAttempt)} <Who a={r.winner} />.{' '}
-              {r.pot > 0n && t.potPaid(money(r.pot))}{' '}
+              {paid !== undefined && paid > 0n && t.potPaid(money(paid))}{' '}
               <Ext href={explorer.tx(r.settleTx)} missing={null}>
                 {t.payoutTx}
               </Ext>
@@ -83,7 +88,7 @@ export default function LibraryRound() {
               {r.guardVersion && <strong>{t.fixedIn(r.guardVersion + 1)}.</strong>}{' '}
               {pm && <a href="#pm">{t.readPostmortem}</a>}
             </p>
-            {r.pot > 0n && <Risk />}
+            {paid !== undefined && paid > 0n && <Risk />}
           </>
         )}
         {r.status === 'held' && <p>{t.heldText}</p>}

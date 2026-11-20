@@ -32,7 +32,7 @@ export default function Home() {
       </section>
 
       <section className="block">
-        <h2 className="h-small">{t.liveRound}</h2>
+        <h2 className="h-small">{current.status === 'ok' && current.data && current.data.status !== 'live' ? t.latestRound : t.liveRound}</h2>
         {current.status === 'loading' && <Loading />}
         {current.status === 'error' && <Failed error={current.error} />}
         {current.status === 'ok' &&
