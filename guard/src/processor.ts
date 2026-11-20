@@ -8,8 +8,8 @@ import { formatUnits, type Hex } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
 import type { Store, AttemptRow } from "./db.ts";
 import type { TurncoatChain, RoundInfo } from "./chain.ts";
-import type { ModelAdapter } from "./model/index.ts";
-import { type CommitLookup, instructionsText } from "./commit.ts";
+import { modelFromSpec, type ModelAdapter } from "./model/index.ts";
+import { type CommitLookup, type CommitRecord, instructionsText } from "./commit.ts";
 import { runGuard } from "./guard.ts";
 import { isMode } from "./levels.ts";
 import { redact } from "./model/redact.ts";
@@ -26,7 +26,10 @@ export interface ProcessorConfig {
 export interface ProcessorDeps {
   store: Store;
   chain: TurncoatChain;
+  /** Default model: used for rounds whose commit record names no model (older records). */
   model: ModelAdapter;
+  /** Builds the adapter for a round's "provider/model". Default: the default model if ids match, else modelFromSpec. */
+  modelFor?: (spec: string) => ModelAdapter;
   commits: CommitLookup;
   signer: PrivateKeyAccount;
   cfg: ProcessorConfig;
@@ -41,6 +44,23 @@ export class RoundProcessor {
   private bg = new Set<Promise<unknown>>();
   private stopped = false;
   private warnedModel = new Set<number>();
+  private adapters = new Map<string, ModelAdapter>();
+
+  /** The model a round runs on: its commit record's model, else the model first recorded for the round. */
+  private modelForRound(roundId: number, rec: CommitRecord): ModelAdapter {
+    const { store, model, log } = this.d;
+    const spec = rec.model ?? store.roundModel(roundId, model.id);
+    if (!rec.model && spec !== model.id && !this.warnedModel.has(roundId)) {
+      this.warnedModel.add(roundId);
+      log("warn", "configured model differs from the model this round started on; the round keeps its original model", { roundId, roundModel: spec, configured: model.id });
+    }
+    let a = this.adapters.get(spec);
+    if (!a) {
+      a = this.d.modelFor ? this.d.modelFor(spec) : spec === model.id ? model : modelFromSpec(spec);
+      this.adapters.set(spec, a);
+    }
+    return a;
+  }
 
   constructor(private d: ProcessorDeps) {}
 
@@ -142,7 +162,7 @@ export class RoundProcessor {
 
   /** Returns true if the attempt reached a final state, false on a transient failure (it will be retried). */
   private async process(roundId: number, round: RoundInfo, row: AttemptRow): Promise<boolean> {
-    const { store, chain, model, commits, signer, cfg, log } = this.d;
+    const { store, chain, commits, signer, cfg, log } = this.d;
     const id = row.attempt_id;
     const rec = commits.get(round.guardCommit.toLowerCase());
     if (!rec || rec.level !== round.level) {
@@ -151,10 +171,14 @@ export class RoundProcessor {
       return false;
     }
 
-    const roundModel = store.roundModel(roundId, model.id);
-    if (roundModel !== model.id && !this.warnedModel.has(roundId)) {
-      this.warnedModel.add(roundId);
-      log("warn", "configured model differs from the model this round started on; the round keeps reporting the original", { roundId, roundModel, configured: model.id });
+    let roundModel: ModelAdapter;
+    try {
+      roundModel = this.modelForRound(roundId, rec);
+    } catch (e) {
+      const msg = redact(String((e as Error)?.message ?? e));
+      store.updateAttempt(roundId, id, { last_error: `cannot build model ${rec.model}: ${msg}`, retries: row.retries + 1 });
+      log("error", "cannot build the model this round runs on", { roundId, model: rec.model, error: msg });
+      return false;
     }
     store.updateAttempt(roundId, id, { started_at: new Date().toISOString() });
     let run;
@@ -164,7 +188,7 @@ export class RoundProcessor {
         mode: isMode(rec.mode) ? rec.mode : "refuse",
         instructions: instructionsText(rec),
         message: row.message!,
-        model,
+        model: roundModel,
         balances: { USDT: Number(formatUnits(round.pot, cfg.tokenDecimals)), BNB: 0.05 },
         maxTurns: cfg.maxTurns,
       });

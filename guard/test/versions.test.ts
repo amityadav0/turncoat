@@ -74,6 +74,11 @@ test("commit.ts hashes the exact bytes of the selected version and records the v
     check(byFlag.stdout, "v3");
     check(byDefault.stdout, "v1");
 
+    const withModel = runScript("commit.ts", ["--out", out, "--model", "anthropic/claude-opus-5-5"], {});
+    assert.equal(withModel.status, 0, withModel.stderr);
+    assert.equal(loadRecords(out).get(commitOf(withModel.stdout))!.model, "anthropic/claude-opus-5-5");
+    assert.equal(runScript("commit.ts", ["--out", out, "--model", "not a model"], {}).status, 2);
+
     const bad = runScript("commit.ts", ["--out", out], { GUARD_VERSION: "v9" });
     assert.notEqual(bad.status, 0);
     assert.match(bad.stderr, /GUARD_VERSION must be one of/);

@@ -70,6 +70,7 @@ interface Reveal {
 | Method | Path | Returns |
 |---|---|---|
 | GET | `/rounds/current` | `{ round: Round \| null }`: the live round, or the most recent one if none is live |
+| GET | `/rounds/live` | `{ rounds: Round[] }`: every round currently accepting attempts (one per rung of the ladder, each with its own `model`), newest first; empty when none is live |
 | GET | `/rounds` | `{ rounds: Round[] }`: all rounds, newest first |
 | GET | `/rounds/:id` | `{ round: Round, attempts: Attempt[], reveal: Reveal \| null }` |
 | GET | `/rounds/:id/attempts?after=<attemptId>` | `{ attempts: Attempt[] }`: attempts with id greater than `after`, oldest first |

@@ -206,7 +206,7 @@ export class GuardService {
       /** Which instruction version the round runs ("v1", …). Public from the start; the text stays secret until reveal. */
       guardVersion: this.commits.get(r.guardCommit.toLowerCase())?.version,
       /** Model Argus runs on for this round ("provider/model"), fixed when the service first saw the round. */
-      model: this.cfg.modelId ? this.store.roundModel(id, this.cfg.modelId) : undefined,
+      model: this.commits.get(r.guardCommit.toLowerCase())?.model ?? (this.cfg.modelId ? this.store.roundModel(id, this.cfg.modelId) : undefined),
       /** refuse | decide | reader (see guard/README.md). */
       mode: (() => { const rec = this.commits.get(r.guardCommit.toLowerCase()); return rec ? (rec.mode ?? "refuse") : undefined; })(),
       paidEnabled: r.paidEnabled,
@@ -243,6 +243,17 @@ export class GuardService {
     for (let id = count; id >= 1; id--) {
       const r = await this.chain.getRound(id);
       if (r) out.push(await this.roundView(id, r, now, grace));
+    }
+    return { code: 200, body: { rounds: out, now } };
+  }
+
+  /** Every round currently accepting attempts (one per rung of the ladder), newest first. */
+  async liveRounds(): Promise<Reply> {
+    const [count, now, grace] = await Promise.all([this.chain.roundCount(), this.chain.now(), this.chain.getSettleGrace()]);
+    const out = [];
+    for (let id = count; id >= 1; id--) {
+      const r = await this.chain.getRound(id);
+      if (r && !r.closed && now <= r.endTime) out.push(await this.roundView(id, r, now, grace));
     }
     return { code: 200, body: { rounds: out, now } };
   }

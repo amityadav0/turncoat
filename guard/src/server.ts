@@ -52,6 +52,7 @@ export function createApp(d: AppDeps) {
   app.get("/attempts/:roundId/:attemptId", handle((req) => d.service.getAttempt(String(req.params.roundId), String(req.params.attemptId))));
   app.get("/rounds", handle(() => d.service.listRounds()));
   app.get("/rounds/current", handle(() => d.service.currentRound()));
+  app.get("/rounds/live", handle(() => d.service.liveRounds()));
   app.get("/rounds/:id", handle((req) => d.service.getRound(String(req.params.id))));
   app.get("/rounds/:id/attempts", handle((req) => d.service.listAttempts(String(req.params.id), typeof req.query.after === "string" ? req.query.after : undefined)));
   app.get("/attackers/:address", handle((req) => d.service.getAttacker(String(req.params.address))));

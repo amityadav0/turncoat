@@ -53,11 +53,11 @@ With Docker: `docker compose up -d --build` from `guard/` (settings and secrets 
 cd ..   && npm install && npm run build      # contract ABIs into build/
 cd guard && npm install
 cp .env.example .env                          # fill in; never commit .env
-GUARD_VERSION=v1 npm run commit               # prints guardCommit for openRound(); stores salt, text and version in .secrets/
+GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-haiku-5-5   # prints guardCommit for openRound()
 npm start
 ```
 
-`npm run commit -- --version v2` overrides the env var; `--file path/to/instructions.md` commits an ad-hoc file. The record in `.secrets/commits/<guardCommit>.json` holds the salt, the exact bytes and the version. Keep it private until the round is over, then pass `salt` and `instructionsHex` to `revealGuard(roundId, salt, instructions)`.
+`--version`, `--mode` and `--model` override the env vars (`--model` defaults to `MODEL_PROVIDER/MODEL_NAME`); `--file path/to/instructions.md` commits an ad-hoc file. The record in `.secrets/commits/<guardCommit>.json` holds the salt, the exact bytes, the version, the mode and the model. **The model is fixed by the record, before the round opens:** the service runs that round on that model whatever `MODEL_NAME` says later, so several live rounds can run on different models at once (the ladder). Older records without a model run on the service's model as first seen for that round. Keep it private until the round is over, then pass `salt` and `instructionsHex` to `revealGuard(roundId, salt, instructions)`.
 
 ## API
 
@@ -69,6 +69,7 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 | GET | `/attempts/:roundId/:attemptId` | One attempt: `messageDeadline` (unix seconds the message must arrive by), message, reply, tool calls, full conversation, model, `verdict` (signature + `settle` calldata), relayer status. |
 | GET | `/rounds` | `{ rounds }`, newest first. |
 | GET | `/rounds/current` | `{ round }`: the live round, else the newest. |
+| GET | `/rounds/live` | `{ rounds }`: every live round (one per rung), newest first. |
 | GET | `/rounds/:id` | `{ round, attempts, reveal }`. `round` adds `guardVersion` (e.g. `"v1"`, public from the start of the round), `model` (the `provider/model` the round runs on, fixed when the service first sees the round; a later config change is logged as a warning and does not change it), `mode`, `payout` (amount paid to the winner, from `GuardBroken`), `openTx`, `settleTx`, `closedAt`, `timeLeft`, `settleDeadline`, `settleTimeLeft`, `potAmount`, `processedCount`, `verdictPendingFor`. |
 | GET | `/rounds/:id/attempts?after=N` | `{ attempts }`, oldest first: attacker, time, `outcome`, `broken`, `status`, and the message, reply and tool calls as soon as the guard has replied. |
 | GET | `/attackers/:address` | On-chain attempt and break counts plus per-attempt history. |

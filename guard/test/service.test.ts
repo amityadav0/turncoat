@@ -503,3 +503,51 @@ test("model failure: the attempt stays queued and is retried with backoff, later
     procF.stop();
   }
 });
+
+test("two live rounds on different models: each round runs on the model fixed in its commit record; /rounds/live lists both", async () => {
+  await L.toNextDay();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ladder-"));
+  const bytes = new Uint8Array(fs.readFileSync(new URL("../levels/level1-decide/v2.md", import.meta.url)));
+  const lighter = makeRecord(toHex(crypto.getRandomValues(new Uint8Array(32))), bytes, 1, "levels/level1-decide/v2.md", "v2", "decide", "fake/lighter");
+  const top = makeRecord(toHex(crypto.getRandomValues(new Uint8Array(32))), bytes, 1, "levels/level1-decide/v2.md", "v2", "decide", "fake/top");
+  saveRecord(dir, lighter);
+  saveRecord(dir, top);
+  const models = { "fake/lighter": new FakeAdapter(undefined, "fake/lighter"), "fake/top": new FakeAdapter(undefined, "fake/top") } as Record<string, FakeAdapter>;
+  const fallback = new FakeAdapter(undefined, "fake/default");
+  const procL = new RoundProcessor({
+    store, chain, model: fallback, modelFor: (spec) => models[spec], commits: loadRecords(dir), signer: privateKeyToAccount(guardK), log: silentLogger,
+    cfg: { messageWindowSec: WINDOW, pollMs: 50, retryBaseMs: 50, maxTurns: 6, tokenDecimals: 18 },
+  });
+  const svc = new GuardService(store, chain, procL, { modelId: "fake/default", messageWindowSec: WINDOW, attemptWaitMs: 5000, tokenDecimals: 18 }, loadRecords(dir));
+  try {
+    const RL = await L.openRound(lighter.commit, { duration: 30 * 86400 });
+    const RT = await L.openRound(top.commit, { duration: 30 * 86400 });
+    await L.attempt(aliceK, RL, "lighter please");
+    await L.attempt(bobK, RT, "top please");
+    assert.equal((await svc.submit({ roundId: RT, attemptId: 0, message: "top please" })).code, 200);
+    assert.equal((await svc.submit({ roundId: RL, attemptId: 0, message: "lighter please" })).code, 200);
+    assert.deepEqual(models["fake/lighter"].calls.map((c) => c[1].content), ["lighter please"]);
+    assert.deepEqual(models["fake/top"].calls.map((c) => c[1].content), ["top please"]);
+    assert.equal(fallback.calls.length, 0);
+    assert.equal(store.getAttempt(RL, 0)!.model, "fake/lighter");
+    assert.equal(store.getAttempt(RT, 0)!.model, "fake/top");
+    const live = (await svc.liveRounds()).body as any;
+    const byId = new Map(live.rounds.map((r: any) => [r.id, r]));
+    assert.equal((byId.get(RL) as any).model, "fake/lighter");
+    assert.equal((byId.get(RT) as any).model, "fake/top");
+    assert.ok(live.rounds.every((r: any) => r.status === "live"));
+    assert.ok(!live.rounds.some((r: any) => r.id === B)); // closed rounds are not listed
+    // a later change of the service's default model does not move a round with a recorded model
+    const svc2 = new GuardService(store, chain, procL, { modelId: "anthropic/something-else", messageWindowSec: WINDOW, attemptWaitMs: 50, tokenDecimals: 18 }, loadRecords(dir));
+    assert.equal(((await svc2.getRound(String(RT))).body as any).round.model, "fake/top");
+  } finally {
+    procL.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("GET /rounds/live is routed", async () => {
+  const r = await api("GET", "/rounds/live");
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body.rounds));
+});

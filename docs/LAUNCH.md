@@ -115,7 +115,7 @@ Needs Docker with Compose v2.17+ (for `additional_contexts`). On the server, fro
 ```bash
 cd guard
 cp .env.example .env && chmod 600 .env     # fill in as in the table above
-npm install && GUARD_VERSION=v1 GUARD_MODE=decide npm run commit    # commit records go to guard/.secrets/commits on the host
+npm install && GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-haiku-5-5    # commit records go to guard/.secrets/commits on the host
 docker compose up -d --build
 docker compose ps                           # STATUS shows "healthy" after about 20 s
 curl -fsS http://127.0.0.1:8787/health
@@ -173,8 +173,11 @@ curl -fsS https://guard.example.com/health
 On the guard server (the service must hold the commit record, or attempts wait as "no local instructions"):
 
 ```bash
-cd guard && GUARD_VERSION=v1 npm run commit
+cd guard && GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-haiku-5-5   # lighter rung
+cd guard && GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-opus-5-5    # top rung
 ```
+
+One commit per round. The record fixes the round's version, mode **and model** before the round opens; the running service uses that model for that round whatever `MODEL_NAME` says later. For the ladder, open one round per record (below); both run at once and `GET /rounds/live` lists them. The service needs a key for every provider named in a live round's record.
 
 **Ran locally.** It prints `guardCommit: 0x…` and stores the salt, the exact instruction bytes and the version in `.secrets/commits/<guardCommit>.json`. A running service picks up a new record within 5 seconds, with no restart (checked locally). Keep that file private until the round is over. Back it up: without it the round cannot be revealed.
 

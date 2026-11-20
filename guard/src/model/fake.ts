@@ -11,11 +11,13 @@ export type FakeScript = (messages: ChatMessage[], tools: ToolDef[], turn: numbe
  * (decide mode) and there is no directive, it calls reject_payment, like a model obeying tool_choice.
  */
 export class FakeAdapter implements ModelAdapter {
-  readonly id = "fake/scripted";
+  readonly id: string;
   calls: ChatMessage[][] = [];
   /** Options passed on each call (e.g. requireTool), same order as `calls`. */
   options: CompleteOptions[] = [];
-  constructor(private script: FakeScript = directiveScript) {}
+  constructor(private script: FakeScript = directiveScript, id = "fake/scripted") {
+    this.id = id;
+  }
 
   async complete(messages: ChatMessage[], tools: ToolDef[], opts: CompleteOptions = {}): Promise<ModelResult> {
     this.calls.push([...messages]); // snapshot: the caller keeps appending to its array
