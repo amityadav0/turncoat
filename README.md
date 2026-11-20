@@ -135,10 +135,10 @@ Agentic Wallet (baw) ── attempt(roundId, messageHash) ──▶ Turncoat con
 | Contract | Built. 13 tests pass on a local chain. Not audited. |
 | Guard service, level 1 | Not started |
 | Agent skill | Not started |
-| Site: live feed and practice mode | Not started |
+| Site (`web/`) | Built: home, live feed, practice, library, fairness, share cards. Runs on demo data only: the guard service it reads from does not exist yet. Not deployed. |
 | Mainnet deployment | Not deployed |
 | Levels 2–5 | Planned |
-| Attack library and post-mortems | Planned (first one after the first break) |
+| Attack library and post-mortems | Site pages built; no round has run, so there is nothing in them yet. First post-mortem after the first break. |
 
 Contract address: _added at deployment._
 
@@ -148,6 +148,16 @@ Contract address: _added at deployment._
 npm install
 npm test   # compiles with solc 0.8.28 and runs the contract tests on a local chain
 ```
+
+The site:
+
+```bash
+cd web
+npm install
+npm run dev   # with no VITE_API_BASE_URL set, it runs on demo data and says so on every page
+```
+
+Configuration is in `web/.env.example`; the API the site expects from the guard service is in `web/API.md`. To deploy on Netlify, set the base directory to `web`.
 
 ## Where this goes after the hackathon
 

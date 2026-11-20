@@ -1,0 +1,61 @@
+import { config } from '../config';
+import * as N from './normalize';
+import type { Api, Attempt, Round } from './types';
+
+async function call(path: string, init?: RequestInit): Promise<unknown> {
+  const res = await fetch(`${config.apiBase}${path}`, {
+    ...init,
+    headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}) },
+  });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const body = (await res.json()) as { error?: unknown; retryAfterSeconds?: unknown };
+      if (res.status === 429 && typeof body.retryAfterSeconds === 'number') detail = `too many tries, wait ${Math.ceil(body.retryAfterSeconds)}s`;
+      else if (typeof body.error === 'string') detail = body.error.slice(0, 160);
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(res.status, detail || `guard service returned ${res.status}`);
+  }
+  return res.json();
+}
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+const list = (v: unknown, key: string): unknown[] => {
+  const x = v && typeof v === 'object' ? (v as Record<string, unknown>)[key] : undefined;
+  return Array.isArray(x) ? x : [];
+};
+
+export const httpApi: Api = {
+  async currentRound() {
+    try {
+      const v = (await call('/rounds/current')) as { round?: unknown };
+      return v?.round ? N.round(v.round) : null;
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+      // Older guard builds have no /rounds/current: pick the live round, else the newest.
+      const all = await httpApi.rounds();
+      return all.find((r) => r.status === 'live') ?? all[0] ?? null;
+    }
+  },
+  async rounds() {
+    return list(await call('/rounds'), 'rounds').map(N.round).filter((r): r is Round => r !== null);
+  },
+  async round(id) {
+    return N.roundDetail(await call(`/rounds/${encodeURIComponent(id)}`));
+  },
+  async attempts(roundId, after) {
+    const q = after === undefined ? '' : `?after=${encodeURIComponent(after)}`;
+    const raw = list(await call(`/rounds/${encodeURIComponent(roundId)}/attempts${q}`), 'attempts');
+    return raw.map(N.attempt).filter((a): a is Attempt => a !== null);
+  },
+  async practice(level, message) {
+    return N.practice(await call('/practice', { method: 'POST', body: JSON.stringify({ level, message }) }));
+  },
+};
