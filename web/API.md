@@ -29,6 +29,8 @@ interface Round {
   pot: string;           // token base units, decimal string: the contract's current pot (0 after a payout)
   payout?: string;       // REQUESTED, not yet sent: amount paid to the winner (GuardBroken.pot), base units
   attemptCount: number;
+  paidEnabled: boolean;  // extra paid attempts on or off for this round (fixed at open)
+  baseFee: string;       // base fee for a paid attempt, token base units ("0" when free-only)
   guardCommit: Hex;      // as stored on-chain
   guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (instructions stay secret until reveal); absent if the service holds no record for this guardCommit
   openTx?: Hex;          // RoundOpened transaction

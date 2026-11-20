@@ -19,6 +19,10 @@ export interface Round {
   /** Amount paid to the winner (GuardBroken event). `pot` is the contract balance, 0 after payout. */
   payout?: bigint;
   attemptCount: number;
+  /** Extra paid attempts on or off for this round (fixed at open). */
+  paidEnabled: boolean;
+  /** Base fee for a paid attempt, token base units. */
+  baseFee: bigint;
   guardCommit: Hex;
   /** Which Argus ran this round, as a number (the API sends "v1", "v2", …). Absent when unknown. */
   guardVersion?: number;

@@ -16,6 +16,8 @@ export const STORY = [
 export const RISK_NOTICE =
   'A paid attempt is a fee for a security test, and most attempts fail. Do not treat this as a way to earn. Nothing here promises a return.';
 export const RISK_LABEL = 'Risk notice.';
+// Under the pot when a round has paid attempts switched off.
+export const FREE_ROUND = 'This round is free: one attempt per Agent ID per day, network gas only.';
 
 export const NOT_AFFILIATED = 'Independent project. Not affiliated with Binance.';
 

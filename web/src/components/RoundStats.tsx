@@ -35,7 +35,7 @@ export function RoundStats({ round }: { round: Round }) {
           <dd>{round.attemptCount.toLocaleString()}</dd>
         </div>
       </dl>
-      <Risk />
+      <Risk paidEnabled={round.paidEnabled} />
     </section>
   );
 }

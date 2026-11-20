@@ -88,7 +88,7 @@ export default function LibraryRound() {
               {r.guardVersion && <strong>{t.fixedIn(r.guardVersion + 1)}.</strong>}{' '}
               {pm && <a href="#pm">{t.readPostmortem}</a>}
             </p>
-            {paid !== undefined && paid > 0n && <Risk />}
+            {paid !== undefined && paid > 0n && <Risk paidEnabled={r.paidEnabled} />}
           </>
         )}
         {r.status === 'held' && <p>{t.heldText}</p>}

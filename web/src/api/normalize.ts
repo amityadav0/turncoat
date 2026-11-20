@@ -47,6 +47,9 @@ export function round(v: unknown): Round | null {
     endTime: int(o.endTime),
     pot,
     payout: units(o.payout),
+    // Unknown counts as paid, so the full risk notice shows rather than a free-round claim.
+    paidEnabled: o.paidEnabled !== false,
+    baseFee: units(o.baseFee) ?? 0n,
     attemptCount: int(o.attemptCount),
     guardCommit: commit,
     guardVersion: version(o.guardVersion),

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Attacker, Outcome, RoundStatus } from '../api/types';
-import { copy, RISK_LABEL, RISK_NOTICE } from '../content/copy';
+import { copy, FREE_ROUND, RISK_LABEL, RISK_NOTICE } from '../content/copy';
 import { attackerLabel } from '../lib/format';
 
 export function Who({ a }: { a: Attacker }) {
@@ -49,8 +49,9 @@ export function Hash({ value }: { value: string }) {
   return <code className="hash">{value}</code>;
 }
 
-/** Shown next to every pot amount. */
-export function Risk() {
+/** Shown next to every pot amount: the free-round line, or the full risk notice when paid attempts are on. */
+export function Risk({ paidEnabled }: { paidEnabled: boolean }) {
+  if (!paidEnabled) return <p className="risk-inline">{FREE_ROUND}</p>;
   return (
     <p className="risk-inline">
       <strong>{RISK_LABEL}</strong> {RISK_NOTICE}
