@@ -80,7 +80,10 @@ export const copy = {
     practiceNote: 'Free. No wallet, no sign-in.',
     liveRound: 'The live round',
     latestRound: 'The latest round',
-    watch: 'Watch attempts arrive',
+    recent: 'Latest attempts',
+    noneAnswered: 'No answered attempts yet this round.',
+    allAttempts: 'See every attempt',
+    outcomeShort: { held: 'Held', broken: 'Turned' },
     howHeading: 'How to try for the pot',
     // From README.md "Argus learns".
     learnsHeading: 'Argus learns',

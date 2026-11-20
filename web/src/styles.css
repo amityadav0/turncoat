@@ -614,6 +614,29 @@ main {
   unicode-bidi: isolate;
   font-size: 0.97rem;
 }
+.clamp-2,
+.clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-2 {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.clamp-3 {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+.recent {
+  margin-top: 24px;
+}
+.attempt-mini {
+  padding: 12px 14px;
+}
+.attempt-mini .hostile {
+  margin: 6px 0 0;
+}
 .sneaky {
   font-family: var(--mono);
   font-size: 0.75em;

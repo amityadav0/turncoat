@@ -3,6 +3,7 @@ import logo from '../../../assets/logo.svg';
 import { api } from '../api';
 import { Failed, Loading } from '../components/bits';
 import { ClaimAgentId } from '../components/ClaimAgentId';
+import { RecentAttempts } from '../components/RecentAttempts';
 import { RoundStats } from '../components/RoundStats';
 import { copy, ONE_LINE, STORY } from '../content/copy';
 import { useAsync } from '../lib/useAsync';
@@ -39,11 +40,7 @@ export default function Home() {
           (current.data ? (
             <>
               <RoundStats round={current.data} />
-              <p className="after-card">
-                <Link to="/live" className="arrow">
-                  {t.watch}
-                </Link>
-              </p>
+              <RecentAttempts roundId={current.data.id} />
             </>
           ) : (
             <p className="muted">{copy.common.noRoundYet}</p>
