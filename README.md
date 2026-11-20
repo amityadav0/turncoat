@@ -42,7 +42,7 @@ The game is the incentive. The product is what comes out of it.
 | **Attack library** | Skill developers | Every attempt from every finished round, downloadable. Replay it against your own agent as a test suite. |
 | **Post-mortems** | Everyone | One short write-up per break: the attack, the cause, the fix. |
 | **Guard rulebook** | Skill developers | The fixes, collected into rules you can copy into your own skill. |
-| **Practice mode** | Wallet users | Every level, free, no pot, no transaction. Learn what each attack looks like. |
+| **Practice mode** | Anyone | Every level, free, no pot, no transaction and no wallet. Learn what each attack looks like before it happens to your own agent. |
 | **Tester record** | Attackers | Attempts made and guards broken, recorded on-chain under your .ai name. |
 
 ## The levels
@@ -58,6 +58,12 @@ Each level is one real attack type. Level 1 ships first; the rest follow in orde
 | 5 | Approval trap | Anything above, aiming for an unlimited approval instead of a transfer |
 
 A guard is "broken" when it calls an action its rules forbid. That is decided by code that watches the guard's actions, not by the model's opinion of itself.
+
+## Argus learns
+
+Argus does not start as a fortress. Round 1 runs a plain guard: one rule, no list of known tricks. When he is broken, the attack is published, one rule is added to answer it, and the next round runs the patched guard. Each version contains everything from the version before.
+
+That makes every break useful twice: the attacker keeps the pot, and every skill developer gets a tested rule to copy. The history of versions is the guard rulebook.
 
 ## How Agent ID is used
 
@@ -77,10 +83,10 @@ The guard is a language model, so it runs off-chain. These are the checks that l
 
 - **The guard's instructions are committed before the round.** Their hash goes on-chain when the round opens. The full text is revealed when the round ends, and anyone can check it matches.
 - **Every attempt is on-chain.** The hash of each message is recorded in the attempt transaction, so no message can be added, removed or edited later.
-- **Every transcript is published** when the round ends: each message and the guard's full reply.
+- **Every attempt is public as soon as Argus answers it:** the message and his full reply, while the round is still live. Anyone can watch, learn from failed attempts and check the result.
 - **The pot is locked in the contract.** The owner cannot withdraw it. It leaves only to an attacker with a valid break, or rolls into the next round.
 
-What you still have to trust: that the guard service ran the committed instructions honestly during the round. The published transcripts make cheating visible afterwards; they do not make it impossible.
+What you still have to trust: that the guard service ran the committed instructions honestly during the round. The public transcripts and the revealed instructions make cheating visible; they do not make it impossible.
 
 ## Cost to play
 
@@ -134,7 +140,7 @@ Agentic Wallet (baw) ── attempt(roundId, messageHash) ──▶ Turncoat con
 |---|---|
 | Contract | Built. 13 tests pass on a local chain. Not audited. |
 | Guard service, level 1 (`guard/`) | Built: attempt checks and ordered queue, sandboxed wallet tools, break detector in code, verdict signer, optional relayer, practice mode, public API. Level 1 instructions in three versions (v1 plain, v2, v3 hardened), chosen with `GUARD_VERSION`. 30 tests pass on a local chain with a scripted stand-in model, and the service was smoke-tested against a local node. Not yet run against a real model: the 60-prompt level 1 red-team set has not been run on any version. Not deployed. |
-| Agent skill | Not started |
+| Agent skill (`skill/`) | Built: `SKILL.md` (free practice first, Agent ID and Developer Mode checks, preview and explicit confirmation before every transaction, exact-fee approval for paid attempts, message delivery, reply, settle) and a dependency-free helper for hashing, calldata, contract reads and the guard API. 8 helper tests pass on a local chain. Not yet run with a real Agentic Wallet; the mainnet checklist is `docs/E2E.md`. Contract address and guard URL are placeholders until deployment. |
 | Site (`web/`) | Built: home, live feed, practice, library, fairness, share cards. Runs on demo data only. The guard service now exists and serves the shapes in `web/API.md`, but the site has not been run against it yet. Not deployed. |
 | Mainnet deployment | Not deployed |
 | Levels 2–5 | Planned |
