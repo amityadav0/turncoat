@@ -1,0 +1,9 @@
+node_modules/
+build/
+deployments/
+.env
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.claude/
+prompts/
