@@ -53,6 +53,6 @@ app.listen(cfg.port, cfg.host, () => {
   log("info", "guard service listening", {
     url: `http://${cfg.host}:${cfg.port}`, model: model.id, contract: chain.address, chainId: cfg.chainId,
     signer: signer.address, relayer: chain.relayerAddress ?? null, commitsLoaded: commits.size,
-    commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null, mode: c.mode ?? "refuse" })), practiceVersion: guardVersion, practiceMode: guardMode,
+    commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null, mode: c.mode ?? "refuse", model: c.model ?? null })), practiceVersion: guardVersion, practiceMode: guardMode,
   });
 });
