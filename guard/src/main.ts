@@ -8,7 +8,7 @@ import { modelFromEnv } from "./model/index.ts";
 import { registerSecret } from "./model/redact.ts";
 import { Store } from "./db.ts";
 import { TurncoatChain } from "./chain.ts";
-import { loadRecords } from "./commit.ts";
+import { CommitBook } from "./commit.ts";
 import { RoundProcessor } from "./processor.ts";
 import { GuardService } from "./service.ts";
 import { RateLimiter } from "./ratelimit.ts";
@@ -33,7 +33,7 @@ if (expected.toLowerCase() !== signer.address.toLowerCase()) {
   throw new Error(`GUARD_SIGNER_PRIVATE_KEY is for ${signer.address}, but the contract's guardSigner is ${expected}`);
 }
 
-const commits = loadRecords(cfg.commitsDir);
+const commits = new CommitBook(cfg.commitsDir);
 const store = new Store(cfg.dbPath);
 const proc = new RoundProcessor({
   store, chain, model, commits, signer, log,

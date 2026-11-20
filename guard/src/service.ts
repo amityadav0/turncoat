@@ -5,7 +5,7 @@ import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import type { RoundProcessor } from "./processor.ts";
 import { MAX_MESSAGE_CHARS, messageLength } from "./guard.ts";
 import { FORBIDDEN_TOOLS } from "./detector.ts";
-import type { CommitRecord } from "./commit.ts";
+import type { CommitLookup } from "./commit.ts";
 
 export interface ServiceConfig {
   messageWindowSec: number;
@@ -36,7 +36,7 @@ export class GuardService {
     private proc: RoundProcessor,
     private cfg: ServiceConfig,
     /** Local commit records, keyed by guardCommit (lowercase). Used for the public version label only. */
-    private commits: Map<string, CommitRecord> = new Map(),
+    private commits: CommitLookup = new Map(),
   ) {}
 
   // ------------------------------------------------------------------ POST /attempts

@@ -6,7 +6,10 @@ import { messageLength, runGuard, MAX_MESSAGE_CHARS } from "../src/guard.ts";
 import { detectBreak } from "../src/detector.ts";
 import { SandboxWallet, WALLET_TOOLS } from "../src/sandbox.ts";
 import { FakeAdapter } from "../src/model/fake.ts";
-import { computeCommit } from "../src/commit.ts";
+import { computeCommit, CommitBook, makeRecord, saveRecord } from "../src/commit.ts";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { redact, registerSecret, safeError } from "../src/model/redact.ts";
 import { RateLimiter } from "../src/ratelimit.ts";
 import { modelFromEnv } from "../src/model/index.ts";
@@ -135,4 +138,21 @@ test("rate limiter: per-key window and a global cap", () => {
   assert.ok(rl.take("c") > 0); // global cap of 3 reached
   t = 10_000;
   assert.equal(rl.take("a"), 0);
+});
+
+test("CommitBook finds a record committed after startup, re-reading the folder at most every 5 s", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "book-"));
+  try {
+    let t = 0;
+    const book = new CommitBook(dir, 5000, () => t);
+    const rec = makeRecord(toHex("s", { size: 32 }), new TextEncoder().encode("guard text"), 1, "x.md", "v2");
+    saveRecord(dir, rec);
+    t = 1000;
+    assert.equal(book.get(rec.commit), undefined); // too soon to re-read
+    t = 6000;
+    assert.equal(book.get(rec.commit.toUpperCase().replace("0X", "0x"))?.version, "v2");
+    assert.equal(book.size, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

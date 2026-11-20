@@ -9,7 +9,7 @@ import type { PrivateKeyAccount } from "viem/accounts";
 import type { Store, AttemptRow } from "./db.ts";
 import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import type { ModelAdapter } from "./model/index.ts";
-import { type CommitRecord, instructionsText } from "./commit.ts";
+import { type CommitLookup, instructionsText } from "./commit.ts";
 import { runGuard } from "./guard.ts";
 import { redact } from "./model/redact.ts";
 import type { Logger } from "./log.ts";
@@ -26,7 +26,7 @@ export interface ProcessorDeps {
   store: Store;
   chain: TurncoatChain;
   model: ModelAdapter;
-  commits: Map<string, CommitRecord>;
+  commits: CommitLookup;
   signer: PrivateKeyAccount;
   cfg: ProcessorConfig;
   log: Logger;

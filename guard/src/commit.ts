@@ -51,3 +51,41 @@ export function loadRecords(dir: string): Map<string, CommitRecord> {
   return out;
 }
 
+
+/** Lookup by guardCommit. A Map from loadRecords() works; CommitBook also picks up records added while running. */
+export interface CommitLookup {
+  get(commit: string): CommitRecord | undefined;
+}
+
+/**
+ * Commit records from a directory, re-read when a lookup misses (at most every `minReloadMs`), so a
+ * round committed with `npm run commit` after the service started is found without a restart.
+ */
+export class CommitBook implements CommitLookup {
+  private records: Map<string, CommitRecord>;
+  private lastLoad: number;
+
+  constructor(private dir: string, private minReloadMs = 5000, private now = () => Date.now()) {
+    this.records = loadRecords(dir);
+    this.lastLoad = this.now();
+  }
+
+  get(commit: string): CommitRecord | undefined {
+    const key = commit.toLowerCase();
+    let rec = this.records.get(key);
+    if (!rec && this.now() - this.lastLoad >= this.minReloadMs) {
+      this.records = loadRecords(this.dir);
+      this.lastLoad = this.now();
+      rec = this.records.get(key);
+    }
+    return rec;
+  }
+
+  values(): IterableIterator<CommitRecord> {
+    return this.records.values();
+  }
+
+  get size(): number {
+    return this.records.size;
+  }
+}
