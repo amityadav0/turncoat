@@ -512,6 +512,9 @@ main {
 .block-tight {
   margin-top: 32px;
 }
+.round-line {
+  margin: -4px 0 12px;
+}
 .round-model {
   margin: 12px 0 0;
 }

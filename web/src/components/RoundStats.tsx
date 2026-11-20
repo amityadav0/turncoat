@@ -1,6 +1,6 @@
 import type { Round } from '../api/types';
 import { config } from '../config';
-import { copy } from '../content/copy';
+import { copy, roundLevelLine } from '../content/copy';
 import { money, timeLeft } from '../lib/format';
 import { useNow } from '../lib/useNow';
 import { Risk, StatusTag } from './bits';
@@ -14,11 +14,12 @@ export function RoundStats({ round }: { round: Round }) {
     <section className="round-card" aria-label={`Round ${round.id}`}>
       <div className="round-card-head">
         <span className="eyebrow">
-          {config.mock && <span className="tag tag-demo">{copy.common.demoTag}</span>} {t.label(round.id, round.level)}
+          {config.mock && <span className="tag tag-demo">{copy.common.demoTag}</span>} {t.label(round)}
           {round.guardVersion && <> · {t.version(round.guardVersion)}</>}
         </span>
         <StatusTag status={round.status} />
       </div>
+      {roundLevelLine(round) && <p className="muted small round-line">{roundLevelLine(round)}</p>}
       <dl className="stats">
         <div>
           <dt>{t.pot}</dt>

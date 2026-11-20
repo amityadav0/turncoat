@@ -34,7 +34,7 @@ export default function Library() {
                   <StatusTag status={r.status} />
                   {r.guardVersion && <span className="muted small">{copy.round.version(r.guardVersion)}</span>}
                 </span>
-                <span className="muted small">{t.summary(r.level, r.attemptCount, dateTime(r.startTime))}</span>
+                <span className="muted small">{t.summary(r, r.attemptCount, dateTime(r.startTime))}</span>
                 {r.status === 'broken' && r.winner && (
                   <span className="small">
                     {t.turnedBy} <Who a={r.winner} />

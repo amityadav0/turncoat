@@ -28,6 +28,8 @@ export interface Round {
   guardVersion?: number;
   /** Model id the guard runs, e.g. "claude-opus-5-5". Shown when the service sends it. */
   model?: string;
+  /** How the level is played ("refuse", "decide", …). Names and descriptions come from MODES in copy.ts. */
+  mode?: string;
   openTx?: Hex;
   winner?: Attacker;
   winningAttempt?: number;

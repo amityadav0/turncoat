@@ -27,7 +27,7 @@ interface Round {
   startTime: number;     // unix seconds
   endTime: number;       // unix seconds
   pot: string;           // token base units, decimal string: the contract's current pot (0 after a payout)
-  payout?: string;       // REQUESTED, not yet sent: amount paid to the winner (GuardBroken.pot), base units
+  payout?: string;       // amount paid to the winner (GuardBroken.pot), base units; the site shows "Paid out: <amount>"
   attemptCount: number;
   paidEnabled: boolean;  // extra paid attempts on or off for this round (fixed at open)
   baseFee: string;       // base fee for a paid attempt, token base units ("0" when free-only)

@@ -30,6 +30,22 @@ export const LEVELS = [
 ];
 export const levelName = (n: number) => LEVELS.find((l) => l.level === n)?.name ?? `Level ${n}`;
 
+// How a round's level is played, keyed by Round.mode (web/API.md). Unknown modes fall back to
+// "Level n" with no description, so a new guard mode never shows a wrong name.
+export const MODES: Record<string, { name: string; line: string }> = {
+  refuse: { name: 'Direct persuasion', line: 'Send Argus one message. He can always say no.' },
+  decide: { name: 'Payment requests', line: 'Argus must approve or reject every request. Get him to approve one he should not.' },
+};
+type LevelRef = { level: number; mode?: string };
+export const roundLevelName = (r: LevelRef): string | undefined =>
+  r.mode !== undefined ? MODES[r.mode]?.name : LEVELS.find((l) => l.level === r.level)?.name;
+/** "Level 1: Direct persuasion", or just "Level 1" when the mode or level has no known name. */
+export const levelText = (r: LevelRef) => {
+  const name = roundLevelName(r);
+  return name ? `Level ${r.level}: ${name}` : `Level ${r.level}`;
+};
+export const roundLevelLine = (r: LevelRef) => (r.mode !== undefined ? MODES[r.mode]?.line : undefined);
+
 export const copy = {
   layout: {
     skip: 'Skip to content',
@@ -61,7 +77,7 @@ export const copy = {
   },
 
   round: {
-    label: (id: number, level: number) => `Round ${id} · Level ${level}: ${levelName(level)}`,
+    label: (r: LevelRef & { id: number }) => `Round ${r.id} · ${levelText(r)}`,
     version: (n: number) => `Argus v${n}`,
     model: (id: string) => `Model: ${id}`,
     pot: 'Pot',
@@ -191,14 +207,14 @@ export const copy = {
     title: 'Library',
     lede: "Every attempt from every finished round, with Argus's full reply. Download a round as JSONL and replay it against your own agent as a test suite.",
     none: 'No round has finished yet. The first one appears here when it closes.',
-    summary: (level: number, n: number, opened: string) => `Level ${level}: ${levelName(level)} · ${n} attempts · opened ${opened}`,
+    summary: (r: LevelRef, n: number, opened: string) => `${levelText(r)} · ${n} attempts · opened ${opened}`,
     turnedBy: 'Turned by',
     fixedIn: (n: number) => `Fixed in v${n}`,
     readPostmortem: 'Read the post-mortem',
     hasPostmortem: ' · post-mortem',
     back: '← Library',
-    range: (level: number, from: string, to: string) => `Level ${level}: ${levelName(level)} · ${from} to ${to}`,
-    closedEarly: (level: number, from: string) => `Level ${level}: ${levelName(level)} · opened ${from}, closed early by a break`,
+    range: (r: LevelRef, from: string, to: string) => `${levelText(r)} · ${from} to ${to}`,
+    closedEarly: (r: LevelRef, from: string) => `${levelText(r)} · opened ${from}, closed early by a break`,
     turnedOn: (n?: number) => `Turned on attempt #${n} by`,
     potPaid: (amount: string) => `The pot of ${amount} was paid to that attacker's wallet by the contract.`,
     payoutTx: 'Payout transaction',

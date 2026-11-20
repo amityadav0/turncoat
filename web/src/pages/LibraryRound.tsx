@@ -4,7 +4,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { api, isClosed, type RoundDetail } from '../api';
 import { AttemptCard } from '../components/AttemptCard';
 import { Ext, Failed, Loading, Risk, StatusTag, Who } from '../components/bits';
-import { copy } from '../content/copy';
+import { copy, roundLevelLine } from '../content/copy';
 
 const t = copy.library;
 import { explorer } from '../lib/explorer';
@@ -71,8 +71,8 @@ export default function LibraryRound() {
         <p className="lede">
           <StatusTag status={r.status} />{' '}
           {r.status === 'broken' && r.endTime > now
-            ? t.closedEarly(r.level, dateTime(r.startTime))
-            : t.range(r.level, dateTime(r.startTime), dateTime(r.endTime))}
+            ? t.closedEarly(r, dateTime(r.startTime))
+            : t.range(r, dateTime(r.startTime), dateTime(r.endTime))}
           {r.guardVersion && <> · {copy.round.version(r.guardVersion)}</>}
         </p>
         {r.status === 'broken' && r.winner && (
@@ -91,6 +91,7 @@ export default function LibraryRound() {
             {paid !== undefined && paid > 0n && <Risk paidEnabled={r.paidEnabled} />}
           </>
         )}
+        {roundLevelLine(r) && <p className="muted">{roundLevelLine(r)}</p>}
         {r.status === 'held' && <p>{t.heldText}</p>}
         {!closed && <p className="muted">{t.openText}</p>}
       </header>
