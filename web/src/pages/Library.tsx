@@ -5,7 +5,7 @@ import { copy } from '../content/copy';
 
 const t = copy.library;
 import { dateTime } from '../lib/format';
-import { postmortemFor } from '../lib/postmortems';
+import { postmortemFor, prelaunchPostmortem } from '../lib/postmortems';
 import { useAsync } from '../lib/useAsync';
 
 export default function Library() {
@@ -20,6 +20,21 @@ export default function Library() {
 
       {rounds.status === 'loading' && <Loading />}
       {rounds.status === 'error' && <Failed error={rounds.error} />}
+      {prelaunchPostmortem && (
+        <ul className="round-list round-list-pre">
+          <li className="round-item round-item-pre">
+            <span className="round-link-head">
+              <Link to="/library/prelaunch" className="round-link-title">
+                {t.prelaunchTitle}
+              </Link>
+              <span className="tag tag-prelaunch">{t.prelaunchTag}</span>
+              <span className="muted small">{copy.round.version(1)}</span>
+            </span>
+            <span className="muted small">{t.prelaunchText}</span>
+          </li>
+        </ul>
+      )}
+
       {rounds.status === 'ok' && (() => {
         const closed = rounds.data.filter(isClosed);
         if (closed.length === 0) return <p className="muted">{t.none}</p>;

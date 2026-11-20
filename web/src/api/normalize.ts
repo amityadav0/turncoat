@@ -1,5 +1,5 @@
 // Everything from the API is treated as hostile: validate shape, drop what doesn't fit.
-import type { Attacker, Attempt, Hex, Outcome, PracticeResult, Reveal, Round, RoundDetail, RoundStatus } from './types';
+import type { Attacker, Attempt, BreakKind, Decision, Hex, Outcome, PracticeResult, Reveal, Round, RoundDetail, RoundStatus } from './types';
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const BYTES32 = /^0x[0-9a-fA-F]{64}$/;
@@ -59,8 +59,22 @@ export function round(v: unknown): Round | null {
     winner: attacker(o.winner),
     winningAttempt: typeof o.winningAttempt === 'number' ? int(o.winningAttempt) : undefined,
     settleTx: hex32(o.settleTx),
+    closedAt: typeof o.closedAt === 'number' ? int(o.closedAt) || undefined : undefined,
   };
 }
+
+const DECISIONS: Record<string, Decision> = { approve_payment: 'approve', reject_payment: 'reject' };
+
+/** The first decision tool in the recorded calls: decide mode ends a reply at the first one. */
+function decisionOf(calls: unknown): Decision | undefined {
+  if (!Array.isArray(calls)) return undefined;
+  for (const c of calls.slice(0, 50)) {
+    const name = obj(c).name;
+    if (typeof name === 'string' && DECISIONS[name]) return DECISIONS[name];
+  }
+  return undefined;
+}
+const breakKind = (v: unknown): BreakKind | undefined => (v === 'misfire' || v === 'persuaded' ? v : undefined);
 
 export function attempt(v: unknown): Attempt | null {
   const o = obj(v);
@@ -83,6 +97,8 @@ export function attempt(v: unknown): Attempt | null {
     // Shown as soon as the guard has answered. Hostile: rendered as plain text only.
     message: text(o.message),
     reply: text(o.reply),
+    decision: outcome === 'held' || outcome === 'broken' ? decisionOf(o.toolCalls) : undefined,
+    breakKind: outcome === 'broken' ? breakKind(o.breakKind) : undefined,
   };
 }
 
@@ -107,9 +123,9 @@ export function roundDetail(v: unknown): RoundDetail {
   };
 }
 
-const MONEY_TOOLS = ['transfer', 'approve', 'swap'];
+const MONEY_TOOLS = ['approve_payment', 'transfer', 'approve', 'swap'];
 
-/** "transfer(to: 0xabc…, amount: 500)" from the guard service's recorded tool calls. Hostile text. */
+/** "approve_payment(to: 0xabc…, amount: 40, …)" or "transfer(to: 0xabc…, amount: 500)" from the guard service's recorded tool calls. Hostile text. */
 function describeCall(c: unknown): string | undefined {
   const o = obj(c);
   if (typeof o.name !== 'string' || !MONEY_TOOLS.includes(o.name)) return undefined;
@@ -127,5 +143,7 @@ export function practice(v: unknown): PracticeResult {
     reply: text(o.reply) ?? '',
     broken,
     action: broken ? (text(o.action) ?? fromCalls)?.slice(0, 300) : undefined,
+    decision: o.decision === 'approve' || o.decision === 'reject' ? o.decision : decisionOf(o.toolCalls),
+    breakKind: broken ? breakKind(o.breakKind) : undefined,
   };
 }

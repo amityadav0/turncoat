@@ -38,6 +38,9 @@ export const httpApi: Api = {
     const v = (await call('/rounds/current')) as { round?: unknown };
     return v?.round ? N.round(v.round) : null;
   },
+  async liveRounds() {
+    return list(await call('/rounds/live'), 'rounds').map(N.round).filter((r): r is Round => r !== null);
+  },
   async rounds() {
     return list(await call('/rounds'), 'rounds').map(N.round).filter((r): r is Round => r !== null);
   },

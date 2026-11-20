@@ -4,6 +4,8 @@ import { api, type Attempt, type Round } from '../api';
 import { AttemptCard } from '../components/AttemptCard';
 import { Failed, Loading } from '../components/bits';
 import { RoundStats } from '../components/RoundStats';
+import { RoundTabs } from '../components/RoundTabs';
+import { ladderOrder } from '../lib/ladder';
 import { useNow } from '../lib/useNow';
 import { copy } from '../content/copy';
 
@@ -13,7 +15,9 @@ const POLL_MS = 5000;
 const KEEP = 200;
 
 export default function Live() {
-  const [round, setRound] = useState<Round | null | undefined>(undefined);
+  // Live rounds lighter model first, or the latest round when none is live. undefined: loading.
+  const [rounds, setRounds] = useState<Round[] | undefined>(undefined);
+  const [picked, setPicked] = useState<number | undefined>(undefined);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [error, setError] = useState<string | null>(null);
   const known = useRef(new Map<number, Attempt>());
@@ -23,12 +27,19 @@ export default function Live() {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
     let roundId: number | undefined;
+    known.current.clear();
+    setAttempts([]);
 
     async function poll() {
       try {
-        const r = await api.currentRound();
+        let list = ladderOrder(await api.liveRounds());
+        if (list.length === 0) {
+          const latest = await api.currentRound();
+          list = latest ? [latest] : [];
+        }
         if (!alive) return;
-        setRound(r);
+        setRounds(list);
+        const r = list.find((x) => x.id === picked) ?? list[0];
         if (r) {
           if (r.id !== roundId) {
             known.current.clear();
@@ -56,7 +67,9 @@ export default function Live() {
       alive = false;
       clearTimeout(timer);
     };
-  }, []);
+  }, [picked]);
+
+  const round = rounds === undefined ? undefined : (rounds.find((x) => x.id === picked) ?? rounds[0] ?? null);
 
   return (
     <>
@@ -68,6 +81,7 @@ export default function Live() {
       {error && <Failed error={error} />}
       {round === undefined && !error && <Loading />}
       {round === null && <p className="muted">{copy.common.noRoundYet}</p>}
+      {rounds && round && <RoundTabs rounds={rounds} selected={round.id} onSelect={setPicked} />}
       {round && <RoundStats round={round} />}
 
       {round && (

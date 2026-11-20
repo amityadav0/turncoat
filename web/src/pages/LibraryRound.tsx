@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import Markdown from 'react-markdown';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { api, isClosed, type RoundDetail } from '../api';
 import { AttemptCard } from '../components/AttemptCard';
 import { Ext, Failed, Loading, Risk, StatusTag, Who } from '../components/bits';
+import { Postmortem } from '../components/Postmortem';
 import { copy, roundLevelLine } from '../content/copy';
 
 const t = copy.library;
@@ -23,6 +23,8 @@ function downloadJsonl(d: RoundDetail) {
       name: a.attacker.name ?? null,
       time: new Date(a.time * 1000).toISOString(),
       outcome: a.outcome,
+      breakKind: a.breakKind ?? null,
+      decision: a.decision ?? null,
       messageHash: a.messageHash,
       tx: a.tx ?? null,
       message: a.message ?? null,
@@ -70,9 +72,11 @@ export default function LibraryRound() {
         <h1>{copy.fairness.roundN(r.id)}</h1>
         <p className="lede">
           <StatusTag status={r.status} />{' '}
-          {r.status === 'broken' && r.endTime > now
-            ? t.closedEarly(r, dateTime(r.startTime))
-            : t.range(r, dateTime(r.startTime), dateTime(r.endTime))}
+          {r.closedAt !== undefined
+            ? t.closedOn(r, dateTime(r.startTime), dateTime(r.closedAt))
+            : r.status === 'broken' && r.endTime > now
+              ? t.closedEarly(r, dateTime(r.startTime))
+              : t.range(r, dateTime(r.startTime), dateTime(r.endTime))}
           {r.guardVersion && <> · {copy.round.version(r.guardVersion)}</>}
         </p>
         {r.status === 'broken' && r.winner && (
@@ -92,6 +96,7 @@ export default function LibraryRound() {
           </>
         )}
         {roundLevelLine(r) && <p className="muted">{roundLevelLine(r)}</p>}
+        {attempts.some((a) => a.breakKind) && <p className="muted small">{t.breakKinds}</p>}
         {r.status === 'held' && <p>{t.heldText}</p>}
         {!closed && <p className="muted">{t.openText}</p>}
       </header>
@@ -110,20 +115,7 @@ export default function LibraryRound() {
         <section className="block postmortem" aria-labelledby="pm">
           <h2 id="pm">{t.postmortem}</h2>
           {pm ? (
-            <div className="prose">
-              <Markdown
-                skipHtml
-                components={{
-                  a: ({ href, children }) => (
-                    <a href={href} target="_blank" rel="noopener noreferrer nofollow">
-                      {children}
-                    </a>
-                  ),
-                }}
-              >
-                {pm}
-              </Markdown>
-            </div>
+            <Postmortem text={pm} />
           ) : (
             <p className="muted">{t.postmortemPending}</p>
           )}

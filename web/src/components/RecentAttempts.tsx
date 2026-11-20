@@ -1,18 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type Attempt } from '../api';
+import { api, type Attempt, type Round } from '../api';
 import { copy } from '../content/copy';
 import { ago } from '../lib/format';
 import { useNow } from '../lib/useNow';
-import { Who } from './bits';
+import { BreakKindTag, DecisionTag, Who } from './bits';
+import { RoundTabs } from './RoundTabs';
 import { HostileText } from './HostileText';
 
 const t = copy.home;
 const POLL_MS = 10_000;
 const SHOW = 3;
 
-/** The three most recent answered attempts, polled gently, paused while the tab is hidden. */
-export function RecentAttempts({ roundId }: { roundId: number }) {
+/**
+ * The three most recent answered attempts, polled gently, paused while the tab is hidden.
+ * With several live rounds (the ladder), a small tab per round picks which one.
+ */
+export function RecentAttempts({ rounds }: { rounds: Round[] }) {
+  const [picked, setPicked] = useState<number | undefined>(undefined);
+  const roundId = rounds.find((r) => r.id === picked)?.id ?? rounds[0].id;
   const [items, setItems] = useState<Attempt[] | null>(null);
   const now = useNow(POLL_MS);
 
@@ -42,6 +48,7 @@ export function RecentAttempts({ roundId }: { roundId: number }) {
       }
     }
 
+    setItems(null);
     load();
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
@@ -51,11 +58,11 @@ export function RecentAttempts({ roundId }: { roundId: number }) {
     };
   }, [roundId]);
 
-  if (items === null) return null;
   return (
     <section className="recent" aria-label={t.recent}>
       <h3 className="h-small">{t.recent}</h3>
-      {items.length === 0 ? (
+      <RoundTabs rounds={rounds} selected={roundId} onSelect={setPicked} />
+      {items === null ? null : items.length === 0 ? (
         <p className="muted small">{t.noneAnswered}</p>
       ) : (
         <ol className="attempts">
@@ -66,11 +73,12 @@ export function RecentAttempts({ roundId }: { roundId: number }) {
                   <Who a={a.attacker} />
                   <span className="muted small">{ago(a.time, now)}</span>
                   <span className="attempt-outcome">
+                    <BreakKindTag kind={a.breakKind} />{' '}
                     <span className={`tag tag-${a.outcome}`}>{a.outcome === 'broken' ? t.outcomeShort.broken : t.outcomeShort.held}</span>
                   </span>
                 </header>
                 {a.message !== undefined && <HostileText label={copy.attempt.message} text={a.message} lines={2} />}
-                {a.reply !== undefined && <HostileText label={copy.attempt.reply} text={a.reply} lines={3} />}
+                {a.reply !== undefined && <HostileText label={copy.attempt.reply} aside={<DecisionTag decision={a.decision} />} text={a.reply} lines={3} />}
               </article>
             </li>
           ))}

@@ -15,3 +15,7 @@ const byRound = (files: Record<string, string>) => {
 
 const table = byRound(config.mock ? demo : real);
 export const postmortemFor = (roundId: number) => table.get(roundId);
+
+// Post-mortem zero: pre-launch testing, not a round. Real in every mode (it describes our own tests).
+const zero = import.meta.glob('../../../docs/postmortems/000-prelaunch.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+export const prelaunchPostmortem: string | undefined = Object.values(zero)[0];

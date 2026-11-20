@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Attacker, Outcome, RoundStatus } from '../api/types';
+import type { Attacker, BreakKind, Decision, Outcome, RoundStatus } from '../api/types';
 import { copy, FREE_ROUND, RISK_LABEL, RISK_NOTICE } from '../content/copy';
 import { attackerLabel } from '../lib/format';
 
@@ -57,4 +57,19 @@ export function Risk({ paidEnabled }: { paidEnabled: boolean }) {
       <strong>{RISK_LABEL}</strong> {RISK_NOTICE}
     </p>
   );
+}
+
+/** "Rejected" or "Approved": the decision tool Argus called (decide mode). */
+export function DecisionTag({ decision }: { decision?: Decision }) {
+  if (!decision) return null;
+  return (
+    <span className={`tag tag-small tag-decision-${decision}`} title={copy.attempt.decisionTitle}>
+      {copy.attempt.decision[decision]}
+    </span>
+  );
+}
+
+export function BreakKindTag({ kind }: { kind?: BreakKind }) {
+  if (!kind) return null;
+  return <span className="tag tag-small tag-kind">{copy.attempt.breakKind[kind]}</span>;
 }

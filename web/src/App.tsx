@@ -20,6 +20,7 @@ const Live = lazy(() => import('./pages/Live'));
 const Practice = lazy(() => import('./pages/Practice'));
 const Library = lazy(() => import('./pages/Library'));
 const LibraryRound = lazy(() => import('./pages/LibraryRound'));
+const Prelaunch = lazy(() => import('./pages/Prelaunch'));
 const Fairness = lazy(() => import('./pages/Fairness'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: '/live', element: page(<Live />) },
       { path: '/practice', element: page(<Practice />) },
       { path: '/library', element: page(<Library />) },
+      { path: '/library/prelaunch', element: page(<Prelaunch />) },
       { path: '/library/:id', element: page(<LibraryRound />) },
       { path: '/fairness', element: page(<Fairness />) },
       { path: '*', element: page(<NotFound />) },

@@ -1,6 +1,6 @@
 # Guard service API, as the site uses it
 
-The site is read-only apart from `POST /practice`. This is the contract between `web/` and `guard/`; if one changes, change the other and this file together. The guard service adds extra fields (for example `potAmount`, `processedCount`, `toolCalls`); the site ignores what it doesn't use.
+The site is read-only apart from `POST /practice`. This is the contract between `web/` and `guard/`; if one changes, change the other and this file together. The guard service adds extra fields (for example `potAmount`, `processedCount`, `answeredAt`); the site ignores what it doesn't use.
 
 All responses are JSON. The site treats every field as untrusted: it validates shapes, drops malformed values and renders all text as plain text.
 

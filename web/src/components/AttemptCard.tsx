@@ -3,7 +3,7 @@ import type { Attempt } from '../api/types';
 import { copy } from '../content/copy';
 import { explorer } from '../lib/explorer';
 import { ago, dateTime } from '../lib/format';
-import { Ext, OutcomeTag, Who } from './bits';
+import { BreakKindTag, DecisionTag, Ext, OutcomeTag, Who } from './bits';
 import { HostileText } from './HostileText';
 import { SharePanel } from './SharePanel';
 
@@ -21,12 +21,13 @@ export function AttemptCard({ attempt: a, now, compact }: { attempt: Attempt; no
           {ago(a.time, now)}
         </time>
         <span className="attempt-outcome">
+          <BreakKindTag kind={a.breakKind} />
           <OutcomeTag outcome={a.outcome} />
         </span>
       </header>
 
       {a.message !== undefined && <HostileText label={t.message} text={a.message} limit={compact ? 280 : 1200} />}
-      {a.reply !== undefined && <HostileText label={t.reply} text={a.reply} limit={compact ? 280 : 1200} />}
+      {a.reply !== undefined && <HostileText label={t.reply} aside={<DecisionTag decision={a.decision} />} text={a.reply} limit={compact ? 280 : 1200} />}
       {a.outcome === 'pending' && <p className="muted small">{a.status === 'awaiting_message' ? t.awaiting : t.reading}</p>}
       {a.outcome === 'void' && <p className="muted small">{t.never(a.note)}</p>}
 

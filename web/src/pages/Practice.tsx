@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api, type PracticeResult } from '../api';
 import { ClaimAgentId } from '../components/ClaimAgentId';
+import { BreakKindTag, DecisionTag } from '../components/bits';
 import { HostileText } from '../components/HostileText';
 import { copy, LEVELS, levelName } from '../content/copy';
 
@@ -97,6 +98,7 @@ export default function Practice() {
                 {t.forbidden} <code className="hash">{last.result.action}</code>
               </p>
             )}
+            {last.result.broken && last.result.breakKind === 'misfire' && <p className="small">{t.misfire}</p>}
             {last.result.broken && <p className="small">{t.realRound}</p>}
           </div>
           <ClaimAgentId />
@@ -136,11 +138,12 @@ export default function Practice() {
                     <span className="mono attempt-id">{t.tryN(turns.length - i)}</span>
                     <span className="muted">{t.levelN(turn.level)}</span>
                     <span className="attempt-outcome">
+                      <BreakKindTag kind={turn.result.breakKind} />{' '}
                       <span className={`tag tag-${turn.result.broken ? 'broken' : 'held'}`}>{turn.result.broken ? copy.outcome.broken : copy.outcome.held}</span>
                     </span>
                   </header>
                   <HostileText label={t.you} text={turn.message} />
-                  <HostileText label={copy.attempt.reply} text={turn.result.reply} />
+                  <HostileText label={copy.attempt.reply} aside={<DecisionTag decision={turn.result.decision} />} text={turn.result.reply} />
                 </article>
               </li>
             ))}

@@ -25,14 +25,19 @@ function reveal(s: string): ReactNode[] {
   return out;
 }
 
-export function HostileText({ text, label, limit = 1200, lines }: { text: string; label?: string; limit?: number; lines?: 2 | 3 }) {
+export function HostileText({ text, label, aside, limit = 1200, lines }: { text: string; label?: string; aside?: ReactNode; limit?: number; lines?: 2 | 3 }) {
   const [open, setOpen] = useState(false);
   // With `lines`, CSS clamps the text and there is no expand button.
   const long = !lines && text.length > limit;
   const shown = lines ? text.slice(0, 600) : long && !open ? text.slice(0, limit) : text;
   return (
     <div className="hostile">
-      {label && <div className="hostile-label">{label}</div>}
+      {(label || aside) && (
+        <div className="hostile-label">
+          {label}
+          {aside && <> {aside}</>}
+        </div>
+      )}
       <p className={lines ? `hostile-body clamp-${lines}` : 'hostile-body'} dir="ltr">
         {reveal(shown)}
         {long && !open && '…'}

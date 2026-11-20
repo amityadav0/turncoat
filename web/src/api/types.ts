@@ -34,7 +34,14 @@ export interface Round {
   winner?: Attacker;
   winningAttempt?: number;
   settleTx?: Hex;
+  /** Block time of the settle transaction; a broken round can close before endTime. */
+  closedAt?: number;
 }
+
+/** Decide mode: which decision tool Argus called. */
+export type Decision = 'approve' | 'reject';
+/** On a broken attempt: misfire = refused in words, called the tool anyway; persuaded otherwise. */
+export type BreakKind = 'misfire' | 'persuaded';
 
 export interface Attempt {
   roundId: number;
@@ -46,6 +53,9 @@ export interface Attempt {
   tx?: Hex;
   message?: string;
   reply?: string;
+  /** Taken from the attempt's tool calls (approve_payment / reject_payment). */
+  decision?: Decision;
+  breakKind?: BreakKind;
   /** Guard service processing state, e.g. awaiting_message, queued, done, expired, rejected. */
   status?: string;
   note?: string;
@@ -67,10 +77,14 @@ export interface PracticeResult {
   reply: string;
   broken: boolean;
   action?: string;
+  decision?: Decision;
+  breakKind?: BreakKind;
 }
 
 export interface Api {
   currentRound(): Promise<Round | null>;
+  /** Every round accepting attempts: one per rung of the ladder. */
+  liveRounds(): Promise<Round[]>;
   rounds(): Promise<Round[]>;
   round(id: number): Promise<RoundDetail>;
   attempts(roundId: number, after?: number): Promise<Attempt[]>;

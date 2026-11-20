@@ -587,6 +587,10 @@ main {
 }
 .attempt-outcome {
   margin-left: auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }
 .who {
   font-weight: 700;
@@ -1001,4 +1005,77 @@ a.round-link-title:hover {
   * {
     scroll-behavior: auto !important;
   }
+}
+
+/* ---------- decide mode and break labels ---------- */
+.tag-small {
+  font-size: 0.62rem;
+  padding: 1px 6px;
+  letter-spacing: 0.08em;
+}
+.hostile-label .tag-small {
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+.tag-decision-reject {
+  color: var(--bone-dim);
+  border-color: var(--bone-faint);
+}
+.tag-decision-approve,
+.tag-kind {
+  color: var(--signal);
+  border-color: var(--signal);
+}
+.tag-prelaunch {
+  color: var(--bone);
+  border-style: dashed;
+  border-color: var(--bone-dim);
+}
+
+/* ---------- the ladder ---------- */
+.ladder-line {
+  margin-top: -4px;
+  max-width: 36em;
+}
+.round-cards {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 900px) {
+  .round-cards:has(> :nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.round-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.round-tab {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--bone-dim);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 6px 10px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.round-tab:hover {
+  color: var(--bone);
+}
+.round-tab.is-on {
+  color: var(--ink);
+  background: var(--bone);
+  border-color: var(--bone);
+}
+.round-tab:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+.round-list-pre + .round-list {
+  border-top: 0;
 }
