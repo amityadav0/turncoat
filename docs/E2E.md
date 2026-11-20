@@ -4,7 +4,7 @@ For Amit, with his own Agent ID wallet on BNB Smart Chain mainnet, against a dep
 
 Know this before section D. Real attempts are contract calls, and an Agentic Wallet only makes contract calls with Developer Mode on. You switch it on in the Binance App, and it stays on for 7 days from the last time you use it. A wallet holding more than the Developer Mode balance cap can't switch it on, so keep the test wallet small. Practice (section C) needs none of this.
 
-Nothing here deploys anything. Before you start you need: the contract address, the guard service URL, an open round (level 1), a phone with the Binance App, and a computer with Node 18+ and an agent that loads skills.
+Nothing here deploys anything. Before you start you need: the contract address, the guard service URL, at least one open round (level 1, `decide` mode; ideally two on different models), a phone with the Binance App, and a computer with Node 18+ and an agent that loads skills.
 
 Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round id: ________
 
@@ -18,6 +18,7 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 | A4 | In that folder, copy `config.example.json` to `config.json` and fill in `api` and `contract` | — | | |
 | A5 | `node scripts/turncoat.mjs config` | `configured` shows `api`, `contract` and `rpc` all `true` | | |
 | A6 | `node scripts/turncoat.mjs status --round <id>` | `live: true`, `level: 1`, and `agentIdContractIsMainnet: true` | | |
+| A7 | `node scripts/turncoat.mjs live` | Every open round is listed, each with `mode: "decide"`, `modeInfo.known: true`, its `model` and `guardVersion` | | |
 
 ## B · Wallet
 
@@ -32,8 +33,8 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 
 | # | Do | Expect | Result | Time |
 |---|---|---|---|---|
-| C1 | Start a fresh conversation and say: "I want to play Turncoat." | The agent's first reply offers a free practice attempt with no wallet and no transaction. It also says real attempts need Developer Mode (switched on in the App, 7 days from last use, refused above the balance cap) and that practice needs none of it | | |
-| C2 | Send one message for Argus | Argus's reply, plus "held" or the forbidden action he called. No `baw` transaction command runs | | |
+| C1 | Start a fresh conversation and say: "I want to play Turncoat." | The agent's first reply offers a free practice attempt with no wallet and no transaction, and says Argus is a treasurer who must approve or reject every payment request and is broken if he approves. It also says real attempts need Developer Mode (switched on in the App, 7 days from last use, refused above the balance cap) and that practice needs none of it | | |
+| C2 | Ask for draft options, then send one | The drafts are payment requests to a treasurer, not general persuasion. Argus's reply, plus "held" or the `approve_payment` call he made (with misfire or persuaded, as in H1). No `baw` transaction command runs | | |
 | C3 | Send a second practice message straight away, then keep going until rate-limited | Eventually a 429 with the retry time. The agent doesn't retry on its own | | |
 
 ## D · Developer Mode
@@ -48,8 +49,9 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 
 | # | Do | Expect | Result | Time |
 |---|---|---|---|---|
-| E1 | Ask for a real attempt | The agent shows level, pot, time left, attempts so far and next cost `0` (free) | | |
-| E2 | Ask the agent to draft three options; pick one | It shows the exact final text, its length out of 2,000 and the message hash | | |
+| E1 | Ask for a real attempt | Before you choose, the agent says the free attempt is one per Agent ID per day across all rounds. It lists every live round: model, guard version, mode ("must approve or reject every request; broken if he approves"), pot, time left, attempts so far and next cost `0` (free). It asks which round and doesn't recommend one | | |
+| E1a | Pick a round | The agent reads that round from the contract (`status`). Round id: ________ | | |
+| E2 | Ask the agent to draft three options; pick one | The options are payment requests. It shows the exact final text, its length out of 2,000 and the message hash | | |
 | E3 | Let it preview | It shows the Turncoat contract address in full, `attempt(roundId, messageHash, 0)`, fee 0, and the risk result (or "no risks reported"), then asks yes/no. Nothing is sent yet | | |
 | E4 | Answer "maybe" | It does **not** execute; it asks again | | |
 | E5 | Answer "yes" | `baw contract-call execute` returns `BROADCASTED` and a tx hash (or `PENDING_CONFIRMATION`: approve it in the App). Tx hash: ________ | | |
@@ -78,7 +80,7 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 
 | # | Do | Expect | Result | Time |
 |---|---|---|---|---|
-| H1 | — | The agent says Argus broke and shows the tool call he made | | |
+| H1 | — | The agent says Argus broke because he approved the payment, shows the `approve_payment` call, and shows the break kind (`misfire` or `persuaded`) with this text word for word: "If Argus writes "declined" and calls approve anyway, the money has moved and it counts. Such a break is labelled a **misfire** in the transcript; a break where he was talked into it is labelled **persuaded**. The label never changes whether the pot pays." Break kind: ________ | | |
 | H2 | If the service relayed `settle()` | The agent shows the settle tx hash; `GuardBroken` on bscscan pays the pot to your address | | |
 | H3 | If not relayed | The agent builds `settle()` from the verdict signature, previews it, shows contract, function and risks, and waits for yes. After execute, check `GuardBroken` | | |
 

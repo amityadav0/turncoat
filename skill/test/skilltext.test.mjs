@@ -43,3 +43,30 @@ test("the skill never describes attempts as earning, and its name has no 'Binanc
   const name = skill.match(/^name:\s*(.+)$/m)[1];
   assert.doesNotMatch(name, /binance|bnb/i);
 });
+
+// README: 'If Argus writes "declined" ... The label never changes whether the pot pays.'
+const breakKindText = readme.match(/If Argus writes "declined".*?The label never changes whether the pot pays\./)?.[0];
+
+test("a break is shown as misfire or persuaded with README's sentence, word for word", () => {
+  assert.ok(breakKindText, "README.md no longer has the misfire/persuaded sentence this test reads");
+  assert.ok(skill.includes(breakKindText), "SKILL.md does not contain README's misfire/persuaded wording verbatim");
+  assert.ok(e2e.includes(breakKindText), "docs/E2E.md does not contain README's misfire/persuaded wording verbatim");
+  assert.match(skill, /breakKind/);
+});
+
+test("the break is described from the round's mode, with a fallback for unknown modes", () => {
+  assert.match(skill, /Argus must approve or reject every request/);
+  assert.match(skill, /broken if he approves/i);
+  assert.match(skill, /he is broken if he takes an action his rules forbid/i);
+  assert.doesNotMatch(skill, /talk him into calling `transfer` or `approve`/);
+  assert.match(skill, /payment requests, not general persuasion/);
+});
+
+test("several live rounds: all shown, free-attempt rule said first, unknown mode stops before any transaction", () => {
+  const step3 = skill.slice(skill.indexOf("### 3 "), skill.indexOf("### 3a"));
+  for (const f of [/turncoat\.mjs live/, /`model`/, /`guardVersion`/, /`potAmount`/, /`timeLeft`/, /`attemptCount`/, /`nextFee`/]) assert.match(step3, f);
+  const rule = step3.indexOf("one free attempt per Agent ID per day, across all rounds");
+  assert.ok(rule > 0 && rule < step3.indexOf("Ask which round"), "free-attempt rule must come before the choice");
+  assert.match(step3, /doesn't support yet[^\n]*\n*Then stop\. Build no transaction/);
+  assert.match(skill, /attempt-calldata --round <id> --mode/);
+});
