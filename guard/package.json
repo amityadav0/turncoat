@@ -13,7 +13,8 @@
     "redteam": "tsx scripts/redteam.ts",
     "typecheck": "tsc --noEmit",
     "pretest": "node ../scripts/compile.mjs",
-    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts"
+    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts",
+    "demo": "tsx scripts/demo.ts"
   },
   "license": "MIT",
   "dependencies": {
