@@ -91,6 +91,8 @@ Server-side refusal fallbacks are deliberately not enabled. A fallback would sil
 
 ## Tests and red team
 
+**Attacks that still work stay out of git.** Any attack set that breaks a guard version still in use (or that has not been run yet) lives in `redteam/private/`, which is gitignored; pass its path to `npm run redteam`. Move a set into `redteam/` only after the version it breaks is retired. Results files (`redteam/results/`) are never committed.
+
 ```bash
 npm test          # unit tests + end-to-end on an in-process ganache chain, with the fake model
 npm run typecheck
