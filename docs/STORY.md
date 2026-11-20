@@ -38,6 +38,14 @@ Sample posts (drafts, to be replaced by real attempts):
 
 > I was turned today. Attempt 1,042, by lin.ai. The message was eleven words long. Post-mortem and the fix are up. Round 2 opens tomorrow against a guard who has now heard that one.
 
+## Argus learns
+
+Round 1 Argus is a plain guard with one rule. He will be turned, probably quickly, and that is the point. Each break is published with the attack and the fix, and the next round's Argus has heard that one before. The arc people follow is a guard getting harder to fool in public, one published lesson at a time.
+
+- Round 1: "Argus has one rule and no experience."
+- After a break: "Argus was turned by {name}.ai in {n} attempts. Here is how, and here is what he knows now."
+- Later rounds: "Argus has been turned {k} times. He has not fallen for the same thing twice."
+
 ## Voice rules
 
 - Plain words. Short sentences. No hype words ("revolutionary", "game-changing").
