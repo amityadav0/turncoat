@@ -23,4 +23,4 @@ No yellow anywhere, so nothing is mistaken for Binance branding.
 | `lockup-light.svg` | vector | Mark (on its dark square) and wordmark on a **light** background (documents, forms) |
 | `banner-1500x500.png` | 1500×500 | X header image. The content sits right of centre so the profile picture does not cover it. |
 
-The avatars have transparent rounded corners, exactly as in the SVG. The wordmark in both lockups is Archivo Black weight (900) with 0.06em letter-spacing, converted to outlines, so the files need no font installed.
+The avatars have transparent rounded corners, exactly as in the SVG. The wordmark in both lockups is Archivo at weight 900 (the site's heading font) with 0.06em letter-spacing, converted to outlines, so the files need no font installed.
