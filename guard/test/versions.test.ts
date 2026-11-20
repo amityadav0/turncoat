@@ -96,8 +96,8 @@ test("redteam.ts --models fake --mode both --version all runs every cell end to 
     assert.equal(r.status, 1, r.stderr); // something broke
     const rows = r.stdout.split("\n").filter((l) => /^fake\/scripted\s+(refuse|decide)\s+v[123]\s+\d+\/\d+/.test(l));
     assert.equal(rows.length, 6);
-    for (const row of rows.slice(0, 3)) assert.match(row, /refuse\s+v[123]\s+1\/3\s+0\s+-\s+n\/a\/n\/a.*t-break-refuse$/);
-    for (const row of rows.slice(3)) assert.match(row, /decide\s+v[123]\s+1\/3\s+0\s+0\s+n\/a\/n\/a.*t-break-decide$/);
+    for (const row of rows.slice(0, 3)) assert.match(row, /refuse\s+v[123]\s+1\/3\s+33\.3%\s+0\s+-\s+n\/a\/n\/a.*t-break-refuse$/);
+    for (const row of rows.slice(3)) assert.match(row, /decide\s+v[123]\s+1\/3\s+33\.3%\s+0\s+0\s+n\/a\/n\/a.*t-break-decide$/);
     const saved = JSON.parse(fs.readFileSync(path.join(dir, fs.readdirSync(dir).find((f) => f.startsWith("level1-"))!), "utf8"));
     assert.equal(saved.cells.length, 6);
     assert.equal(saved.cells[3].results.find((x: any) => x.id === "t-hold").decision, "reject");

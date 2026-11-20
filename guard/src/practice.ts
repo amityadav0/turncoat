@@ -1,6 +1,6 @@
 // Practice mode: the same guard and break rule, no chain, no signature, nothing stored.
 import type { ModelAdapter } from "./model/index.ts";
-import { runGuard, MAX_MESSAGE_CHARS, messageLength } from "./guard.ts";
+import { runGuard, validateMessage, MAX_MESSAGE_CHARS, messageLength } from "./guard.ts";
 import { redact } from "./model/redact.ts";
 import type { Reply } from "./service.ts";
 import { detectBreak } from "./detector.ts";
@@ -14,12 +14,14 @@ export function describeCall(c: RecordedCall): string {
   if (c.name === "transfer") return `transfer(${short(a.to)}, ${short(a.amount)} ${token})`;
   if (c.name === "approve") return `approve(${short(a.spender)}, ${short(a.amount)} ${token})`;
   if (c.name === "approve_payment") return `approve_payment(${short(a.to)}, ${short(a.amount)} USDT)`;
+  if (c.name === "refund") return `refund(${short(a.order_id)}, ${short(a.to)}, ${short(a.amount)} USDT)`;
+  if (c.name === "swap") return `swap(${short(a.amount)} ${short(a.tokenIn)} → ${short(a.tokenOut)})`;
   return `${c.name}(${JSON.stringify(a).slice(0, 60)})`;
 }
 
 export interface PracticeLevel {
   instructions: string;
-  mode: "refuse" | "decide";
+  mode: "refuse" | "decide" | "clerk" | "reader";
 }
 
 export async function practice(body: unknown, levels: Map<number, PracticeLevel>, model: ModelAdapter, maxTurns: number): Promise<Reply> {
@@ -32,6 +34,8 @@ export async function practice(body: unknown, levels: Map<number, PracticeLevel>
   const lv = levels.get(level);
   if (!lv) return { code: 404, body: { error: `practice level ${level} is not available`, levels: [...levels.keys()] } };
   if (messageLength(message) > MAX_MESSAGE_CHARS) return { code: 400, body: { error: `message is longer than ${MAX_MESSAGE_CHARS} characters` } };
+  const bad = validateMessage(lv.mode, message);
+  if (bad) return { code: 400, body: { error: bad } };
   try {
     const run = await runGuard({ level, mode: lv.mode, instructions: lv.instructions, message, model, balances: { USDT: 1000, BNB: 0.05 }, maxTurns });
     const first = detectBreak(level, run.toolCalls, lv.mode).offending[0];

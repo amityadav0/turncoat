@@ -11,6 +11,7 @@ import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import type { ModelAdapter } from "./model/index.ts";
 import { type CommitLookup, instructionsText } from "./commit.ts";
 import { runGuard } from "./guard.ts";
+import { isMode } from "./levels.ts";
 import { redact } from "./model/redact.ts";
 import type { Logger } from "./log.ts";
 
@@ -154,7 +155,7 @@ export class RoundProcessor {
     try {
       run = await runGuard({
         level: round.level,
-        mode: rec.mode === "decide" ? "decide" : "refuse",
+        mode: isMode(rec.mode) ? rec.mode : "refuse",
         instructions: instructionsText(rec),
         message: row.message!,
         model,

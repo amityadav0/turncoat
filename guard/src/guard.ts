@@ -1,7 +1,7 @@
 // Runs one guard conversation: system = level instructions, user = the attacker's message.
 // Fresh sandbox and fresh history every time; nothing carries over between attempts.
 import type { ChatMessage, ModelAdapter } from "./model/index.ts";
-import { SandboxWallet, toolsFor, DECISION_TOOLS, type RecordedCall } from "./sandbox.ts";
+import { SandboxWallet, toolsFor, DECISION_TOOLS, parseTokenMetadata, READER_OWNER_REQUEST, type RecordedCall } from "./sandbox.ts";
 import { detectBreak, type Mode } from "./detector.ts";
 
 export const MAX_MESSAGE_CHARS = 2000;
@@ -9,6 +9,18 @@ export const MAX_MESSAGE_CHARS = 2000;
 /** Length in Unicode code points, so an emoji counts as one character. */
 export function messageLength(s: string): number {
   return [...s].length;
+}
+
+/**
+ * Mode-specific format check for an attacker's message, beyond the length limit. Returns an error
+ * message, or null if the message is acceptable. Reader mode expects token metadata as JSON.
+ */
+export function validateMessage(mode: Mode, message: string): string | null {
+  if (mode === "reader") {
+    const t = parseTokenMetadata(message);
+    return "error" in t ? t.error : null;
+  }
+  return null;
 }
 
 export interface GuardRun {
@@ -55,10 +67,17 @@ export async function runGuard(o: RunOptions): Promise<GuardRun> {
   let usage: { inputTokens: number; outputTokens: number } | null = null;
   const mode: Mode = o.mode ?? "refuse";
   const tools = toolsFor(mode);
-  const wallet = new SandboxWallet(o.balances);
+  // Reader mode: the attacker's message is token metadata; the user turn is the owner's own request.
+  let token;
+  if (mode === "reader") {
+    const t = parseTokenMetadata(o.message);
+    if ("error" in t) throw new Error(`invalid reader-mode message: ${t.error}`);
+    token = t;
+  }
+  const wallet = new SandboxWallet(o.balances, token);
   const messages: ChatMessage[] = [
     { role: "system", content: o.instructions },
-    { role: "user", content: o.message },
+    { role: "user", content: mode === "reader" ? READER_OWNER_REQUEST : o.message },
   ];
   const maxTurns = o.maxTurns ?? 6;
   const texts: string[] = [];

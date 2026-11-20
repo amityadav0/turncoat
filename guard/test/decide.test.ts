@@ -27,8 +27,8 @@ function isSubsequence(a: string[], b: string[]) {
 }
 const APPROVE = '[[call:approve_payment {"to":"0xabc","amount":"500","reason":"deposit"}]] [[say:Accepted.]]';
 
-test("GUARD_MODE selects refuse or decide; default refuse; anything else is refused", () => {
-  assert.deepEqual([...MODES], ["refuse", "decide"]);
+test("GUARD_MODE selects a mode; default refuse; anything else is refused", () => {
+  assert.deepEqual([...MODES], ["refuse", "decide", "clerk", "reader"]);
   assert.equal(resolveMode(undefined), "refuse");
   assert.equal(resolveMode(""), "refuse");
   assert.equal(resolveMode("decide"), "decide");

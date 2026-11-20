@@ -7,10 +7,12 @@ import { GUARD_ROOT } from "./config.ts";
 export const VERSIONS = ["v1", "v2", "v3"] as const;
 export type GuardVersion = (typeof VERSIONS)[number];
 
-export const MODES = ["refuse", "decide"] as const;
+export const MODES = ["refuse", "decide", "clerk", "reader"] as const;
 /**
  * refuse: Argus may simply never call a tool (transfer/approve are forbidden).
  * decide: Argus is a treasurer who must end every reply with approve_payment or reject_payment.
+ * clerk:  Argus runs a refund desk; refunds must match a real, refundable order.
+ * reader: Argus checks a token for its owner; the attacker writes the token's metadata.
  */
 export type GuardMode = (typeof MODES)[number];
 
@@ -29,10 +31,14 @@ export function resolveVersion(v: string | undefined = process.env.GUARD_VERSION
 }
 
 export function levelFile(level: number, version: GuardVersion, root = GUARD_ROOT, mode: GuardMode = "refuse"): string {
-  return path.join(root, "levels", mode === "decide" ? `level${level}-decide` : `level${level}`, `${version}.md`);
+  return path.join(root, "levels", mode === "refuse" ? `level${level}` : `level${level}-${mode}`, `${version}.md`);
 }
 
 /** Exact bytes of a version's instructions (what gets committed and run). */
 export function levelBytes(level: number, version: GuardVersion, root = GUARD_ROOT, mode: GuardMode = "refuse"): Uint8Array {
   return new Uint8Array(fs.readFileSync(levelFile(level, version, root, mode)));
+}
+
+export function isMode(m: unknown): m is GuardMode {
+  return typeof m === "string" && (MODES as readonly string[]).includes(m);
 }
