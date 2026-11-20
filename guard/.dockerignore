@@ -1,0 +1,10 @@
+# Never send secrets or local state into the build.
+.env
+.env.*
+!.env.example
+.secrets/
+data/
+node_modules/
+redteam/
+test/
+*.log

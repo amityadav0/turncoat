@@ -47,6 +47,8 @@ Level 1 instructions live in `levels/level1/` as three versions. Each one contai
 
 ## Running it
 
+With Docker: `docker compose up -d --build` from `guard/` (settings and secrets from `guard/.env`, SQLite in the `guard-data` volume, commit records mounted read-only from `.secrets/commits`; details in `docs/LAUNCH.md` section 3). Without Docker:
+
 ```bash
 cd ..   && npm install && npm run build      # contract ABIs into build/
 cd guard && npm install

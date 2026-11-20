@@ -108,6 +108,26 @@ cp .env.example .env && chmod 600 .env
 
 Prices are list prices at the time of writing; check your provider's current pricing.
 
+### Run with Docker (recommended)
+
+Needs Docker with Compose v2.17+ (for `additional_contexts`). On the server, from the repo root:
+
+```bash
+cd guard
+cp .env.example .env && chmod 600 .env     # fill in as in the table above
+npm install && GUARD_VERSION=v1 GUARD_MODE=decide npm run commit    # commit records go to guard/.secrets/commits on the host
+docker compose up -d --build
+docker compose ps                           # STATUS shows "healthy" after about 20 s
+curl -fsS http://127.0.0.1:8787/health
+docker compose logs -f guard
+```
+
+What the compose file does: builds the image (Node 22, non-root `node` user, production dependencies only; the contract ABI is compiled from `../contracts` in a builder stage), reads every setting and secret from `guard/.env` at run time (nothing secret is in the image; `.env` is excluded from the build), keeps the SQLite database in the named volume `guard-data`, mounts `guard/.secrets/commits` read-only (commit on the host; the running service picks up a new record within 5 seconds), restarts `unless-stopped`, health-checks `/health` every 30 s, and publishes port 8787 on 127.0.0.1 only, for the HTTPS proxy. Inside Docker, `HOST`, `PORT`, `DB_PATH` and `COMMITS_DIR` are set by the compose file. If the chain node runs on the same machine, use `RPC_URL=http://host.docker.internal:8545` (Docker Desktop) or the host's address.
+
+Update: `git pull && docker compose up -d --build` (the database volume is kept). Back up the volume and `.secrets/commits` together.
+
+### Run without Docker
+
 Start it under a process manager. With pm2:
 
 ```bash

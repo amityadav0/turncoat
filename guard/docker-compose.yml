@@ -1,0 +1,31 @@
+# Run the guard service:  cd guard && docker compose up -d --build
+# Secrets come only from the env file (default guard/.env, never baked into the image).
+# Commit records are created on the host with `npm run commit` and mounted read-only.
+services:
+  guard:
+    build:
+      context: .
+      additional_contexts:
+        repo: ..
+    image: turncoat-guard:local
+    env_file: ${GUARD_ENV_FILE:-.env}
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8787"
+      DB_PATH: data/guard.sqlite
+      COMMITS_DIR: .secrets/commits
+    ports:
+      - "127.0.0.1:${GUARD_PORT:-8787}:8787"   # put the HTTPS proxy in front; not exposed publicly
+    volumes:
+      - guard-data:/app/guard/data
+      - ${GUARD_COMMITS_DIR:-./.secrets/commits}:/app/guard/.secrets/commits:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  guard-data:
