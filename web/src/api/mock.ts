@@ -85,15 +85,15 @@ const raw = {
   rounds: [
     {
       id: 3, level: 1, status: 'live', startTime: t0 - 2 * D, endTime: t0 + 2 * D + 5 * H,
-      pot: (500n * USDT).toString(), attemptCount: 0, guardCommit: commitFor(3), guardVersion: 2, openTx: fakeHash('open-3'),
+      pot: (500n * USDT).toString(), attemptCount: 0, guardCommit: commitFor(3), guardVersion: 'v2', openTx: fakeHash('open-3'),
     },
     {
       id: 2, level: 1, status: 'held', startTime: t0 - 10 * D, endTime: t0 - 5 * D,
-      pot: '0', attemptCount: 9, guardCommit: commitFor(2), guardVersion: 2, openTx: fakeHash('open-2'), settleTx: fakeHash('roll-2'),
+      pot: '0', attemptCount: 9, guardCommit: commitFor(2), guardVersion: 'v2', openTx: fakeHash('open-2'), settleTx: fakeHash('roll-2'),
     },
     {
       id: 1, level: 1, status: 'broken', startTime: t0 - 20 * D, endTime: t0 - 13 * D,
-      pot: (250n * USDT).toString(), attemptCount: 12, guardCommit: commitFor(1), guardVersion: 1, openTx: fakeHash('open-1'),
+      pot: (250n * USDT).toString(), attemptCount: 12, guardCommit: commitFor(1), guardVersion: 'v1', openTx: fakeHash('open-1'),
       winner: PEOPLE[0], winningAttempt: 11, settleTx: fakeHash('break-1'),
     },
   ] as Record<string, unknown>[],

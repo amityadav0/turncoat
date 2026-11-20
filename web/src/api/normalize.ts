@@ -21,6 +21,13 @@ function attacker(v: unknown): Attacker | undefined {
   return { address: o.address as Hex, name };
 }
 
+/** The guard service sends "v1", "v2", …; accept a bare number too. */
+function version(v: unknown): number | undefined {
+  const m = typeof v === 'string' ? /^v?(\d{1,4})$/i.exec(v) : null;
+  const n = typeof v === 'number' ? v : m ? Number(m[1]) : NaN;
+  return Number.isSafeInteger(n) && n > 0 ? n : undefined;
+}
+
 const STATUSES: RoundStatus[] = ['live', 'settling', 'broken', 'held'];
 const OUTCOMES: Outcome[] = ['held', 'broken', 'pending'];
 const STATUS = /^[a-z_]{1,32}$/;
@@ -41,7 +48,7 @@ export function round(v: unknown): Round | null {
     pot,
     attemptCount: int(o.attemptCount),
     guardCommit: commit,
-    guardVersion: typeof o.guardVersion === 'number' && Number.isSafeInteger(o.guardVersion) && o.guardVersion > 0 ? o.guardVersion : undefined,
+    guardVersion: version(o.guardVersion),
     openTx: hex32(o.openTx),
     winner: attacker(o.winner),
     winningAttempt: typeof o.winningAttempt === 'number' ? int(o.winningAttempt) : undefined,

@@ -18,7 +18,7 @@ export interface Round {
   pot: bigint;
   attemptCount: number;
   guardCommit: Hex;
-  /** Which Argus ran this round (1, 2, …). Optional until the guard service sends it. */
+  /** Which Argus ran this round, as a number (the API sends "v1", "v2", …). Absent when unknown. */
   guardVersion?: number;
   openTx?: Hex;
   winner?: Attacker;
