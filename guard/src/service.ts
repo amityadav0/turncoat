@@ -7,6 +7,7 @@ import { MAX_MESSAGE_CHARS, messageLength, validateMessage } from "./guard.ts";
 import { isMode } from "./levels.ts";
 import { levelSupported } from "./detector.ts";
 import type { CommitLookup } from "./commit.ts";
+import { AttackerNames } from "./names.ts";
 
 export interface ServiceConfig {
   messageWindowSec: number;
@@ -38,7 +39,22 @@ export class GuardService {
     private cfg: ServiceConfig,
     /** Local commit records, keyed by guardCommit (lowercase). Used for the public version label only. */
     private commits: CommitLookup = new Map(),
-  ) {}
+    names?: AttackerNames,
+  ) {
+    this.names = names ?? new AttackerNames(store, (a) => chain.agentIdName(a));
+  }
+
+  private names: AttackerNames;
+  private nameMap = new Map<string, string>();
+
+  /** Resolve names for these addresses into `nameMap` (used by the synchronous view builders). */
+  private async loadNames(addresses: string[]) {
+    for (const [k, v] of await this.names.resolve(addresses)) this.nameMap.set(k, v);
+  }
+  private attacker(address: string) {
+    const name = this.nameMap.get(address.toLowerCase());
+    return name ? { address: getAddress(address), name } : { address: getAddress(address) };
+  }
 
   // ------------------------------------------------------------------ POST /attempts
   async submit(body: unknown): Promise<Reply> {
@@ -105,6 +121,20 @@ export class GuardService {
 
   // ------------------------------------------------------------------ views
   private async syncAttempts(roundId: number, attemptCount: number): Promise<void> {
+    await this.syncAttemptRows(roundId, attemptCount);
+    if (this.store.attemptsMissingTx(roundId) > 0) {
+      try {
+        const r = await this.chain.getRound(roundId);
+        const m = r ? await this.meta(roundId, r) : undefined;
+        const txs = await this.chain.attemptTxs(roundId, m?.open_block ? BigInt(m.open_block) : 0n);
+        for (const [id, tx] of txs) this.store.setAttemptTx(roundId, id, tx);
+      } catch {
+        /* leave absent */
+      }
+    }
+  }
+
+  private async syncAttemptRows(roundId: number, attemptCount: number): Promise<void> {
     let have = this.store.chainAttemptCount(roundId);
     while (have < attemptCount) {
       const ids = Array.from({ length: Math.min(25, attemptCount - have) }, (_, i) => have + i);
@@ -112,6 +142,35 @@ export class GuardService {
       got.forEach((a, i) => a && this.store.putChainAttempt(roundId, ids[i], a));
       have += ids.length;
     }
+  }
+
+  /**
+   * Open/close transactions, close time and payout for a round, from event logs. Cached in SQLite:
+   * the open never changes and the close is fetched once the round is closed. RPC failures (e.g. log
+   * range limits) leave the fields absent rather than failing the request.
+   */
+  private async meta(roundId: number, r: RoundInfo) {
+    let m = this.store.roundMeta(roundId);
+    const needOpen = !m?.open_tx;
+    const needClose = r.closed && !m?.close_tx;
+    if (needOpen || needClose) {
+      try {
+        const ev = await this.chain.roundEvents(roundId);
+        m = {
+          round_id: roundId,
+          open_tx: ev.open?.tx ?? m?.open_tx ?? null,
+          open_block: ev.open ? ev.open.block.toString() : m?.open_block ?? null,
+          close_kind: ev.close?.kind ?? null,
+          close_tx: ev.close?.tx ?? null,
+          closed_at: ev.close?.time ?? null,
+          payout: ev.close?.payout !== undefined ? ev.close.payout.toString() : null,
+        };
+        this.store.putRoundMeta(m);
+      } catch {
+        /* leave absent */
+      }
+    }
+    return m;
   }
 
   /**
@@ -125,6 +184,8 @@ export class GuardService {
     const settleDeadline = r.endTime + grace;
     const hasWinner = r.closed && r.winner !== zeroAddress;
     const status = hasWinner ? "broken" : r.closed ? "held" : now <= r.endTime ? "live" : now <= settleDeadline ? "settling" : "held";
+    const m = await this.meta(id, r);
+    if (hasWinner) await this.loadNames([r.winner]);
     return {
       id,
       level: r.level,
@@ -146,8 +207,15 @@ export class GuardService {
       mode: (() => { const rec = this.commits.get(r.guardCommit.toLowerCase()); return rec ? (rec.mode ?? "refuse") : undefined; })(),
       paidEnabled: r.paidEnabled,
       baseFee: r.baseFee.toString(),
-      winner: hasWinner ? { address: getAddress(r.winner) } : undefined,
+      winner: hasWinner ? this.attacker(r.winner) : undefined,
       winningAttempt: hasWinner ? r.winningAttempt : undefined,
+      /** Amount paid to the winner (GuardBroken.pot), base units. `pot` is 0 after a payout. */
+      payout: hasWinner && m?.payout ? m.payout : undefined,
+      openTx: m?.open_tx ?? undefined,
+      /** GuardBroken or RoundRolledOver transaction. */
+      settleTx: r.closed ? m?.close_tx ?? undefined : undefined,
+      /** Block time of the settle or roll-over transaction (a round can close before endTime). */
+      closedAt: r.closed ? m?.closed_at ?? undefined : undefined,
       /** Set when a verdict has been signed but settle() has not closed the round yet. */
       verdictPendingFor: !r.closed && won !== null ? won : undefined,
     };
@@ -196,6 +264,7 @@ export class GuardService {
     const [now, grace] = await Promise.all([this.chain.now(), this.chain.getSettleGrace()]);
     await this.syncAttempts(id, r.attemptCount);
     const rows = new Map(this.store.attemptsForRound(id).map((x) => [x.attempt_id, x]));
+    await this.loadNames(this.store.chainAttempts(id).map((c) => c.attacker));
     return {
       code: 200,
       body: {
@@ -221,12 +290,14 @@ export class GuardService {
     const base = {
       roundId: c.round_id,
       id: c.attempt_id,
-      attacker: { address: getAddress(c.attacker) },
+      attacker: this.attacker(c.attacker),
       time: c.time,
       /** Unix seconds by which the message must reach the guard service (time + MESSAGE_WINDOW_SECONDS). */
       messageDeadline: c.time + this.cfg.messageWindowSec,
       paid: !!c.paid,
       messageHash: c.message_hash as Hex,
+      /** Attempted transaction. */
+      tx: (c.tx ?? undefined) as Hex | undefined,
       outcome: done ? (row!.broken === 1 ? "broken" : "held") : "pending",
       status,
       broken: done ? row!.broken === 1 : null,
@@ -263,6 +334,7 @@ export class GuardService {
     if (!r || attemptId >= r.attemptCount) return null;
     await this.syncAttempts(roundId, r.attemptCount);
     const c = this.store.chainAttempts(roundId).find((x) => x.attempt_id === attemptId)!;
+    await this.loadNames([c.attacker]);
     return this.view(c, this.store.getAttempt(roundId, attemptId), true, await this.chain.now());
   }
 
@@ -285,6 +357,7 @@ export class GuardService {
     await this.syncAttempts(id, r.attemptCount);
     const rows = new Map(this.store.attemptsForRound(id).map((x) => [x.attempt_id, x]));
     const now = await this.chain.now();
+    await this.loadNames(this.store.chainAttempts(id).filter((c) => c.attempt_id > after).map((c) => c.attacker));
     const attempts = this.store.chainAttempts(id).filter((c) => c.attempt_id > after).map((c) => this.view(c, rows.get(c.attempt_id), false, now));
     return { code: 200, body: { roundId: id, attempts } };
   }
@@ -303,6 +376,7 @@ export class GuardService {
       const row = this.store.getAttempt(c.round_id, c.attempt_id);
       return { roundId: c.round_id, attemptId: c.attempt_id, time: c.time, paid: !!c.paid, status: row?.status ?? (now > c.time + this.cfg.messageWindowSec ? "expired" : "awaiting_message"), broken: row?.status === "done" ? row.broken === 1 : null };
     });
-    return { code: 200, body: { address: addr, attempts: record.attempts, breaks: record.breaks, history } };
+    const name = (await this.names.resolve([addr])).get(addr.toLowerCase());
+    return { code: 200, body: { address: addr, name, attempts: record.attempts, breaks: record.breaks, history } };
   }
 }

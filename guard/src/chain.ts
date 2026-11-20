@@ -37,6 +37,8 @@ export interface AttemptInfo {
   messageHash: Hex;
 }
 
+const HANDLE_ABI = [{ type: "function", name: "handleOf", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ name: "", type: "string" }] }] as const;
+
 export const VERDICT_TYPES = {
   Verdict: [
     { name: "roundId", type: "uint256" },
@@ -130,6 +132,55 @@ export class TurncoatChain {
       const a = (l as unknown as { args: { salt: Hex; instructions: Hex } }).args;
       return { salt: a.salt, instructions: a.instructions, tx: l.transactionHash as Hex };
     });
+  }
+
+  /** RoundOpened, then GuardBroken or RoundRolledOver, for one round, with block numbers and times. */
+  async roundEvents(roundId: number): Promise<{
+    open?: { tx: Hex; block: bigint };
+    close?: { kind: "broken" | "rolled_over"; tx: Hex; block: bigint; time: number; payout?: bigint };
+  }> {
+    const q = (eventName: string) => this.pub.getContractEvents({ address: this.address, abi: this.abi, eventName, args: { roundId: BigInt(roundId) }, fromBlock: this.logsFromBlock, toBlock: "latest" });
+    const [opened, broken, rolled] = await Promise.all([q("RoundOpened"), q("GuardBroken"), q("RoundRolledOver")]);
+    const out: Awaited<ReturnType<TurncoatChain["roundEvents"]>> = {};
+    if (opened[0]) out.open = { tx: opened[0].transactionHash as Hex, block: opened[0].blockNumber as bigint };
+    const c = broken[0] ?? rolled[0];
+    if (c) {
+      const block = await this.pub.getBlock({ blockNumber: c.blockNumber as bigint });
+      out.close = {
+        kind: broken[0] ? "broken" : "rolled_over",
+        tx: c.transactionHash as Hex,
+        block: c.blockNumber as bigint,
+        time: Number(block.timestamp),
+        payout: broken[0] ? BigInt((broken[0] as unknown as { args: { pot: bigint } }).args.pot) : undefined,
+      };
+    }
+    return out;
+  }
+
+  /** Attempted events for one round from `fromBlock`: attemptId → transaction hash. */
+  async attemptTxs(roundId: number, fromBlock: bigint): Promise<Map<number, Hex>> {
+    const logs = await this.pub.getContractEvents({ address: this.address, abi: this.abi, eventName: "Attempted", args: { roundId: BigInt(roundId) }, fromBlock, toBlock: "latest" });
+    return new Map(logs.map((l) => [Number((l as unknown as { args: { attemptId: bigint } }).args.attemptId), l.transactionHash as Hex]));
+  }
+
+  private agentIdAddr?: Address;
+
+  /**
+   * The Agent ID handle for an address via the registry's handleOf(address), as "<handle>.ai".
+   * The registry address is read from Turncoat.agentId(). Returns null when there is no handle or the
+   * registry has no handleOf (e.g. the local mock); throws only on RPC failure.
+   */
+  async agentIdName(holder: Address): Promise<string | null> {
+    this.agentIdAddr ??= await this.read<Address>("agentId");
+    let handle: string;
+    try {
+      handle = (await this.pub.readContract({ address: this.agentIdAddr, abi: HANDLE_ABI, functionName: "handleOf", args: [holder] })) as string;
+    } catch (e) {
+      if (/revert|returned no data|execution reverted/i.test(String((e as Error)?.message))) return null;
+      throw e;
+    }
+    // Handles are lowercase a-z0-9 (hyphens allowed); anything else is not shown.
+    return handle && /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(handle) ? `${handle}.ai` : null;
   }
 
   domain() {

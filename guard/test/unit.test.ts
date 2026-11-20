@@ -156,3 +156,51 @@ test("CommitBook finds a record committed after startup, re-reading the folder a
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("Store migrates an existing database that predates attempt transaction hashes", async () => {
+  const Database = (await import("better-sqlite3")).default;
+  const { Store } = await import("../src/db.ts");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "migrate-"));
+  const file = path.join(dir, "old.sqlite");
+  try {
+    const old = new Database(file);
+    old.exec("CREATE TABLE chain_attempts (round_id INTEGER NOT NULL, attempt_id INTEGER NOT NULL, attacker TEXT NOT NULL, paid INTEGER NOT NULL, time INTEGER NOT NULL, message_hash TEXT NOT NULL, PRIMARY KEY (round_id, attempt_id))");
+    old.prepare("INSERT INTO chain_attempts VALUES (1, 0, '0xabc', 0, 100, '0xhash')").run();
+    old.close();
+    const st = new Store(file);
+    assert.equal(st.chainAttempts(1)[0].tx, null);
+    st.setAttemptTx(1, 0, "0xtx");
+    assert.equal(st.chainAttempts(1)[0].tx, "0xtx");
+    st.close();
+    new Store(file).close(); // opening again does not re-run the migration
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("attacker names: a found name is cached for good, no-name is re-checked after the TTL, RPC errors are not cached", async () => {
+  const { Store } = await import("../src/db.ts");
+  const { AttackerNames } = await import("../src/names.ts");
+  const st = new Store(":memory:");
+  let t = 0;
+  const calls: string[] = [];
+  let fail = false;
+  const names = new AttackerNames(st, async (a) => {
+    calls.push(a);
+    if (fail) throw new Error("rpc down");
+    return a.endsWith("1") ? "alice.ai" : null;
+  }, 1000, () => t);
+  const A = "0x0000000000000000000000000000000000000001", B = "0x0000000000000000000000000000000000000002", C = "0x0000000000000000000000000000000000000003";
+  assert.deepEqual([...(await names.resolve([A, B, A.toUpperCase().replace("0X", "0x")]))], [[A, "alice.ai"]]);
+  assert.deepEqual(calls, [A, B]); // deduplicated
+  t = 500;
+  await names.resolve([A, B]);
+  assert.equal(calls.length, 2); // both cached
+  t = 1500;
+  await names.resolve([A, B]);
+  assert.deepEqual(calls.slice(2), [B]); // only the miss is re-checked
+  fail = true;
+  assert.equal((await names.resolve([C])).size, 0);
+  assert.equal(st.attackerName(C), undefined); // failure not cached
+  st.close();
+});

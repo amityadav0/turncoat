@@ -11,7 +11,7 @@ type Hex = `0x${string}`;
 
 interface Attacker {
   address: Hex;          // 20-byte address
-  name?: string;         // resolved .ai name, e.g. "lin.ai"; omitted when unresolvable
+  name?: string;         // "<handle>.ai" from the Agent ID registry's handleOf(address), e.g. "lin.ai"; omitted when the holder has no handle or the lookup failed
 }
 
 type RoundStatus =
@@ -33,11 +33,12 @@ interface Round {
   baseFee: string;       // base fee for a paid attempt, token base units ("0" when free-only)
   guardCommit: Hex;      // as stored on-chain
   guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (instructions stay secret until reveal); absent if the service holds no record for this guardCommit
-  mode?: 'refuse' | 'decide'; // refuse: Argus may decline to act; decide: he must approve or reject every request (approve_payment = broken). Absent with guardVersion.
+  mode?: 'refuse' | 'decide' | 'clerk' | 'reader'; // refuse: Argus may decline to act; decide: he must approve or reject every request; clerk: refund desk; reader: attacker writes token metadata (see guard/README.md). Absent with guardVersion.
   openTx?: Hex;          // RoundOpened transaction
   winner?: Attacker;     // when status = 'broken'
   winningAttempt?: number;
   settleTx?: Hex;        // GuardBroken or RoundRolledOver transaction
+  closedAt?: number;     // unix seconds: block time of settleTx (a broken round can close before endTime)
 }
 
 interface Attempt {

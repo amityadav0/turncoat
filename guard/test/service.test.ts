@@ -191,6 +191,25 @@ test("transcripts are public as soon as the guard replies", async () => {
   assert.equal(reveal, null); // closed, but not revealed yet
 });
 
+test("Round carries payout, openTx, settleTx and closedAt from the event logs; attempts carry their tx", async () => {
+  const { round, attempts } = (await api("GET", `/rounds/${B}`)).body;
+  assert.equal(round.payout, U(10).toString()); // what bob was paid; pot itself is now 0
+  assert.equal(round.pot, "0");
+  assert.match(round.openTx, /^0x[0-9a-f]{64}$/);
+  assert.match(round.settleTx, /^0x[0-9a-f]{64}$/);
+  assert.notEqual(round.openTx, round.settleTx);
+  assert.ok(round.closedAt >= round.startTime && round.closedAt < round.endTime); // broken early
+  const receipt = await L.pub.getTransactionReceipt({ hash: round.settleTx });
+  assert.equal(receipt.status, "success");
+  const txs = attempts.map((a: any) => a.tx);
+  for (const t of txs) assert.match(t, /^0x[0-9a-f]{64}$/);
+  assert.equal(new Set(txs).size, txs.length);
+  const tx0 = await L.pub.getTransaction({ hash: txs[0] });
+  assert.equal(getAddress(tx0.from), addr(aliceK));
+  assert.equal((await api("GET", `/attempts/${B}/1`)).body.tx, txs[1]);
+  assert.ok(store.roundMeta(B)?.close_tx); // cached
+});
+
 test("a message that never arrives expires after the window and does not block the queue", async () => {
   await L.toNextDay();
   const C = await L.openRound(commit, { duration: 30 * 86400 });
@@ -230,10 +249,18 @@ test("GET /rounds and /attackers/:address", async () => {
   assert.equal(rounds[0].potAmount, "10");
   assert.equal(rounds[0].guardVersion, undefined); // round 4 commits to instructions we do not hold
   assert.equal(rounds[1].guardVersion, "v1");
+  // a live round has an openTx but no settle fields
+  const live = rounds[0]; // round 4, live
+  assert.match(live.openTx, /^0x[0-9a-f]{64}$/);
+  assert.equal(live.settleTx, undefined);
+  assert.equal(live.closedAt, undefined);
+  assert.equal(live.payout, undefined);
   const current = (await api("GET", "/rounds/current")).body.round;
   assert.equal(current.id, 4); // newest live round
   assert.equal(current.status, "live");
   const bob = (await api("GET", `/attackers/${addr(bobK).toLowerCase()}`)).body;
+  assert.equal(bob.name, undefined); // the local mock Agent ID has no handleOf: no name, no error
+  assert.equal(await chain.agentIdName(addr(bobK)), null);
   assert.equal(bob.address, addr(bobK));
   assert.equal(bob.attempts, 2);
   assert.equal(bob.breaks, 1);

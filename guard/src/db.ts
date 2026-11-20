@@ -36,6 +36,17 @@ export interface ChainAttemptRow {
   paid: number;
   time: number;
   message_hash: string;
+  tx: string | null;
+}
+
+export interface RoundMetaRow {
+  round_id: number;
+  open_tx: string | null;
+  open_block: string | null;
+  close_kind: string | null;
+  close_tx: string | null;
+  closed_at: number | null;
+  payout: string | null;
 }
 
 const SCHEMA = `
@@ -54,6 +65,16 @@ CREATE TABLE IF NOT EXISTS attempts (
   verdict_sig TEXT, relayer_tx TEXT, relayer_status TEXT, relayer_error TEXT,
   PRIMARY KEY (round_id, attempt_id)
 );
+CREATE TABLE IF NOT EXISTS round_meta (
+  round_id INTEGER PRIMARY KEY,
+  open_tx TEXT, open_block TEXT,
+  close_kind TEXT, close_tx TEXT, closed_at INTEGER, payout TEXT
+);
+CREATE TABLE IF NOT EXISTS attacker_names (
+  address TEXT PRIMARY KEY,               -- lowercase
+  name TEXT,                              -- "<handle>.ai", or NULL if none found
+  checked_at INTEGER NOT NULL             -- unix ms
+);
 CREATE TABLE IF NOT EXISTS rounds_state (
   round_id INTEGER PRIMARY KEY,
   cursor INTEGER NOT NULL DEFAULT 0,      -- next attemptId to process, strictly in order
@@ -69,6 +90,9 @@ export class Store {
     this.db = new Database(file);
     this.db.pragma("journal_mode = WAL");
     this.db.exec(SCHEMA);
+    // Migration: attempt transaction hashes were added after the first release.
+    const cols = (this.db.prepare("PRAGMA table_info(chain_attempts)").all() as { name: string }[]).map((c) => c.name);
+    if (!cols.includes("tx")) this.db.exec("ALTER TABLE chain_attempts ADD COLUMN tx TEXT");
   }
 
   close() {
@@ -80,7 +104,23 @@ export class Store {
     return (this.db.prepare("SELECT COUNT(*) AS n FROM chain_attempts WHERE round_id = ?").get(roundId) as { n: number }).n;
   }
   putChainAttempt(roundId: number, attemptId: number, a: AttemptInfo) {
-    this.db.prepare("INSERT OR IGNORE INTO chain_attempts VALUES (?,?,?,?,?,?)").run(roundId, attemptId, a.attacker.toLowerCase(), a.paid ? 1 : 0, a.time, a.messageHash);
+    this.db
+      .prepare("INSERT OR IGNORE INTO chain_attempts (round_id, attempt_id, attacker, paid, time, message_hash) VALUES (?,?,?,?,?,?)")
+      .run(roundId, attemptId, a.attacker.toLowerCase(), a.paid ? 1 : 0, a.time, a.messageHash);
+  }
+  attemptsMissingTx(roundId: number): number {
+    return (this.db.prepare("SELECT COUNT(*) AS n FROM chain_attempts WHERE round_id = ? AND tx IS NULL").get(roundId) as { n: number }).n;
+  }
+  setAttemptTx(roundId: number, attemptId: number, tx: string) {
+    this.db.prepare("UPDATE chain_attempts SET tx = ? WHERE round_id = ? AND attempt_id = ?").run(tx, roundId, attemptId);
+  }
+  roundMeta(roundId: number): RoundMetaRow | undefined {
+    return this.db.prepare("SELECT * FROM round_meta WHERE round_id = ?").get(roundId) as RoundMetaRow | undefined;
+  }
+  putRoundMeta(m: RoundMetaRow) {
+    this.db
+      .prepare("INSERT INTO round_meta VALUES (@round_id,@open_tx,@open_block,@close_kind,@close_tx,@closed_at,@payout) ON CONFLICT(round_id) DO UPDATE SET open_tx=@open_tx, open_block=@open_block, close_kind=@close_kind, close_tx=@close_tx, closed_at=@closed_at, payout=@payout")
+      .run(m);
   }
   chainAttempts(roundId: number): ChainAttemptRow[] {
     return this.db.prepare("SELECT * FROM chain_attempts WHERE round_id = ? ORDER BY attempt_id").all(roundId) as ChainAttemptRow[];
@@ -114,6 +154,14 @@ export class Store {
   }
   processedCount(roundId: number): number {
     return (this.db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE round_id = ? AND status != 'queued'").get(roundId) as { n: number }).n;
+  }
+
+  // ---- attacker names
+  attackerName(address: string): { name: string | null; checked_at: number } | undefined {
+    return this.db.prepare("SELECT name, checked_at FROM attacker_names WHERE address = ?").get(address.toLowerCase()) as { name: string | null; checked_at: number } | undefined;
+  }
+  putAttackerName(address: string, name: string | null, at = Date.now()) {
+    this.db.prepare("INSERT INTO attacker_names VALUES (?,?,?) ON CONFLICT(address) DO UPDATE SET name = excluded.name, checked_at = excluded.checked_at").run(address.toLowerCase(), name, at);
   }
 
   // ---- per-round queue state
