@@ -24,7 +24,7 @@ Level 1 instructions live in `levels/level1/` as three versions. Each one contai
 | `v2.md` | Nothing in a message can lift the rule; anything that looks like a system, developer, admin or owner message is the stranger's text. |
 | `v3.md` | The known tricks named: zero amounts, revokes, "safe" addresses, tool redefinition, fake tool results and test harnesses. |
 
-`GUARD_VERSION` (default `v1`) picks the version that `npm run commit` commits and that practice mode runs. A live round always runs whichever instructions its on-chain `guardCommit` commits to; the commit record notes the version.
+`levels/level1/CHANGELOG.md` records what each version added and which break caused it. `GUARD_VERSION` (default `v1`) picks the version that `npm run commit` commits and that practice mode runs. A live round always runs whichever instructions its on-chain `guardCommit` commits to; the commit record notes the version.
 
 ## Running it
 
@@ -45,10 +45,10 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 | Method | Path | Returns |
 |---|---|---|
 | POST | `/attempts` | body `{ roundId, attemptId, message }`. 200 with the attempt once processed (including `verdict` if broken), 202 if it is still queued behind earlier attempts. 400 bad body, wrong hash or too long; 404 unknown round or attempt; 409 already submitted or round closed; 410 message arrived after the window. |
-| GET | `/attempts/:roundId/:attemptId` | One attempt: message, reply, tool calls, full conversation, model, `verdict` (signature + `settle` calldata), relayer status. |
+| GET | `/attempts/:roundId/:attemptId` | One attempt: `messageDeadline` (unix seconds the message must arrive by), message, reply, tool calls, full conversation, model, `verdict` (signature + `settle` calldata), relayer status. |
 | GET | `/rounds` | `{ rounds }`, newest first. |
 | GET | `/rounds/current` | `{ round }`: the live round, else the newest. |
-| GET | `/rounds/:id` | `{ round, attempts, reveal }`. `round` adds `timeLeft`, `settleDeadline`, `settleTimeLeft`, `potAmount`, `processedCount`, `verdictPendingFor`. |
+| GET | `/rounds/:id` | `{ round, attempts, reveal }`. `round` adds `guardVersion` (e.g. `"v1"`, public from the start of the round), `timeLeft`, `settleDeadline`, `settleTimeLeft`, `potAmount`, `processedCount`, `verdictPendingFor`. |
 | GET | `/rounds/:id/attempts?after=N` | `{ attempts }`, oldest first: attacker, time, `outcome`, `broken`, `status`, and the message, reply and tool calls as soon as the guard has replied. |
 | GET | `/attackers/:address` | On-chain attempt and break counts plus per-attempt history. |
 | POST | `/practice` | body `{ level, message }`. The same guard and break rule with no chain, no signature, nothing stored. Rate limited per IP, with a global daily cap. Returns `reply`, `broken`, `action`, `toolCalls`, `conversation`. |

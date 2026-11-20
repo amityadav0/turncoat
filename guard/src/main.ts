@@ -39,7 +39,7 @@ const proc = new RoundProcessor({
   store, chain, model, commits, signer, log,
   cfg: { messageWindowSec: cfg.messageWindowSec, pollMs: cfg.pollMs, retryBaseMs: cfg.retryBaseMs, maxTurns: cfg.maxTurns, tokenDecimals: cfg.tokenDecimals },
 });
-const service = new GuardService(store, chain, proc, { messageWindowSec: cfg.messageWindowSec, attemptWaitMs: cfg.attemptWaitMs, tokenDecimals: cfg.tokenDecimals });
+const service = new GuardService(store, chain, proc, { messageWindowSec: cfg.messageWindowSec, attemptWaitMs: cfg.attemptWaitMs, tokenDecimals: cfg.tokenDecimals }, commits);
 const guardVersion = resolveVersion(cfg.guardVersion);
 const practiceLevels = new Map([[1, new TextDecoder().decode(levelBytes(1, guardVersion))]]);
 const app = createApp({

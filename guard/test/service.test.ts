@@ -46,7 +46,7 @@ before(async () => {
     store, chain, model, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger,
     cfg: { messageWindowSec: WINDOW, pollMs: 50, retryBaseMs: 50, maxTurns: 6, tokenDecimals: 18 },
   });
-  const service = new GuardService(store, chain, proc, { messageWindowSec: WINDOW, attemptWaitMs: 300, tokenDecimals: 18 });
+  const service = new GuardService(store, chain, proc, { messageWindowSec: WINDOW, attemptWaitMs: 300, tokenDecimals: 18 }, loadRecords(tmp));
   const app = createApp({
     service, model, practiceLevels: new Map([[1, LEVEL1.toString("utf8")]]), maxTurns: 6, log: silentLogger,
     practiceLimiter: new RateLimiter(2, 3_600_000, 0, 86_400_000), corsOrigins: ["https://site.example"],
@@ -225,6 +225,8 @@ test("GET /rounds and /attackers/:address", async () => {
   assert.deepEqual(rounds.map((r: any) => r.id), [4, 3, 2, 1]);
   assert.equal(rounds[0].pot, U(10).toString());
   assert.equal(rounds[0].potAmount, "10");
+  assert.equal(rounds[0].guardVersion, undefined); // round 4 commits to instructions we do not hold
+  assert.equal(rounds[1].guardVersion, "v1");
   const current = (await api("GET", "/rounds/current")).body.round;
   assert.equal(current.id, 4); // newest live round
   assert.equal(current.status, "live");
@@ -261,6 +263,7 @@ test("after revealGuard, GET /rounds/:id returns the reveal, and it matches the 
   assert.equal(reveal.instructions, toHex(LEVEL1));
   assert.match(reveal.tx, /^0x[0-9a-f]{64}$/);
   assert.equal(round.guardCommit, commit);
+  assert.equal(round.guardVersion, "v1");
   // a live round never shows a reveal
   assert.equal((await api("GET", "/rounds/4")).body.reveal, null);
 });
@@ -281,6 +284,7 @@ test("an attempt with no message shows awaiting_message, then expired once the w
   await L.attempt(frankK, F, "never delivered");
   const before = (await api("GET", `/attempts/${F}/0`)).body;
   assert.equal(before.status, "awaiting_message");
+  assert.equal(before.messageDeadline, before.time + WINDOW);
   assert.equal(before.outcome, "pending");
   await L.warp(WINDOW + 1);
   const after = (await api("GET", `/attempts/${F}/0`)).body;
@@ -322,5 +326,63 @@ test("after a restart, queued attempts resume in attemptId order, and a crash mi
     assert.equal(getAddress((await chain.getRound(E))!.winner), addr(bobK)); // relayed and settled
   } finally {
     proc2.stop();
+  }
+});
+
+test("restart: stop after the first attempt is stored but before the second is answered; a new instance answers the second exactly once, in order", async () => {
+  await L.toNextDay();
+  const R = await L.openRound(commit, { duration: 30 * 86400 });
+  const first = "first [[say:One.]]";
+  const second = "second [[say:Two.]]";
+  await L.attempt(daveK, R, first);
+  await L.attempt(erinK, R, second);
+
+  const dbFile = path.join(tmp, "restart.sqlite");
+  const storeA = new Store(dbFile);
+  // Instance A answers the first attempt, then its model hangs on the second (as if the process died mid-call).
+  let release!: () => void;
+  const hung = new Promise<void>((r) => { release = r; });
+  const modelA = new FakeAdapter(async (messages, tools, turn) => {
+    const user = messages.find((m) => m.role === "user")!.content;
+    if (user === second) { await hung; throw new Error("process killed"); }
+    return (await import("../src/model/fake.ts")).directiveScript(messages, tools, turn);
+  });
+  const mk = (s: Store, m: FakeAdapter) => new RoundProcessor({
+    store: s, chain, model: m, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger,
+    cfg: { messageWindowSec: WINDOW, pollMs: 50, retryBaseMs: 50, maxTurns: 6, tokenDecimals: 18 },
+  });
+  const procA = mk(storeA, modelA);
+  storeA.insertAttempt(R, 0, "queued", first);
+  storeA.insertAttempt(R, 1, "queued", second);
+  procA.kick(R);
+  assert.equal(await procA.waitFor(R, 0, 5000), true);
+  for (let i = 0; i < 100 && modelA.calls.length < 2; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(modelA.calls.length, 2); // second attempt is mid-call
+  const firstRow = storeA.getAttempt(R, 0)!;
+  assert.equal(firstRow.status, "done");
+  assert.equal(storeA.getAttempt(R, 1)!.status, "queued");
+  procA.stop();
+  storeA.close();
+
+  // Instance B: new process, same database file.
+  const storeB = new Store(dbFile);
+  const modelB = new FakeAdapter();
+  const procB = mk(storeB, modelB);
+  try {
+    procB.resume();
+    assert.equal(await procB.waitFor(R, 1, 5000), true);
+    await procB.idle();
+    const asked = modelB.calls.filter((c) => c.length === 2).map((c) => c[1].content);
+    assert.deepEqual(asked, [second]); // only the unanswered attempt, once
+    assert.equal(storeB.getAttempt(R, 1)!.reply, "Two.");
+    assert.deepEqual(storeB.getAttempt(R, 0), firstRow); // first result untouched
+    assert.equal(storeB.roundState(R).cursor, 2);
+    procB.kick(R);
+    await procB.idle();
+    assert.equal(modelB.calls.length, 1); // kicking again does not re-run anything
+  } finally {
+    procB.stop();
+    release(); // let A's hung call fail; A is stopped and its store is closed
+    storeB.close();
   }
 });

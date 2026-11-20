@@ -5,6 +5,7 @@ import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import type { RoundProcessor } from "./processor.ts";
 import { MAX_MESSAGE_CHARS, messageLength } from "./guard.ts";
 import { FORBIDDEN_TOOLS } from "./detector.ts";
+import type { CommitRecord } from "./commit.ts";
 
 export interface ServiceConfig {
   messageWindowSec: number;
@@ -29,7 +30,14 @@ function toId(v: unknown): number | null {
 }
 
 export class GuardService {
-  constructor(private store: Store, private chain: TurncoatChain, private proc: RoundProcessor, private cfg: ServiceConfig) {}
+  constructor(
+    private store: Store,
+    private chain: TurncoatChain,
+    private proc: RoundProcessor,
+    private cfg: ServiceConfig,
+    /** Local commit records, keyed by guardCommit (lowercase). Used for the public version label only. */
+    private commits: Map<string, CommitRecord> = new Map(),
+  ) {}
 
   // ------------------------------------------------------------------ POST /attempts
   async submit(body: unknown): Promise<Reply> {
@@ -122,6 +130,8 @@ export class GuardService {
       attemptCount: r.attemptCount,
       processedCount: this.store.processedCount(id),
       guardCommit: r.guardCommit,
+      /** Which instruction version the round runs ("v1", …). Public from the start; the text stays secret until reveal. */
+      guardVersion: this.commits.get(r.guardCommit.toLowerCase())?.version,
       paidEnabled: r.paidEnabled,
       baseFee: r.baseFee.toString(),
       winner: hasWinner ? { address: getAddress(r.winner) } : undefined,
@@ -201,6 +211,8 @@ export class GuardService {
       id: c.attempt_id,
       attacker: { address: getAddress(c.attacker) },
       time: c.time,
+      /** Unix seconds by which the message must reach the guard service (time + MESSAGE_WINDOW_SECONDS). */
+      messageDeadline: c.time + this.cfg.messageWindowSec,
       paid: !!c.paid,
       messageHash: c.message_hash as Hex,
       outcome: done ? (row!.broken === 1 ? "broken" : "held") : "pending",
