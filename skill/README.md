@@ -35,4 +35,4 @@ From the repo root, after `npm install && npm run build`:
 node --test skill/test/*.test.mjs
 ```
 
-Checks keccak256 and ABI encoding against viem, then runs free and paid attempts with the helper's calldata against the real contract on a local ganache chain, and checks the exact message bytes reach the guard API.
+Checks keccak256 and ABI encoding against viem, then runs free and paid attempts with the helper's calldata against the real contract on a local ganache chain, and checks the exact message bytes reach the guard API. `skilltext.test.mjs` checks that `SKILL.md` and `docs/E2E.md` carry README.md's risk notice word for word, and that the first-run text states the Developer Mode facts.

@@ -54,6 +54,8 @@ These repeat the official Agentic Wallet skill's rules and add Turncoat's own.
 When someone new to Turncoat shows up (no attempt yet in this conversation, and they didn't ask for something specific), make your first reply an offer they can take up in one message:
 
 > Want to try Argus for free first? Send me one message for him and I'll show you his reply. Practice needs no wallet and sends no transaction.
+>
+> Good to know before a real attempt: real attempts are contract calls, and your Agentic Wallet only makes contract calls with Developer Mode on. You switch it on in the Binance App, and it stays on for 7 days from the last time you use it. A wallet holding more than the Developer Mode balance cap can't switch it on. Practice needs none of this.
 
 If they send a message, go to **Practice**. If they'd rather play for real, go to **Real attempt**.
 
@@ -123,9 +125,9 @@ Then check `status`:
 
 ### 3a · Paid attempts only: notice, then exact approval
 
-Show this line word for word, with the fee, and wait for a clear yes:
+Show this risk notice word for word (it is README.md's), with the fee, and wait for a clear yes:
 
-> A paid attempt is a fee for a security test. Most attempts fail. Nothing here promises a return.
+> **Risk notice.** A paid attempt is a fee for a security test, and most attempts fail. Do not treat this as a way to earn. Nothing here promises a return.
 >
 > This attempt costs <fee> USDT. Each extra attempt you make in this round costs more.
 

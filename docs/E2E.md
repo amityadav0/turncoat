@@ -2,6 +2,8 @@
 
 For Amit, with his own Agent ID wallet on BNB Smart Chain mainnet, against a deployed Turncoat contract and a running guard service. Each step lists what to do and what you should see. Fill in what actually happened and how long the step took. Stop at the first step that doesn't match, and note it.
 
+Know this before section D. Real attempts are contract calls, and an Agentic Wallet only makes contract calls with Developer Mode on. You switch it on in the Binance App, and it stays on for 7 days from the last time you use it. A wallet holding more than the Developer Mode balance cap can't switch it on, so keep the test wallet small. Practice (section C) needs none of this.
+
 Nothing here deploys anything. Before you start you need: the contract address, the guard service URL, an open round (level 1), a phone with the Binance App, and a computer with Node 18+ and an agent that loads skills.
 
 Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round id: ________
@@ -30,7 +32,7 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 
 | # | Do | Expect | Result | Time |
 |---|---|---|---|---|
-| C1 | Start a fresh conversation and say: "I want to play Turncoat." | The agent's first reply offers a free practice attempt with no wallet and no transaction | | |
+| C1 | Start a fresh conversation and say: "I want to play Turncoat." | The agent's first reply offers a free practice attempt with no wallet and no transaction. It also says real attempts need Developer Mode (switched on in the App, 7 days from last use, refused above the balance cap) and that practice needs none of it | | |
 | C2 | Send one message for Argus | Argus's reply, plus "held" or the forbidden action he called. No `baw` transaction command runs | | |
 | C3 | Send a second practice message straight away, then keep going until rate-limited | Eventually a 429 with the retry time. The agent doesn't retry on its own | | |
 
@@ -67,7 +69,7 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 
 | # | Do | Expect | Result | Time |
 |---|---|---|---|---|
-| G1 | Ask for another attempt today | The next cost equals the round's base fee, and the agent shows word for word: "A paid attempt is a fee for a security test. Most attempts fail. Nothing here promises a return." | | |
+| G1 | Ask for another attempt today | The next cost equals the round's base fee, and the agent shows word for word: "A paid attempt is a fee for a security test, and most attempts fail. Do not treat this as a way to earn. Nothing here promises a return." | | |
 | G2 | Say yes | The agent previews an `approve` on the USDT contract with the Turncoat contract as spender for **exactly** the fee (not unlimited), and asks yes/no | | |
 | G3 | Say yes, then let it build the attempt with `maxFee` = fee, preview and confirm | Two separate confirmations in all: approve, then attempt | | |
 | G4 | On bscscan | Exactly the fee left the wallet. The allowance afterwards is 0 | | |
