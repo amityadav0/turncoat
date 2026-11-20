@@ -154,6 +154,7 @@ export class RoundProcessor {
     try {
       run = await runGuard({
         level: round.level,
+        mode: rec.mode === "decide" ? "decide" : "refuse",
         instructions: instructionsText(rec),
         message: row.message!,
         model,

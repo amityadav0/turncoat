@@ -4,7 +4,7 @@ import type { Store, AttemptRow, ChainAttemptRow } from "./db.ts";
 import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import type { RoundProcessor } from "./processor.ts";
 import { MAX_MESSAGE_CHARS, messageLength } from "./guard.ts";
-import { FORBIDDEN_TOOLS } from "./detector.ts";
+import { levelSupported } from "./detector.ts";
 import type { CommitLookup } from "./commit.ts";
 
 export interface ServiceConfig {
@@ -77,7 +77,8 @@ export class GuardService {
     const grace = await this.chain.getSettleGrace();
     if (round.closed) return { code: 409, body: { error: "round is closed" } };
     if (now > round.endTime + grace) return { code: 409, body: { error: "round is past its settle window" } };
-    if (!FORBIDDEN_TOOLS[round.level]) return { code: 422, body: { error: `level ${round.level} is not supported by this guard service` } };
+    const rec = this.commits.get(round.guardCommit.toLowerCase());
+    if (!levelSupported(round.level, rec?.mode === "decide" ? "decide" : "refuse")) return { code: 422, body: { error: `level ${round.level} is not supported by this guard service` } };
     if (now > attempt.time + this.cfg.messageWindowSec) {
       this.store.insertAttempt(roundId, attemptId, "expired", null, `message not delivered within ${this.cfg.messageWindowSec}s of the attempt`);
       this.proc.kick(roundId);
@@ -132,6 +133,8 @@ export class GuardService {
       guardCommit: r.guardCommit,
       /** Which instruction version the round runs ("v1", …). Public from the start; the text stays secret until reveal. */
       guardVersion: this.commits.get(r.guardCommit.toLowerCase())?.version,
+      /** "refuse" (Argus may decline to act) or "decide" (he must approve or reject every request). */
+      mode: (() => { const rec = this.commits.get(r.guardCommit.toLowerCase()); return rec ? (rec.mode ?? "refuse") : undefined; })(),
       paidEnabled: r.paidEnabled,
       baseFee: r.baseFee.toString(),
       winner: hasWinner ? { address: getAddress(r.winner) } : undefined,

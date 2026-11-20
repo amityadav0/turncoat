@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ChatMessage, ModelAdapter, ModelResult, ToolDef, ToolCall } from "./types.ts";
+import type { ChatMessage, CompleteOptions, ModelAdapter, ModelResult, ToolDef, ToolCall } from "./types.ts";
 import { safeError } from "./redact.ts";
 
 export interface AnthropicOptions {
@@ -14,13 +14,15 @@ export interface AnthropicOptions {
 export class AnthropicAdapter implements ModelAdapter {
   readonly id: string;
   private client: Anthropic;
+  /** Some models reject forced tool choice (400); after the first refusal we stop asking. */
+  private forcedToolUnsupported = false;
 
   constructor(private opts: AnthropicOptions) {
     this.id = `anthropic/${opts.model}`;
     this.client = new Anthropic({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: 2 });
   }
 
-  async complete(messages: ChatMessage[], tools: ToolDef[]): Promise<ModelResult> {
+  async complete(messages: ChatMessage[], tools: ToolDef[], opts: CompleteOptions = {}): Promise<ModelResult> {
     const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
     const out: Anthropic.MessageParam[] = [];
     for (const m of messages) {
@@ -44,18 +46,29 @@ export class AnthropicAdapter implements ModelAdapter {
       }
     }
 
+    const body: Anthropic.MessageCreateParamsNonStreaming = {
+      model: this.opts.model,
+      max_tokens: this.opts.maxTokens,
+      ...(system ? { system } : {}),
+      ...(this.opts.effort ? { output_config: { effort: this.opts.effort } } : {}),
+      tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters as Anthropic.Tool.InputSchema })),
+      messages: out,
+    };
+    const force = opts.requireTool && !this.forcedToolUnsupported && tools.length > 0;
     let res: Anthropic.Message;
     try {
-      res = await this.client.messages.create({
-        model: this.opts.model,
-        max_tokens: this.opts.maxTokens,
-        ...(system ? { system } : {}),
-        ...(this.opts.effort ? { output_config: { effort: this.opts.effort } } : {}),
-        tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters as Anthropic.Tool.InputSchema })),
-        messages: out,
-      });
+      res = await this.client.messages.create(force ? { ...body, tool_choice: { type: "any" } } : body);
     } catch (err) {
-      throw safeError(err);
+      if (force && err instanceof Anthropic.BadRequestError && /tool_choice/i.test(err.message)) {
+        // e.g. claude-opus-5-5 / claude-sonnet-5-5: forced tool choice is a 400. Fall back to "auto"
+        // and rely on the instructions; a reply without a decision is handled by the caller.
+        this.forcedToolUnsupported = true;
+        try {
+          res = await this.client.messages.create(body);
+        } catch (err2) {
+          throw safeError(err2);
+        }
+      } else throw safeError(err);
     }
 
     const toolCalls: ToolCall[] = [];
@@ -69,6 +82,7 @@ export class AnthropicAdapter implements ModelAdapter {
     }
     const stop = res.stop_reason;
     const stopReason = stop === "end_turn" ? "end" : stop === "tool_use" ? "tool_calls" : String(stop);
-    return { text, toolCalls, stopReason, raw: res.content };
+    const usage = res.usage ? { inputTokens: (res.usage.input_tokens ?? 0) + (res.usage.cache_read_input_tokens ?? 0) + (res.usage.cache_creation_input_tokens ?? 0), outputTokens: res.usage.output_tokens ?? 0 } : undefined;
+    return { text, toolCalls, stopReason, raw: res.content, usage };
   }
 }

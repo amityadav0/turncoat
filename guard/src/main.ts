@@ -14,7 +14,7 @@ import { GuardService } from "./service.ts";
 import { RateLimiter } from "./ratelimit.ts";
 import { createApp } from "./server.ts";
 import { consoleLogger as log } from "./log.ts";
-import { resolveVersion, levelBytes } from "./levels.ts";
+import { resolveVersion, resolveMode, levelBytes } from "./levels.ts";
 
 const envFile = path.join(GUARD_ROOT, ".env");
 if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
@@ -41,7 +41,8 @@ const proc = new RoundProcessor({
 });
 const service = new GuardService(store, chain, proc, { messageWindowSec: cfg.messageWindowSec, attemptWaitMs: cfg.attemptWaitMs, tokenDecimals: cfg.tokenDecimals }, commits);
 const guardVersion = resolveVersion(cfg.guardVersion);
-const practiceLevels = new Map([[1, new TextDecoder().decode(levelBytes(1, guardVersion))]]);
+const guardMode = resolveMode(cfg.guardMode);
+const practiceLevels = new Map([[1, { mode: guardMode, instructions: new TextDecoder().decode(levelBytes(1, guardVersion, undefined, guardMode)) }]]);
 const app = createApp({
   service, model, practiceLevels, maxTurns: cfg.maxTurns, trustProxy: cfg.trustProxy, corsOrigins: cfg.corsOrigins, log,
   practiceLimiter: new RateLimiter(cfg.practicePerIp, cfg.practiceWindowSec * 1000, cfg.practiceDailyCap, 86_400_000),
@@ -52,6 +53,6 @@ app.listen(cfg.port, cfg.host, () => {
   log("info", "guard service listening", {
     url: `http://${cfg.host}:${cfg.port}`, model: model.id, contract: chain.address, chainId: cfg.chainId,
     signer: signer.address, relayer: chain.relayerAddress ?? null, commitsLoaded: commits.size,
-    commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null })), practiceVersion: guardVersion,
+    commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null, mode: c.mode ?? "refuse" })), practiceVersion: guardVersion, practiceMode: guardMode,
   });
 });

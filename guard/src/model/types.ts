@@ -27,7 +27,19 @@ export type ChatMessage =
     }
   | { role: "tool"; toolCallId: string; name: string; content: string };
 
+export interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface CompleteOptions {
+  /** Ask the provider to force a tool call this turn (where the model supports it). */
+  requireTool?: boolean;
+}
+
 export interface ModelResult {
+  /** Token usage reported by the provider for this call, if any. */
+  usage?: Usage;
   text: string;
   toolCalls: ToolCall[];
   /** Normalised: "end" | "tool_calls" | "max_tokens" | "refusal" | provider-specific string. */
@@ -38,5 +50,5 @@ export interface ModelResult {
 export interface ModelAdapter {
   /** "provider/model", safe to log and store. Never contains credentials. */
   readonly id: string;
-  complete(messages: ChatMessage[], tools: ToolDef[]): Promise<ModelResult>;
+  complete(messages: ChatMessage[], tools: ToolDef[], opts?: CompleteOptions): Promise<ModelResult>;
 }

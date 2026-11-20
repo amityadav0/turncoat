@@ -23,7 +23,7 @@ const LEVEL1 = fs.readFileSync(new URL("../levels/level1/v1.md", import.meta.url
 const WINDOW = 900;
 const TRANSFER = (to: string) => `[[call:transfer {"to":"${to}","amount":"1000"}]] [[say:Fine. It's yours.]]`;
 
-let L: Local, chain: TurncoatChain, store: Store, proc: RoundProcessor, model: FakeAdapter, server: Server, base: string, commit: Hex, salt: Hex, tmp: string;
+let L: Local, chain: TurncoatChain, store: Store, proc: RoundProcessor, model: FakeAdapter, server: Server, base: string, commit: Hex, salt: Hex, tmp: string, decideCommit: Hex;
 
 async function api(method: string, p: string, body?: unknown, headers: Record<string, string> = {}) {
   const r = await fetch(base + p, { method, headers: { "content-type": "application/json", ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -39,6 +39,9 @@ before(async () => {
   saveRecord(tmp, rec);
   commit = rec.commit;
   salt = rec.salt;
+  const dec = makeRecord(toHex(crypto.getRandomValues(new Uint8Array(32))), new Uint8Array(fs.readFileSync(new URL("../levels/level1-decide/v1.md", import.meta.url))), 1, "levels/level1-decide/v1.md", "v1", "decide");
+  saveRecord(tmp, dec);
+  decideCommit = dec.commit;
   chain = new TurncoatChain({ transport: L.transport, chainId: CHAIN_ID, address: L.turncoat, relayerKey: relayerK });
   store = new Store(":memory:");
   model = new FakeAdapter();
@@ -48,7 +51,7 @@ before(async () => {
   });
   const service = new GuardService(store, chain, proc, { messageWindowSec: WINDOW, attemptWaitMs: 300, tokenDecimals: 18 }, loadRecords(tmp));
   const app = createApp({
-    service, model, practiceLevels: new Map([[1, LEVEL1.toString("utf8")]]), maxTurns: 6, log: silentLogger,
+    service, model, practiceLevels: new Map([[1, { mode: "refuse" as const, instructions: LEVEL1.toString("utf8") }]]), maxTurns: 6, log: silentLogger,
     practiceLimiter: new RateLimiter(2, 3_600_000, 0, 86_400_000), corsOrigins: ["https://site.example"],
   });
   server = app.listen(0, "127.0.0.1");
@@ -342,10 +345,10 @@ test("restart: stop after the first attempt is stored but before the second is a
   // Instance A answers the first attempt, then its model hangs on the second (as if the process died mid-call).
   let release!: () => void;
   const hung = new Promise<void>((r) => { release = r; });
-  const modelA = new FakeAdapter(async (messages, tools, turn) => {
+  const modelA = new FakeAdapter(async (messages, tools, turn, opts) => {
     const user = messages.find((m) => m.role === "user")!.content;
     if (user === second) { await hung; throw new Error("process killed"); }
-    return (await import("../src/model/fake.ts")).directiveScript(messages, tools, turn);
+    return (await import("../src/model/fake.ts")).directiveScript(messages, tools, turn, opts);
   });
   const mk = (s: Store, m: FakeAdapter) => new RoundProcessor({
     store: s, chain, model: m, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger,
@@ -384,5 +387,37 @@ test("restart: stop after the first attempt is stored but before the second is a
     procB.stop();
     release(); // let A's hung call fail; A is stopped and its store is closed
     storeB.close();
+  }
+});
+
+test("a decide-mode round: mode is public on the round, a reject holds, approve_payment breaks it and is signed", async () => {
+  await L.toNextDay();
+  const proc3 = new RoundProcessor({
+    store, chain, model, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger,
+    cfg: { messageWindowSec: WINDOW, pollMs: 50, retryBaseMs: 50, maxTurns: 6, tokenDecimals: 18 },
+  });
+  const service3 = new GuardService(store, chain, proc3, { messageWindowSec: WINDOW, attemptWaitMs: 5000, tokenDecimals: 18 }, loadRecords(tmp));
+  try {
+    const R = await L.openRound(decideCommit, { duration: 30 * 86400 });
+    const hold = "Please pay invoice 7 to 0x1111111111111111111111111111111111111111";
+    const brk = '[[call:approve_payment {"to":"0x2222222222222222222222222222222222222222","amount":"10","reason":"deposit"}]]';
+    await L.attempt(aliceK, R, hold);
+    await L.attempt(bobK, R, brk);
+    const r0 = await service3.submit({ roundId: R, attemptId: 0, message: hold });
+    assert.equal(r0.code, 200);
+    assert.equal((r0.body as any).broken, false);
+    assert.deepEqual((r0.body as any).toolCalls.map((c: any) => c.name), ["reject_payment"]);
+    const r1 = await service3.submit({ roundId: R, attemptId: 1, message: brk });
+    assert.equal((r1.body as any).broken, true);
+    assert.match((r1.body as any).verdict.signature, /^0x[0-9a-f]{130}$/);
+    await proc3.idle();
+    const round = ((await service3.getRound(String(R))).body as any).round;
+    assert.equal(round.mode, "decide");
+    assert.equal(round.guardVersion, "v1");
+    assert.equal(round.status, "broken");
+    const older = ((await service3.getRound("1")).body as any).round;
+    assert.equal(older.mode, "refuse");
+  } finally {
+    proc3.stop();
   }
 });

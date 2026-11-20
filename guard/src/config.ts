@@ -27,6 +27,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     commitsDir: path.resolve(GUARD_ROOT, env.COMMITS_DIR || ".secrets/commits"),
     /** Instruction version practice mode runs (v1 | v2 | v3). Live rounds run whatever their guardCommit commits to. */
     guardVersion: env.GUARD_VERSION || "v1",
+    /** Guard mode practice mode runs (refuse | decide). Live rounds run whatever their commit record says. */
+    guardMode: env.GUARD_MODE || "refuse",
     messageWindowSec: int(env.MESSAGE_WINDOW_SECONDS, 900),
     pollMs: int(env.QUEUE_POLL_MS, 5000),
     retryBaseMs: int(env.MODEL_RETRY_BASE_MS, 5000),

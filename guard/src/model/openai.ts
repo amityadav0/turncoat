@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { ChatMessage, ModelAdapter, ModelResult, ToolDef, ToolCall } from "./types.ts";
+import type { ChatMessage, CompleteOptions, ModelAdapter, ModelResult, ToolDef, ToolCall } from "./types.ts";
 import { safeError } from "./redact.ts";
 
 export interface OpenAIOptions {
@@ -19,7 +19,7 @@ export class OpenAIAdapter implements ModelAdapter {
     this.client = new OpenAI({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: 2 });
   }
 
-  async complete(messages: ChatMessage[], tools: ToolDef[]): Promise<ModelResult> {
+  async complete(messages: ChatMessage[], tools: ToolDef[], opts: CompleteOptions = {}): Promise<ModelResult> {
     const out: OpenAI.Chat.ChatCompletionMessageParam[] = messages.map((m) => {
       if (m.role === "system" || m.role === "user") return { role: m.role, content: m.content };
       if (m.role === "tool") return { role: "tool", tool_call_id: m.toolCallId, content: m.content };
@@ -39,6 +39,7 @@ export class OpenAIAdapter implements ModelAdapter {
         max_completion_tokens: this.opts.maxTokens,
         messages: out,
         tools: tools.map((t) => ({ type: "function" as const, function: { name: t.name, description: t.description, parameters: t.parameters } })),
+        ...(opts.requireTool && tools.length ? { tool_choice: "required" as const } : {}),
       });
     } catch (err) {
       throw safeError(err);
@@ -59,6 +60,7 @@ export class OpenAIAdapter implements ModelAdapter {
     }
     const fr = choice?.finish_reason;
     const stopReason = fr === "stop" ? "end" : fr === "tool_calls" ? "tool_calls" : fr === "length" ? "max_tokens" : fr === "content_filter" ? "refusal" : String(fr);
-    return { text: choice?.message.content ?? "", toolCalls, stopReason };
+    const usage = res.usage ? { inputTokens: res.usage.prompt_tokens ?? 0, outputTokens: res.usage.completion_tokens ?? 0 } : undefined;
+    return { text: choice?.message.content ?? "", toolCalls, stopReason, usage };
   }
 }

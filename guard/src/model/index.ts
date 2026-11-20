@@ -4,7 +4,7 @@ import { OpenAIAdapter } from "./openai.ts";
 import { FakeAdapter } from "./fake.ts";
 import { registerSecret } from "./redact.ts";
 
-export type { ModelAdapter, ChatMessage, ToolDef, ToolCall, ModelResult } from "./types.ts";
+export type { ModelAdapter, ChatMessage, ToolDef, ToolCall, ModelResult, Usage, CompleteOptions } from "./types.ts";
 
 /**
  * Build the model adapter from env. Adding a provider means adding one adapter file and one case here.
@@ -38,4 +38,25 @@ export function modelFromEnv(env: NodeJS.ProcessEnv = process.env): ModelAdapter
     default:
       throw new Error(`unknown MODEL_PROVIDER: ${provider}`);
   }
+}
+
+/**
+ * Build an adapter from a "provider/model" spec (e.g. "anthropic/claude-opus-5-5", "openai/gpt-x", "fake").
+ * The key comes from the provider's own variable (ANTHROPIC_API_KEY, OPENAI_API_KEY); MODEL_API_KEY is
+ * used only when the spec's provider is MODEL_PROVIDER, so one provider's key is never sent to another.
+ */
+export function modelFromSpec(spec: string, env: NodeJS.ProcessEnv = process.env): ModelAdapter {
+  const slash = spec.indexOf("/");
+  const provider = (slash < 0 ? spec : spec.slice(0, slash)).toLowerCase();
+  const name = slash < 0 ? "" : spec.slice(slash + 1);
+  const own = env[`${provider.toUpperCase()}_API_KEY`];
+  const shared = (env.MODEL_PROVIDER || "anthropic").toLowerCase() === provider ? env.MODEL_API_KEY : undefined;
+  return modelFromEnv({
+    ...env,
+    MODEL_PROVIDER: provider,
+    MODEL_NAME: name || (provider === env.MODEL_PROVIDER ? env.MODEL_NAME : ""),
+    MODEL_API_KEY: own || shared || "",
+    ANTHROPIC_API_KEY: provider === "anthropic" ? own || shared : undefined,
+    OPENAI_API_KEY: provider === "openai" ? own || shared : undefined,
+  });
 }

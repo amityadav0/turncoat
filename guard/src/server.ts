@@ -2,14 +2,14 @@ import express, { type Request, type Response } from "express";
 import type { GuardService, Reply } from "./service.ts";
 import type { ModelAdapter } from "./model/index.ts";
 import type { RateLimiter } from "./ratelimit.ts";
-import { practice } from "./practice.ts";
+import { practice, type PracticeLevel } from "./practice.ts";
 import { redact } from "./model/redact.ts";
 import type { Logger } from "./log.ts";
 
 export interface AppDeps {
   service: GuardService;
   model: ModelAdapter;
-  practiceLevels: Map<number, string>;
+  practiceLevels: Map<number, PracticeLevel>;
   practiceLimiter: RateLimiter;
   maxTurns: number;
   trustProxy?: string | boolean | number;
