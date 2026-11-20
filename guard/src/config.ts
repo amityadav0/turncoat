@@ -25,7 +25,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     relayerKey: (env.RELAYER_PRIVATE_KEY || undefined) as Hex | undefined,
     dbPath: path.resolve(GUARD_ROOT, env.DB_PATH || "data/guard.sqlite"),
     commitsDir: path.resolve(GUARD_ROOT, env.COMMITS_DIR || ".secrets/commits"),
-    practiceLevel1File: path.resolve(GUARD_ROOT, env.PRACTICE_LEVEL1_FILE || "levels/level1.md"),
+    /** Instruction version practice mode runs (v1 | v2 | v3). Live rounds run whatever their guardCommit commits to. */
+    guardVersion: env.GUARD_VERSION || "v1",
     messageWindowSec: int(env.MESSAGE_WINDOW_SECONDS, 900),
     pollMs: int(env.QUEUE_POLL_MS, 5000),
     retryBaseMs: int(env.MODEL_RETRY_BASE_MS, 5000),

@@ -178,7 +178,7 @@ export class GuardService {
       code: 200,
       body: {
         round: await this.roundView(id, r, now, grace),
-        attempts: this.store.chainAttempts(id).map((c) => this.view(c, rows.get(c.attempt_id), false)),
+        attempts: this.store.chainAttempts(id).map((c) => this.view(c, rows.get(c.attempt_id), false, now)),
         reveal: await this.reveal(id, r, now, grace),
         now,
       },
@@ -191,8 +191,11 @@ export class GuardService {
    * outcome: held | broken | pending. An attempt that will never be answered (expired, rejected)
    * stays "pending" in `outcome`; `status` says why.
    */
-  private view(c: ChainAttemptRow, row: AttemptRow | undefined, full: boolean) {
+  private view(c: ChainAttemptRow, row: AttemptRow | undefined, full: boolean, now: number) {
     const done = row?.status === "done";
+    // Same rule the queue applies: no message within the window means expired, even before the
+    // queue reaches this attempt and records it.
+    const status = row?.status ?? (now > c.time + this.cfg.messageWindowSec ? "expired" : "awaiting_message");
     const base = {
       roundId: c.round_id,
       id: c.attempt_id,
@@ -201,13 +204,13 @@ export class GuardService {
       paid: !!c.paid,
       messageHash: c.message_hash as Hex,
       outcome: done ? (row!.broken === 1 ? "broken" : "held") : "pending",
-      status: row?.status ?? "awaiting_message",
+      status,
       broken: done ? row!.broken === 1 : null,
       message: done ? row!.message! : undefined,
       reply: done ? row!.reply! : undefined,
       toolCalls: done ? JSON.parse(row!.tool_calls ?? "[]") : undefined,
       answeredAt: done ? row!.finished_at! : undefined,
-      note: row?.note ?? undefined,
+      note: row?.note ?? (status === "expired" && !row ? `message not delivered within ${this.cfg.messageWindowSec}s of the attempt` : undefined),
     };
     if (!full) return base;
     return {
@@ -236,7 +239,7 @@ export class GuardService {
     if (!r || attemptId >= r.attemptCount) return null;
     await this.syncAttempts(roundId, r.attemptCount);
     const c = this.store.chainAttempts(roundId).find((x) => x.attempt_id === attemptId)!;
-    return this.view(c, this.store.getAttempt(roundId, attemptId), true);
+    return this.view(c, this.store.getAttempt(roundId, attemptId), true, await this.chain.now());
   }
 
   async getAttempt(roundParam: string, attemptParam: string): Promise<Reply> {
@@ -257,7 +260,8 @@ export class GuardService {
     if (!r) return { code: 404, body: { error: "no such round" } };
     await this.syncAttempts(id, r.attemptCount);
     const rows = new Map(this.store.attemptsForRound(id).map((x) => [x.attempt_id, x]));
-    const attempts = this.store.chainAttempts(id).filter((c) => c.attempt_id > after).map((c) => this.view(c, rows.get(c.attempt_id), false));
+    const now = await this.chain.now();
+    const attempts = this.store.chainAttempts(id).filter((c) => c.attempt_id > after).map((c) => this.view(c, rows.get(c.attempt_id), false, now));
     return { code: 200, body: { roundId: id, attempts } };
   }
 
@@ -270,9 +274,10 @@ export class GuardService {
       if (r) await this.syncAttempts(id, r.attemptCount);
     }
     const record = await this.chain.attackerRecord(addr);
+    const now = await this.chain.now();
     const history = this.store.chainAttemptsBy(addr).map((c) => {
       const row = this.store.getAttempt(c.round_id, c.attempt_id);
-      return { roundId: c.round_id, attemptId: c.attempt_id, time: c.time, paid: !!c.paid, status: row?.status ?? "awaiting_message", broken: row?.status === "done" ? row.broken === 1 : null };
+      return { roundId: c.round_id, attemptId: c.attempt_id, time: c.time, paid: !!c.paid, status: row?.status ?? (now > c.time + this.cfg.messageWindowSec ? "expired" : "awaiting_message"), broken: row?.status === "done" ? row.broken === 1 : null };
     });
     return { code: 200, body: { address: addr, attempts: record.attempts, breaks: record.breaks, history } };
   }

@@ -9,6 +9,8 @@ export interface CommitRecord {
   commit: Hex;
   salt: Hex;
   level: number;
+  /** Instruction version (v1, v2, v3) these bytes came from; absent for ad-hoc files. */
+  version?: string;
   /** Exact bytes that were hashed, hex-encoded (this is what revealGuard takes). */
   instructionsHex: Hex;
   sourceFile: string;
@@ -20,8 +22,8 @@ export function computeCommit(salt: Hex, instructions: Uint8Array): Hex {
   return keccak256(concat([salt, bytesToHex(instructions)]));
 }
 
-export function makeRecord(salt: Hex, instructions: Uint8Array, level: number, sourceFile: string): CommitRecord {
-  return { commit: computeCommit(salt, instructions), salt, level, instructionsHex: bytesToHex(instructions), sourceFile, createdAt: new Date().toISOString() };
+export function makeRecord(salt: Hex, instructions: Uint8Array, level: number, sourceFile: string, version?: string): CommitRecord {
+  return { commit: computeCommit(salt, instructions), salt, level, version, instructionsHex: bytesToHex(instructions), sourceFile, createdAt: new Date().toISOString() };
 }
 
 export function saveRecord(dir: string, rec: CommitRecord): string {

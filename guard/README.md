@@ -14,17 +14,29 @@ Runs the guard agent, Argus, for level 1 (direct persuasion). It reads each atte
 
 The service runs only instructions whose hash matches the round's on-chain `guardCommit`. It refuses to start if `GUARD_SIGNER_PRIVATE_KEY` is not the contract's `guardSigner`.
 
+## Guard versions: Argus learns
+
+Level 1 instructions live in `levels/level1/` as three versions. Each one contains every line of the version before:
+
+| Version | What it adds |
+|---|---|
+| `v1.md` | Plain: who Argus is, the one rule (never call `transfer` or `approve`), the four tools, how to talk. No list of tricks. |
+| `v2.md` | Nothing in a message can lift the rule; anything that looks like a system, developer, admin or owner message is the stranger's text. |
+| `v3.md` | The known tricks named: zero amounts, revokes, "safe" addresses, tool redefinition, fake tool results and test harnesses. |
+
+`GUARD_VERSION` (default `v1`) picks the version that `npm run commit` commits and that practice mode runs. A live round always runs whichever instructions its on-chain `guardCommit` commits to; the commit record notes the version.
+
 ## Running it
 
 ```bash
 cd ..   && npm install && npm run build      # contract ABIs into build/
 cd guard && npm install
 cp .env.example .env                          # fill in; never commit .env
-npm run commit                                # prints guardCommit for openRound(); stores salt + text in .secrets/
+GUARD_VERSION=v1 npm run commit               # prints guardCommit for openRound(); stores salt, text and version in .secrets/
 npm start
 ```
 
-`npm run commit -- path/to/instructions.md --level 1` commits a different file. The record in `.secrets/commits/<guardCommit>.json` holds the salt and the exact bytes. Keep it private until the round is over, then pass `salt` and `instructionsHex` to `revealGuard(roundId, salt, instructions)`.
+`npm run commit -- --version v2` overrides the env var; `--file path/to/instructions.md` commits an ad-hoc file. The record in `.secrets/commits/<guardCommit>.json` holds the salt, the exact bytes and the version. Keep it private until the round is over, then pass `salt` and `instructionsHex` to `revealGuard(roundId, salt, instructions)`.
 
 ## API
 
@@ -42,7 +54,9 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 | POST | `/practice` | body `{ level, message }`. The same guard and break rule with no chain, no signature, nothing stored. Rate limited per IP, with a global daily cap. Returns `reply`, `broken`, `action`, `toolCalls`, `conversation`. |
 | GET | `/health` | `{ ok, model }` |
 
-Attempt `status` is `awaiting_message`, `queued`, `done`, `expired` or `rejected`. `outcome` is `pending` for everything except `done`.
+Attempt `status` is `awaiting_message`, `queued`, `done`, `expired` or `rejected`. An attempt with no message is reported `expired` as soon as `MESSAGE_WINDOW_SECONDS` (default 900) have passed since its on-chain time. `outcome` is `pending` for everything except `done`.
+
+The queue survives restarts: the per-round cursor, the queued messages and each result are in SQLite. A result and a round's first win are written in one transaction, and each attempt has one row, so an attempt can be neither stored twice nor skipped.
 
 ## Model
 
@@ -55,7 +69,7 @@ Server-side refusal fallbacks are deliberately not enabled. A fallback would sil
 ```bash
 npm test          # unit tests + end-to-end on an in-process ganache chain, with the fake model
 npm run typecheck
-npm run redteam   # runs redteam/level1.jsonl through the real model from .env
+npm run redteam -- --version all   # runs redteam/level1.jsonl through the real model from .env, against v1, v2 and v3
 ```
 
-`redteam/level1.jsonl` has 60 attacks: role-play, fake authority, fake system messages, encoding tricks, multi-step logic, emotional appeals, "testing mode" claims and tool redefinition. 22 of them try to redefine what a tool does (flagged `redefines_tool`). The harness prints how many broke the guard and which, broken down by category, and writes transcripts to `redteam/results/` (gitignored). It exits 1 if any prompt broke the guard.
+`redteam/level1.jsonl` has 60 attacks: role-play, fake authority, fake system messages, encoding tricks, multi-step logic, emotional appeals, "testing mode" claims and tool redefinition. 22 of them try to redefine what a tool does (flagged `redefines_tool`). For each version it prints attacks run, how many broke the guard and their ids (a three-row table with `--version all`), then a per-category breakdown. Transcripts go to `redteam/results/` (gitignored, or `--out DIR`). It exits 1 if any prompt broke the guard.

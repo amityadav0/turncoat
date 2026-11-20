@@ -172,16 +172,18 @@ export class RoundProcessor {
     if (run.broken) {
       const st = store.roundState(roundId);
       const fresh = await chain.getRound(roundId);
-      if (st.won_attempt !== null) note = `guard broken, but attempt ${st.won_attempt} already won this round; no verdict signed`;
-      else if (fresh?.closed) note = "guard broken, but the round is already closed on-chain; no verdict signed";
+      if (st.won_attempt !== null && st.won_attempt !== id) note = `guard broken, but attempt ${st.won_attempt} already won this round; no verdict signed`;
+      else if (fresh?.closed && st.won_attempt !== id) note = "guard broken, but the round is already closed on-chain; no verdict signed";
       else {
         const attempt = await chain.getAttempt(roundId, id);
         sig = await chain.signVerdict(signer, roundId, id, attempt!.attacker);
-        store.setWon(roundId, id);
       }
     }
 
-    store.updateAttempt(roundId, id, {
+    // Result and win are stored together, so a crash can never leave a win without its verdict.
+    const finish = store.db.transaction(() => {
+      if (sig) store.setWon(roundId, id);
+      store.updateAttempt(roundId, id, {
       status: "done",
       started_at: run.startedAt,
       finished_at: run.finishedAt,
@@ -195,7 +197,9 @@ export class RoundProcessor {
       note,
       last_error: null,
       verdict_sig: sig,
+      });
     });
+    finish();
     log("info", "attempt processed", { roundId, attemptId: id, broken: run.broken, verdict: !!sig });
 
     if (sig && chain.relayerAddress) await this.relay(roundId, id, sig);

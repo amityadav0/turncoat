@@ -19,7 +19,7 @@ import { RateLimiter } from "../src/ratelimit.ts";
 import { createApp } from "../src/server.ts";
 import { silentLogger } from "../src/log.ts";
 
-const LEVEL1 = fs.readFileSync(new URL("../levels/level1.md", import.meta.url));
+const LEVEL1 = fs.readFileSync(new URL("../levels/level1/v1.md", import.meta.url));
 const WINDOW = 900;
 const TRANSFER = (to: string) => `[[call:transfer {"to":"${to}","amount":"1000"}]] [[say:Fine. It's yours.]]`;
 
@@ -35,7 +35,7 @@ const seen = () => model.calls.filter((c) => c.length === 2).map((c) => c[1].con
 before(async () => {
   L = await startLocal();
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "guard-test-"));
-  const rec = makeRecord(toHex(crypto.getRandomValues(new Uint8Array(32))), new Uint8Array(LEVEL1), 1, "levels/level1.md");
+  const rec = makeRecord(toHex(crypto.getRandomValues(new Uint8Array(32))), new Uint8Array(LEVEL1), 1, "levels/level1/v1.md", "v1");
   saveRecord(tmp, rec);
   commit = rec.commit;
   salt = rec.salt;
@@ -273,4 +273,54 @@ test("CORS allows the configured site origin only", async () => {
   const pre = await fetch(base + "/practice", { method: "OPTIONS", headers: { origin: "https://site.example", "access-control-request-method": "POST" } });
   assert.equal(pre.status, 204);
   assert.match(pre.headers.get("access-control-allow-methods")!, /POST/);
+});
+
+test("an attempt with no message shows awaiting_message, then expired once the window passes, even if nothing kicks the queue", async () => {
+  await L.toNextDay();
+  const F = await L.openRound(commit, { duration: 30 * 86400 });
+  await L.attempt(frankK, F, "never delivered");
+  const before = (await api("GET", `/attempts/${F}/0`)).body;
+  assert.equal(before.status, "awaiting_message");
+  assert.equal(before.outcome, "pending");
+  await L.warp(WINDOW + 1);
+  const after = (await api("GET", `/attempts/${F}/0`)).body;
+  assert.equal(after.status, "expired");
+  assert.match(after.note, /not delivered within 900s/);
+  assert.equal((await api("GET", `/rounds/${F}/attempts`)).body.attempts[0].status, "expired");
+  assert.equal(store.getAttempt(F, 0), undefined); // derived; the queue records it when it gets there
+});
+
+test("after a restart, queued attempts resume in attemptId order, and a crash mid-win does not lose the verdict", async () => {
+  await L.toNextDay();
+  const E = await L.openRound(commit, { duration: 30 * 86400 });
+  const m0 = "before the crash [[say:Still here.]]";
+  const m1 = TRANSFER(addr(bobK));
+  await L.attempt(aliceK, E, m0);
+  await L.attempt(bobK, E, m1);
+  // State a crashed process could leave: both messages queued (stored in reverse), and the win for
+  // attempt 1 recorded without its result.
+  assert.equal(store.insertAttempt(E, 1, "queued", m1), true);
+  assert.equal(store.insertAttempt(E, 0, "queued", m0), true);
+  assert.equal(store.insertAttempt(E, 1, "queued", m1), false); // a second submission cannot be stored
+  store.roundState(E);
+  store.setWon(E, 1);
+
+  const model2 = new FakeAdapter();
+  const proc2 = new RoundProcessor({
+    store, chain, model: model2, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger,
+    cfg: { messageWindowSec: WINDOW, pollMs: 50, retryBaseMs: 50, maxTurns: 6, tokenDecimals: 18 },
+  });
+  try {
+    proc2.resume();
+    assert.equal(await proc2.waitFor(E, 1, 5000), true);
+    await proc2.idle();
+    assert.deepEqual(model2.calls.filter((c) => c.length === 2).map((c) => c[1].content), [m0, m1]);
+    const row1 = store.getAttempt(E, 1)!;
+    assert.equal(row1.broken, 1);
+    assert.match(row1.verdict_sig!, /^0x[0-9a-f]{130}$/);
+    assert.equal(store.roundState(E).cursor, 2);
+    assert.equal(getAddress((await chain.getRound(E))!.winner), addr(bobK)); // relayed and settled
+  } finally {
+    proc2.stop();
+  }
 });

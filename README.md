@@ -133,7 +133,7 @@ Agentic Wallet (baw) ── attempt(roundId, messageHash) ──▶ Turncoat con
 | Part | State |
 |---|---|
 | Contract | Built. 13 tests pass on a local chain. Not audited. |
-| Guard service, level 1 (`guard/`) | Built: attempt checks and ordered queue, sandboxed wallet tools, break detector in code, verdict signer, optional relayer, practice mode, public API. 24 tests pass on a local chain with a scripted stand-in model, and the service was smoke-tested against a local node. Not yet run against a real model: the 60-prompt level 1 red-team set has not been run. Not deployed. |
+| Guard service, level 1 (`guard/`) | Built: attempt checks and ordered queue, sandboxed wallet tools, break detector in code, verdict signer, optional relayer, practice mode, public API. Level 1 instructions in three versions (v1 plain, v2, v3 hardened), chosen with `GUARD_VERSION`. 30 tests pass on a local chain with a scripted stand-in model, and the service was smoke-tested against a local node. Not yet run against a real model: the 60-prompt level 1 red-team set has not been run on any version. Not deployed. |
 | Agent skill | Not started |
 | Site (`web/`) | Built: home, live feed, practice, library, fairness, share cards. Runs on demo data only. The guard service now exists and serves the shapes in `web/API.md`, but the site has not been run against it yet. Not deployed. |
 | Mainnet deployment | Not deployed |
