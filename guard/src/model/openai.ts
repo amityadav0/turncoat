@@ -8,6 +8,8 @@ export interface OpenAIOptions {
   maxTokens: number;
   /** Any OpenAI-compatible Chat Completions endpoint. */
   baseURL?: string;
+  /** Per-request timeout; a hung call must not hold a round's queue for the SDK default of 10 minutes. */
+  timeoutMs?: number;
 }
 
 export class OpenAIAdapter implements ModelAdapter {
@@ -16,7 +18,7 @@ export class OpenAIAdapter implements ModelAdapter {
 
   constructor(private opts: OpenAIOptions) {
     this.id = `openai/${opts.model}`;
-    this.client = new OpenAI({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: 2 });
+    this.client = new OpenAI({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: 2, timeout: opts.timeoutMs ?? 60_000 });
   }
 
   async complete(messages: ChatMessage[], tools: ToolDef[], opts: CompleteOptions = {}): Promise<ModelResult> {

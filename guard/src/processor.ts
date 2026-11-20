@@ -40,6 +40,7 @@ export class RoundProcessor {
   private waiters = new Map<string, Array<() => void>>();
   private bg = new Set<Promise<unknown>>();
   private stopped = false;
+  private warnedModel = new Set<number>();
 
   constructor(private d: ProcessorDeps) {}
 
@@ -150,6 +151,11 @@ export class RoundProcessor {
       return false;
     }
 
+    const roundModel = store.roundModel(roundId, model.id);
+    if (roundModel !== model.id && !this.warnedModel.has(roundId)) {
+      this.warnedModel.add(roundId);
+      log("warn", "configured model differs from the model this round started on; the round keeps reporting the original", { roundId, roundModel, configured: model.id });
+    }
     store.updateAttempt(roundId, id, { started_at: new Date().toISOString() });
     let run;
     try {

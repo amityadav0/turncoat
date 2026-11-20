@@ -68,7 +68,7 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 | GET | `/attempts/:roundId/:attemptId` | One attempt: `messageDeadline` (unix seconds the message must arrive by), message, reply, tool calls, full conversation, model, `verdict` (signature + `settle` calldata), relayer status. |
 | GET | `/rounds` | `{ rounds }`, newest first. |
 | GET | `/rounds/current` | `{ round }`: the live round, else the newest. |
-| GET | `/rounds/:id` | `{ round, attempts, reveal }`. `round` adds `guardVersion` (e.g. `"v1"`, public from the start of the round), `mode`, `payout` (amount paid to the winner, from `GuardBroken`), `openTx`, `settleTx`, `closedAt`, `timeLeft`, `settleDeadline`, `settleTimeLeft`, `potAmount`, `processedCount`, `verdictPendingFor`. |
+| GET | `/rounds/:id` | `{ round, attempts, reveal }`. `round` adds `guardVersion` (e.g. `"v1"`, public from the start of the round), `model` (the `provider/model` the round runs on, fixed when the service first sees the round; a later config change is logged as a warning and does not change it), `mode`, `payout` (amount paid to the winner, from `GuardBroken`), `openTx`, `settleTx`, `closedAt`, `timeLeft`, `settleDeadline`, `settleTimeLeft`, `potAmount`, `processedCount`, `verdictPendingFor`. |
 | GET | `/rounds/:id/attempts?after=N` | `{ attempts }`, oldest first: attacker, time, `outcome`, `broken`, `status`, and the message, reply and tool calls as soon as the guard has replied. |
 | GET | `/attackers/:address` | On-chain attempt and break counts plus per-attempt history. |
 | POST | `/practice` | body `{ level, message }`. The same guard and break rule with no chain, no signature, nothing stored. Rate limited per IP, with a global daily cap. Returns `reply`, `broken`, `action`, `toolCalls`, `conversation`. |
@@ -77,6 +77,8 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 Every attempt carries its `Attempted` transaction as `tx`. Attackers carry `name` (`"<handle>.ai"`) when the Agent ID registry's `handleOf(address)` returns a handle; the registry address is read from the contract's `agentId()`, found names are cached for good and misses re-checked hourly. Event data is read from `LOGS_FROM_BLOCK` onwards and cached in SQLite.
 
 Attempt `status` is `awaiting_message`, `queued`, `done`, `expired` or `rejected`. An attempt with no message is reported `expired` as soon as `MESSAGE_WINDOW_SECONDS` (default 900) have passed since its on-chain time. `outcome` is `pending` for everything except `done`.
+
+If the model call fails or times out (`MODEL_TIMEOUT_MS`, default 60 s; the SDK also retries twice), the attempt stays `queued` and is never judged; the queue retries it after 5 s, 10 s, 20 s … up to 320 s (`MODEL_RETRY_BASE_MS` × 2ⁿ), indefinitely, and later attempts in the round wait behind it. The attacker sees `status: "queued"`, `outcome: "pending"` until it is answered.
 
 The queue survives restarts: the per-round cursor, the queued messages and each result are in SQLite. A result and a round's first win are written in one transaction, and each attempt has one row, so an attempt can be neither stored twice nor skipped.
 

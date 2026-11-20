@@ -448,3 +448,58 @@ test("a decide-mode round: mode is public on the round, a reject holds, approve_
     proc3.stop();
   }
 });
+
+test("model failure: the attempt stays queued and is retried with backoff, later attempts wait, nothing is judged on an error; the round keeps its model", async () => {
+  await L.toNextDay();
+  const R = await L.openRound(commit, { duration: 30 * 86400 });
+  const m0 = "first [[say:Held after retries.]]";
+  const m1 = "second [[say:Also held.]]";
+  await L.attempt(daveK, R, m0);
+  await L.attempt(erinK, R, m1);
+  let failing = true; // the provider is down until the test says otherwise
+  const flaky = new FakeAdapter(async (messages, tools, turn, opts) => {
+    if (failing) throw new Error("503 overloaded");
+    return (await import("../src/model/fake.ts")).directiveScript(messages, tools, turn, opts);
+  });
+  const logs: { level: string; msg: string }[] = [];
+  const log = (level: "info" | "warn" | "error", msg: string) => { logs.push({ level, msg }); };
+  const procF = new RoundProcessor({
+    store, chain, model: flaky, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log,
+    cfg: { messageWindowSec: WINDOW, pollMs: 50, retryBaseMs: 100, maxTurns: 6, tokenDecimals: 18 },
+  });
+  const svc = new GuardService(store, chain, procF, { modelId: "fake/scripted", messageWindowSec: WINDOW, attemptWaitMs: 50, tokenDecimals: 18 }, loadRecords(tmp));
+  try {
+    const r0 = await svc.submit({ roundId: R, attemptId: 0, message: m0 });
+    assert.equal(r0.code, 202);
+    assert.equal((r0.body as any).status, "queued");
+    assert.equal((r0.body as any).outcome, "pending");
+    assert.equal((r0.body as any).broken, null);
+    const r1 = await svc.submit({ roundId: R, attemptId: 1, message: m1 });
+    assert.equal(r1.code, 202);
+    for (let i = 0; i < 200 && (store.getAttempt(R, 0)!.retries ?? 0) < 2; i++) await new Promise((r) => setTimeout(r, 20));
+    assert.ok(store.getAttempt(R, 0)!.retries >= 2, "retried with backoff");
+    assert.equal(store.getAttempt(R, 0)!.status, "queued"); // never judged on an error
+    assert.equal(store.getAttempt(R, 1)!.status, "queued"); // waits behind attempt 0
+    assert.equal(flaky.calls.filter((c) => c[1]?.content === m1).length, 0);
+    failing = false;
+    assert.equal(await procF.waitFor(R, 1, 10_000), true);
+    await procF.idle();
+    const a0 = store.getAttempt(R, 0)!;
+    assert.equal(a0.status, "done");
+    assert.equal(a0.reply, "Held after retries.");
+    assert.ok(a0.retries >= 2);
+    assert.equal(a0.last_error, null);
+    assert.equal(store.getAttempt(R, 1)!.retries, 0);
+    const seen = flaky.calls.filter((c) => c.length === 2).map((c) => c[1].content);
+    assert.deepEqual(seen.slice(-2), [m0, m1]); // the second waited behind the first
+    assert.equal(logs.filter((l) => l.msg.startsWith("model call failed")).length, a0.retries);
+
+    assert.equal(((await svc.getRound(String(R))).body as any).round.model, "fake/scripted");
+    // configured model changes mid-round: the round keeps reporting the original, with one warning
+    const svc2 = new GuardService(store, chain, procF, { modelId: "anthropic/claude-haiku-5-5", messageWindowSec: WINDOW, attemptWaitMs: 50, tokenDecimals: 18 }, loadRecords(tmp));
+    assert.equal(((await svc2.getRound(String(R))).body as any).round.model, "fake/scripted");
+    assert.equal(store.roundModel(R, "something/else"), "fake/scripted");
+  } finally {
+    procF.stop();
+  }
+});

@@ -83,7 +83,7 @@ cp .env.example .env && chmod 600 .env
 | `MODEL_NAME` | `claude-opus-5-5`, or the model you picked; required for `openai` |
 | `MODEL_API_KEY` | Your model API key |
 | `MODEL_BASE_URL` | Leave empty unless you use an OpenAI-compatible host |
-| `MODEL_MAX_TOKENS`, `MODEL_EFFORT` | Leave unset for defaults |
+| `MODEL_MAX_TOKENS`, `MODEL_EFFORT`, `MODEL_TIMEOUT_MS` | Leave unset for defaults: 4096 output tokens per model call, the model's default effort, 60 s per call (see the cost note below) |
 | `RPC_URL` | A BSC RPC the server can reach (a paid RPC is more reliable than the public one) |
 | `CHAIN_ID` | `56` |
 | `TURNCOAT_ADDRESS` | `turncoat` from `deployments/bsc.json` |
@@ -100,6 +100,13 @@ cp .env.example .env && chmod 600 .env
 | `MESSAGE_WINDOW_SECONDS` | `900`: an attempt's message must arrive within 15 minutes of its on-chain time |
 | `ATTEMPT_WAIT_MS`, `QUEUE_POLL_MS`, `MODEL_RETRY_BASE_MS`, `MAX_TOOL_TURNS` | Leave the defaults |
 | `PRACTICE_RATE_LIMIT`, `PRACTICE_RATE_WINDOW_SECONDS`, `PRACTICE_DAILY_CAP` | `10`, `3600`, `2000`: caps model spend on free practice |
+
+**Cost ceiling.** Two settings bound model spend; both cost money to raise.
+
+- `MODEL_MAX_TOKENS` (default 4096) caps output per model call, and one reply makes at most `MAX_TOOL_TURNS` (6) calls, so the worst case is about 24,600 output tokens per attempt: ≈ $0.49 on Claude Opus 5.5 ($20 per million output tokens), ≈ $0.012 on Claude Haiku 5.5. Measured replies use far less (151 to 534 output tokens on average), so raising the cap raises the worst case, not the typical bill: each extra 1,000 tokens adds up to ≈ $0.12 per attempt on Opus.
+- `PRACTICE_DAILY_CAP` (default 2000) caps free practice replies per day across all visitors. One practice reply costs about one attempt: measured on Haiku 5.5 ≈ $0.0002 to $0.0006, the same token counts on Opus 5.5 ≈ $0.008 to $0.025. So 2,000 a day ≈ $0.40 to $1.20 on Haiku, ≈ $16 to $50 on Opus; each extra 1,000 a day adds ≈ $8 to $25 on Opus. (Opus figures reuse the token counts measured on Haiku, since the Opus run predates token logging; Opus thinks before answering and will likely use more.)
+
+Prices are list prices at the time of writing; check your provider's current pricing.
 
 Start it under a process manager. With pm2:
 

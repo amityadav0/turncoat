@@ -33,6 +33,7 @@ interface Round {
   baseFee: string;       // base fee for a paid attempt, token base units ("0" when free-only)
   guardCommit: Hex;      // as stored on-chain
   guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (instructions stay secret until reveal); absent if the service holds no record for this guardCommit
+  model?: string;        // model Argus runs on for this round, "provider/model" (e.g. "anthropic/claude-haiku-5-5"); fixed when the service first saw the round
   mode?: 'refuse' | 'decide' | 'clerk' | 'reader'; // refuse: Argus may decline to act; decide: he must approve or reject every request; clerk: refund desk; reader: attacker writes token metadata (see guard/README.md). Absent with guardVersion.
   openTx?: Hex;          // RoundOpened transaction
   winner?: Attacker;     // when status = 'broken'

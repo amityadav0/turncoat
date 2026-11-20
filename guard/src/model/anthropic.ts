@@ -9,6 +9,8 @@ export interface AnthropicOptions {
   /** output_config.effort; omitted when undefined so the model default applies. */
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   baseURL?: string;
+  /** Per-request timeout; a hung call must not hold a round's queue for the SDK default of 10 minutes. */
+  timeoutMs?: number;
 }
 
 export class AnthropicAdapter implements ModelAdapter {
@@ -19,7 +21,7 @@ export class AnthropicAdapter implements ModelAdapter {
 
   constructor(private opts: AnthropicOptions) {
     this.id = `anthropic/${opts.model}`;
-    this.client = new Anthropic({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: 2 });
+    this.client = new Anthropic({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: 2, timeout: opts.timeoutMs ?? 60_000 });
   }
 
   async complete(messages: ChatMessage[], tools: ToolDef[], opts: CompleteOptions = {}): Promise<ModelResult> {

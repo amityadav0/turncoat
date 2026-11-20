@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS attacker_names (
 CREATE TABLE IF NOT EXISTS rounds_state (
   round_id INTEGER PRIMARY KEY,
   cursor INTEGER NOT NULL DEFAULT 0,      -- next attemptId to process, strictly in order
-  won_attempt INTEGER                     -- first attempt that broke the guard (verdict signed)
+  won_attempt INTEGER,                    -- first attempt that broke the guard (verdict signed)
+  model TEXT                              -- model id configured when the service first saw the round
 );
 `;
 
@@ -93,6 +94,8 @@ export class Store {
     // Migration: attempt transaction hashes were added after the first release.
     const cols = (this.db.prepare("PRAGMA table_info(chain_attempts)").all() as { name: string }[]).map((c) => c.name);
     if (!cols.includes("tx")) this.db.exec("ALTER TABLE chain_attempts ADD COLUMN tx TEXT");
+    const rcols = (this.db.prepare("PRAGMA table_info(rounds_state)").all() as { name: string }[]).map((c) => c.name);
+    if (!rcols.includes("model")) this.db.exec("ALTER TABLE rounds_state ADD COLUMN model TEXT");
   }
 
   close() {
@@ -171,6 +174,15 @@ export class Store {
   }
   setCursor(roundId: number, cursor: number) {
     this.db.prepare("UPDATE rounds_state SET cursor = ? WHERE round_id = ?").run(cursor, roundId);
+  }
+  /**
+   * The model a round runs on: recorded the first time the round is seen, then fixed. Returns the
+   * recorded id (which differs from `current` if the configured model changed since).
+   */
+  roundModel(roundId: number, current: string): string {
+    this.roundState(roundId);
+    this.db.prepare("UPDATE rounds_state SET model = ? WHERE round_id = ? AND model IS NULL").run(current, roundId);
+    return (this.db.prepare("SELECT model FROM rounds_state WHERE round_id = ?").get(roundId) as { model: string }).model;
   }
   setWon(roundId: number, attemptId: number) {
     this.db.prepare("UPDATE rounds_state SET won_attempt = ? WHERE round_id = ? AND won_attempt IS NULL").run(attemptId, roundId);

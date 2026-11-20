@@ -10,6 +10,8 @@ import type { CommitLookup } from "./commit.ts";
 import { AttackerNames } from "./names.ts";
 
 export interface ServiceConfig {
+  /** Model id from config ("provider/model"); recorded per round the first time a round is seen. */
+  modelId?: string;
   messageWindowSec: number;
   attemptWaitMs: number;
   tokenDecimals: number;
@@ -203,6 +205,8 @@ export class GuardService {
       guardCommit: r.guardCommit,
       /** Which instruction version the round runs ("v1", …). Public from the start; the text stays secret until reveal. */
       guardVersion: this.commits.get(r.guardCommit.toLowerCase())?.version,
+      /** Model Argus runs on for this round ("provider/model"), fixed when the service first saw the round. */
+      model: this.cfg.modelId ? this.store.roundModel(id, this.cfg.modelId) : undefined,
       /** refuse | decide | clerk | reader (see guard/README.md). */
       mode: (() => { const rec = this.commits.get(r.guardCommit.toLowerCase()); return rec ? (rec.mode ?? "refuse") : undefined; })(),
       paidEnabled: r.paidEnabled,
