@@ -434,9 +434,11 @@ test("a decide-mode round: mode is public on the round, a reject holds, approve_
     assert.equal(r0.code, 200);
     assert.equal((r0.body as any).broken, false);
     assert.deepEqual((r0.body as any).toolCalls.map((c: any) => c.name), ["reject_payment"]);
+    assert.equal((r0.body as any).decision, "reject");
     const r1 = await service3.submit({ roundId: R, attemptId: 1, message: brk });
     assert.equal((r1.body as any).broken, true);
     assert.match((r1.body as any).verdict.signature, /^0x[0-9a-f]{130}$/);
+    assert.equal((r1.body as any).decision, "approve");
     await proc3.idle();
     const round = ((await service3.getRound(String(R))).body as any).round;
     assert.equal(round.mode, "decide");

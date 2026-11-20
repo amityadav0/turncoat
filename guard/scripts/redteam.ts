@@ -49,7 +49,7 @@ const outDir = path.resolve(flag("--out") ?? path.join(GUARD_ROOT, "redteam/resu
 const promptsFile = path.resolve(args[0] ?? path.join(GUARD_ROOT, `redteam/level${level}${sessions ? "-sessions" : ""}.jsonl`));
 
 interface Prompt { id: string; category: string; mode?: GuardMode | "both"; lang?: string; redefines_tool?: boolean; prompt?: string; payload?: Record<string, string>; turns?: string[] }
-type RunLike = Pick<GuardRun, "broken" | "usage" | "seconds" | "breakKind" | "decisionFallback" | "toolCalls" | "reply" | "decision"> & { brokenAtTurn?: number | null; turns?: GuardSession["turns"] };
+type RunLike = Pick<GuardRun, "broken" | "usage" | "seconds" | "breakKind" | "decisionFallback" | "toolCalls" | "reply" | "decision"> & { followUp?: boolean } & { brokenAtTurn?: number | null; turns?: GuardSession["turns"] };
 const messageOf = (p: Prompt) => p.payload ? JSON.stringify(p.payload) : p.prompt ?? "";
 type Result = { p: Prompt; run?: RunLike; error?: string };
 interface Cell { model: string; mode: GuardMode; version: GuardVersion; results: Result[] }
@@ -89,7 +89,7 @@ async function runCell(model: ModelAdapter, mode: GuardMode, version: GuardVersi
         if (sessions) {
           const sess = await runSession({ level, mode, instructions, turns: p.turns ?? [], model });
           const last = sess.turns[sess.turns.length - 1];
-          run = { broken: sess.broken, usage: sess.usage, seconds: sess.seconds, breakKind: sess.breakKind, decisionFallback: false, toolCalls: sess.turns.flatMap((t) => t.toolCalls), reply: last?.reply ?? "", decision: null, brokenAtTurn: sess.brokenAtTurn, turns: sess.turns };
+          run = { followUp: sess.turns.some((t) => t.followUp), broken: sess.broken, usage: sess.usage, seconds: sess.seconds, breakKind: sess.breakKind, decisionFallback: false, toolCalls: sess.turns.flatMap((t) => t.toolCalls), reply: last?.reply ?? "", decision: null, brokenAtTurn: sess.brokenAtTurn, turns: sess.turns };
         } else run = await runGuard({ level, mode, instructions, message: messageOf(p), model });
         results[i] = { p, run };
         const extra = run.broken ? "  calls: " + run.toolCalls.map((c) => `${c.name}(${JSON.stringify(c.args)})`).join(", ") : run.decisionFallback ? "  (no decision tool called: recorded as reject)" : "";
@@ -122,6 +122,7 @@ function stats(c: Cell) {
     ran: ran.length, broke: broke.length, errors: c.results.length - ran.length,
     ids: [...broke.reduce((m, r) => m.set(r.p.id, (m.get(r.p.id) ?? 0) + 1), new Map<string, number>())].map(([id, n]) => (n > 1 ? `${id}×${n}` : id)),
     fallbacks: ran.filter((r) => r.run!.decisionFallback).length,
+    followUps: ran.filter((r) => r.run!.followUp).length,
     misfires: broke.filter((r) => r.run!.breakKind === "misfire").length,
     persuaded: broke.filter((r) => r.run!.breakKind === "persuaded").length,
     tokensIn: withUsage.length ? tin : NaN, tokensOut: withUsage.length ? tout : NaN,
@@ -139,7 +140,7 @@ for (const c of cells) {
   const s = stats(c);
   console.log([
     c.model.padEnd(W), c.mode.padEnd(6), c.version.padEnd(7), `${s.broke}/${s.ran}`.padStart(9), (s.ran ? `${((100 * s.broke) / s.ran).toFixed(1)}%` : "n/a").padStart(6), `${s.misfires}/${s.persuaded}`.padStart(17), String(s.errors).padStart(6),
-    String(c.mode === "decide" ? s.fallbacks : "-").padStart(11), `${fmt(s.tokensIn)}/${fmt(s.tokensOut)}`.padStart(22),
+    String(c.mode === "decide" ? `${s.fallbacks} (${s.followUps} re-asked)` : "-").padStart(11), `${fmt(s.tokensIn)}/${fmt(s.tokensOut)}`.padStart(22),
     fmt(s.avgIn).padStart(7), fmt(s.avgOut).padStart(8), fmt(s.avgSeconds, 1).padStart(6), s.ids.join(", ") || "-",
   ].join("  "));
 }
@@ -169,7 +170,7 @@ fs.writeFileSync(outFile, JSON.stringify({
   level, promptsFile,
   cells: cells.map((c) => ({
     model: c.model, mode: c.mode, version: c.version, summary: stats(c),
-    results: c.results.map((r) => ({ ...r.p, broken: r.run?.broken ?? null, breakKind: r.run?.breakKind ?? null, brokenAtTurn: r.run?.brokenAtTurn ?? null, turnsRun: r.run?.turns?.map((t) => ({ reply: t.reply, toolCalls: t.toolCalls })) ?? undefined, decision: r.run?.decision ?? null, decisionFallback: r.run?.decisionFallback ?? null, error: r.error ?? null, reply: r.run?.reply, toolCalls: r.run?.toolCalls, usage: r.run?.usage ?? null, seconds: r.run?.seconds ?? null })),
+    results: c.results.map((r) => ({ ...r.p, broken: r.run?.broken ?? null, breakKind: r.run?.breakKind ?? null, followUp: r.run?.followUp ?? null, brokenAtTurn: r.run?.brokenAtTurn ?? null, turnsRun: r.run?.turns?.map((t) => ({ reply: t.reply, toolCalls: t.toolCalls })) ?? undefined, decision: r.run?.decision ?? null, decisionFallback: r.run?.decisionFallback ?? null, error: r.error ?? null, reply: r.run?.reply, toolCalls: r.run?.toolCalls, usage: r.run?.usage ?? null, seconds: r.run?.seconds ?? null })),
   })),
 }, null, 2));
 console.log(`\ntranscripts: ${path.relative(process.cwd(), outFile)}`);

@@ -17,7 +17,12 @@ export interface ToolCall {
 
 export type ChatMessage =
   | { role: "system"; content: string }
-  | { role: "user"; content: string }
+  | {
+      role: "user";
+      content: string;
+      /** Sent by the service itself (e.g. the decide-mode follow-up), not by the attacker. Shown as a system line in transcripts. */
+      operator?: true;
+    }
   | {
       role: "assistant";
       content: string;

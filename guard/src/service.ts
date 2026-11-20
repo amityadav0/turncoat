@@ -318,6 +318,8 @@ export class GuardService {
       broken: done ? row!.broken === 1 : null,
       /** Label for readers when broken: "misfire" (said no, called the tool anyway) or "persuaded". Never affects payout. */
       breakKind: done && row!.broken === 1 ? this.breakKindOf(row!) : undefined,
+      /** Decide-mode rounds: "approve" (broken) or "reject"; a reply with no decision tool counts as "reject". */
+      decision: done ? this.decisionOf(row!) : undefined,
       message: done ? row!.message! : undefined,
       reply: done ? row!.reply! : undefined,
       toolCalls: done ? JSON.parse(row!.tool_calls ?? "[]") : undefined,
@@ -344,6 +346,12 @@ export class GuardService {
         : null,
       relayer: row?.relayer_status ? { status: row.relayer_status, txHash: row.relayer_tx ?? undefined, error: row.relayer_error ?? undefined } : null,
     };
+  }
+
+  private decisionOf(row: AttemptRow): "approve" | "reject" | undefined {
+    const rec = row.guard_commit ? this.commits.get(row.guard_commit.toLowerCase()) : undefined;
+    if (rec?.mode !== "decide") return undefined;
+    return row.broken === 1 ? "approve" : "reject";
   }
 
   private breakKindOf(row: AttemptRow) {
