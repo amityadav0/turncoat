@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="36 152 440 208" role="img" aria-label="Turncoat">
+  <title>Turncoat</title>
+  
+  <defs>
+    <clipPath id="tc-eye-mt"><path d="M56 256 Q256 92 456 256 Q256 420 56 256 Z"/></clipPath>
+  </defs>
+  
+  
+  <path d="M56 256 Q256 92 456 256 Q256 420 56 256 Z" fill="#F3EFE6"/>
+  <g clip-path="url(#tc-eye-mt)">
+    
+    <circle cx="256" cy="270" r="92" fill="#FF4A26"/>
+    
+    <circle cx="256" cy="262" r="27" fill="#0C0C10"/>
+    <path d="M241 276 H271 L284 332 H228 Z" fill="#0C0C10"/>
+    
+    <path d="M40 256 Q256 60 472 256 Q256 196 40 256 Z" fill="#0C0C10"/>
+  </g>
+  
+  <path d="M56 256 Q256 196 456 256" fill="none" stroke="#F3EFE6" stroke-width="14" stroke-linecap="round"/>
+  <path d="M56 256 Q256 92 456 256 Q256 420 56 256 Z" fill="none" stroke="#F3EFE6" stroke-width="14" stroke-linejoin="round"/>
+</svg>
