@@ -146,11 +146,11 @@ Agentic Wallet (baw) ── attempt(roundId, messageHash) ──▶ Turncoat con
 | Part | State |
 |---|---|
 | Contract | Built. 13 tests pass on a local chain. Not audited. |
-| Guard service, level 1 (`guard/`) | Built: attempt checks and ordered queue, sandboxed wallet tools, break detector in code, verdict signer, optional relayer, practice mode, public API. Level 1 instructions in three versions (v1 plain, v2, v3 hardened), chosen with `GUARD_VERSION`. 32 tests pass on a local chain with a scripted stand-in model; `npm run demo` runs a full round locally; the launch steps in `docs/LAUNCH.md` were rehearsed against a local chain. Not yet run against a real model: the 60-prompt level 1 red-team set has not been run on any version. Not deployed. |
+| Guard service (`guard/`) | Built: attempt checks and ordered queue, sandboxed wallet tools, break detector in code, verdict signer, optional relayer, practice mode, public API, Docker image. Launch configuration: level 1 in decide mode, guard version 2, as two rounds at once on Claude Haiku 5.5 and Claude Opus 5.5, each round's model fixed when it opens. Three guard versions exist (v1 plain, v2, v3 hardened). Red-teamed before launch with real models: version 1 was broken by one attack (post-mortem 0); version 2 held 56 attempts on Haiku and 50 on Opus. 56 tests pass on a local chain. Not deployed. |
 | Agent skill (`skill/`) | Built: `SKILL.md` (free practice first, Agent ID and Developer Mode checks, preview and explicit confirmation before every transaction, exact-fee approval for paid attempts, message delivery, reply, settle) and a dependency-free helper for hashing, calldata, contract reads and the guard API. 8 helper tests pass on a local chain. Not yet run with a real Agentic Wallet; the mainnet checklist is `docs/E2E.md`. Contract address and guard URL are placeholders until deployment. |
 | Site (`web/`) | Built: home, live feed, practice, library, fairness, share cards. Runs on demo data only. The guard service now exists and serves the shapes in `web/API.md`, but the site has not been run against it yet. Not deployed. |
 | Mainnet deployment | Not deployed |
-| Levels 2–5 | Planned |
+| Levels | Level 1 (payment requests) at launch. Level 2 (poisoned token) built and red-teamed (held 50 of 50 on Haiku), not at launch. Later levels planned. |
 | Attack library and post-mortems | Site pages built; no round has run, so there is nothing in them yet. First post-mortem after the first break. |
 
 Contract address: _added at deployment._
