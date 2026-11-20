@@ -53,6 +53,7 @@ export function round(v: unknown): Round | null {
     attemptCount: int(o.attemptCount),
     guardCommit: commit,
     guardVersion: version(o.guardVersion),
+    model: typeof o.model === 'string' && /^[A-Za-z0-9._:/@-]{1,80}$/.test(o.model) ? o.model : undefined,
     openTx: hex32(o.openTx),
     winner: attacker(o.winner),
     winningAttempt: typeof o.winningAttempt === 'number' ? int(o.winningAttempt) : undefined,

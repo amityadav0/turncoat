@@ -85,7 +85,7 @@ const raw = {
   rounds: [
     {
       id: 3, level: 1, status: 'live', startTime: t0 - 2 * D, endTime: t0 + 2 * D + 5 * H,
-      pot: (500n * USDT).toString(), attemptCount: 0, paidEnabled: false, baseFee: '0', guardCommit: commitFor(3), guardVersion: 'v2', openTx: fakeHash('open-3'),
+      pot: (500n * USDT).toString(), attemptCount: 0, paidEnabled: false, baseFee: '0', guardCommit: commitFor(3), guardVersion: 'v2', model: 'demo/scripted', openTx: fakeHash('open-3'),
     },
     {
       id: 2, level: 1, status: 'held', startTime: t0 - 10 * D, endTime: t0 - 5 * D,

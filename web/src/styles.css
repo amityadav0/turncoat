@@ -512,6 +512,9 @@ main {
 .block-tight {
   margin-top: 32px;
 }
+.round-model {
+  margin: 12px 0 0;
+}
 .risk-inline {
   font-size: 0.8rem;
   color: var(--bone-faint);

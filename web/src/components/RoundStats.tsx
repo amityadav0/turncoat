@@ -35,6 +35,7 @@ export function RoundStats({ round }: { round: Round }) {
           <dd>{round.attemptCount.toLocaleString()}</dd>
         </div>
       </dl>
+      {round.model && <p className="muted small round-model">{t.model(round.model)}</p>}
       <Risk paidEnabled={round.paidEnabled} />
     </section>
   );

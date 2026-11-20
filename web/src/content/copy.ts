@@ -63,6 +63,7 @@ export const copy = {
   round: {
     label: (id: number, level: number) => `Round ${id} · Level ${level}: ${levelName(level)}`,
     version: (n: number) => `Argus v${n}`,
+    model: (id: string) => `Model: ${id}`,
     pot: 'Pot',
     paidOut: 'Paid out',
     paidOutAmount: (amount: string) => `Paid out: ${amount}`,

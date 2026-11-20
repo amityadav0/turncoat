@@ -26,6 +26,8 @@ export interface Round {
   guardCommit: Hex;
   /** Which Argus ran this round, as a number (the API sends "v1", "v2", …). Absent when unknown. */
   guardVersion?: number;
+  /** Model id the guard runs, e.g. "claude-opus-5-5". Shown when the service sends it. */
+  model?: string;
   openTx?: Hex;
   winner?: Attacker;
   winningAttempt?: number;

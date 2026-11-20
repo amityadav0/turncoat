@@ -117,6 +117,7 @@ function FairRound({ round: r }: { round: Round }) {
         <span className="round-link-title">{t.roundN(r.id)}</span>
         <StatusTag status={r.status} />
         {r.guardVersion && <span className="muted small">{copy.round.version(r.guardVersion)}</span>}
+        {r.model && <span className="muted small">{copy.round.model(r.model)}</span>}
       </header>
 
       <dl className="kv">
