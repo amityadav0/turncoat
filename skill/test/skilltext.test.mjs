@@ -34,7 +34,7 @@ test("first-run text states the Developer Mode facts and that practice needs non
   }
 });
 
-test("the skill never describes attempts as earning, and its name has no "Binance" or "BNB"", () => {
+test("the skill never describes attempts as earning, and its name has no 'Binance' or 'BNB'", () => {
   const banned = /\b(jackpot|win big|passive|guaranteed)\b/i;
   assert.doesNotMatch(skill, banned);
   // "earn" may appear only inside README's notice ("Do not treat this as a way to earn") or the rule forbidding it.
