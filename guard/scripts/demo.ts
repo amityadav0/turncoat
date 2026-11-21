@@ -123,9 +123,9 @@ const store = new Store(":memory:");
 const commits = loadRecords(commitsDir);
 const proc = new RoundProcessor({
   store, chain, model: lighter, modelFor: (spec) => models[spec], commits, signer: privateKeyToAccount(guardK), log: silentLogger,
-  cfg: { messageWindowSec: 900, pollMs: 500, retryBaseMs: 1000, maxTurns: 6, tokenDecimals: 18 },
+  cfg: { messageWindowSec: 180, pollMs: 500, retryBaseMs: 1000, maxTurns: 6, tokenDecimals: 18 },
 });
-const service = new GuardService(store, chain, proc, { modelId: "demo/lighter", messageWindowSec: 900, attemptWaitMs: 30_000, tokenDecimals: 18 }, commits);
+const service = new GuardService(store, chain, proc, { modelId: "demo/lighter", messageWindowSec: 180, attemptWaitMs: 30_000, tokenDecimals: 18 }, commits);
 const app = createApp({
   service, model: lighter, practiceLevels: new Map([[1, { mode: "decide" as const, instructions: instructionsText(recLighter) }]]),
   practiceLimiter: new RateLimiter(30, 3_600_000, 0, 86_400_000), maxTurns: 6, log: silentLogger, corsOrigins: ["*"],

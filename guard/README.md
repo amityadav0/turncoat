@@ -78,7 +78,7 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 
 Every attempt carries its `Attempted` transaction as `tx`. Attackers carry `name` (`"<handle>.ai"`) when the Agent ID registry's `handleOf(address)` returns a handle; the registry address is read from the contract's `agentId()`, found names are cached for good and misses re-checked hourly. Event data is read from `LOGS_FROM_BLOCK` onwards and cached in SQLite.
 
-Attempt `status` is `awaiting_message`, `queued`, `done`, `expired` or `rejected`. An attempt with no message is reported `expired` as soon as `MESSAGE_WINDOW_SECONDS` (default 900) have passed since its on-chain time. `outcome` is `pending` for everything except `done`.
+Attempt `status` is `awaiting_message`, `queued`, `done`, `expired` or `rejected`. An attempt with no message is reported `expired` as soon as `MESSAGE_WINDOW_SECONDS` (default 180, three minutes) have passed since its on-chain time. `outcome` is `pending` for everything except `done`.
 
 If the model call fails or times out (`MODEL_TIMEOUT_MS`, default 60 s; the SDK also retries twice), the attempt stays `queued` and is never judged; the queue retries it after 5 s, 10 s, 20 s … up to 320 s (`MODEL_RETRY_BASE_MS` × 2ⁿ), indefinitely, and later attempts in the round wait behind it. The attacker sees `status: "queued"`, `outcome: "pending"` until it is answered.
 

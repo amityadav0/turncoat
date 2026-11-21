@@ -110,7 +110,7 @@ cp .env.example .env && chmod 600 .env
 | `TRUST_PROXY` | `1` when behind one reverse proxy, so practice rate limits see the visitor's IP |
 | `DB_PATH` | `data/guard.sqlite` (on the persistent disk) |
 | `COMMITS_DIR` | `.secrets/commits` (on the persistent disk; back it up, you need it for every reveal) |
-| `MESSAGE_WINDOW_SECONDS` | `900`: an attempt's message must arrive within 15 minutes of its on-chain time |
+| `MESSAGE_WINDOW_SECONDS` | `180`: an attempt's message must arrive within 3 minutes of its on-chain time. Short on purpose: attempts are judged strictly in order, so one message that never arrives holds back every later attempt in its round for this long |
 | `ATTEMPT_WAIT_MS`, `QUEUE_POLL_MS`, `MODEL_RETRY_BASE_MS`, `MAX_TOOL_TURNS` | Leave the defaults |
 | `PRACTICE_RATE_LIMIT`, `PRACTICE_RATE_WINDOW_SECONDS`, `PRACTICE_DAILY_CAP` | `10`, `3600`, `2000`: caps model spend on free practice |
 

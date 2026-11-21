@@ -29,7 +29,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     guardVersion: env.GUARD_VERSION || "v1",
     /** Guard mode practice mode runs (refuse | decide). Live rounds run whatever their commit record says. */
     guardMode: env.GUARD_MODE || "refuse",
-    messageWindowSec: int(env.MESSAGE_WINDOW_SECONDS, 900),
+    messageWindowSec: int(env.MESSAGE_WINDOW_SECONDS, 180),
     pollMs: int(env.QUEUE_POLL_MS, 5000),
     retryBaseMs: int(env.MODEL_RETRY_BASE_MS, 5000),
     attemptWaitMs: int(env.ATTEMPT_WAIT_MS, 60000),

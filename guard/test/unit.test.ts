@@ -204,3 +204,10 @@ test("attacker names: a found name is cached for good, no-name is re-checked aft
   assert.equal(st.attackerName(C), undefined); // failure not cached
   st.close();
 });
+
+test("config: the message window defaults to 180 seconds and can be overridden", async () => {
+  const { loadConfig } = await import("../src/config.ts");
+  const env = { RPC_URL: "http://x", CHAIN_ID: "1337", TURNCOAT_ADDRESS: "0x0000000000000000000000000000000000000001", GUARD_SIGNER_PRIVATE_KEY: "0x01" };
+  assert.equal(loadConfig(env).messageWindowSec, 180);
+  assert.equal(loadConfig({ ...env, MESSAGE_WINDOW_SECONDS: "300" }).messageWindowSec, 300);
+});
