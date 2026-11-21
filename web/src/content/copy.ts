@@ -335,7 +335,7 @@ export const copy = {
 
   fairness: {
     title: 'Fairness',
-    lede: "How you can check a round wasn't rigged, without trusting us.",
+    lede: 'What you can check yourself, and what you still have to trust.',
     notDeployed: 'The contract is not deployed yet. Every claim below links to it on BscScan once it is.',
     // README.md "Fairness: how you know it isn't rigged" and "What you still have to trust".
     claims: [
