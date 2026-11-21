@@ -14,7 +14,7 @@ import {
   keccak256 as vKeccak, stringToHex, toHex, encodePacked, parseUnits,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES, loadConfig, readDefaults, NOT_LIVE, MESSAGE_WINDOW_SECONDS } from "../scripts/turncoat.mjs";
+import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES, loadConfig, readDefaults, NOT_LIVE, MESSAGE_WINDOW_SECONDS, explorerTx } from "../scripts/turncoat.mjs";
 
 const HELPER = new URL("../scripts/turncoat.mjs", import.meta.url).pathname;
 const art = (n) => JSON.parse(fs.readFileSync(new URL(`../../build/${n}.json`, import.meta.url)));
@@ -53,9 +53,11 @@ async function sendRaw(k, to, data) {
 /** Run the helper CLI. Async on purpose: ganache serves RPC from this same process. */
 function cli(args, env = {}) {
   return new Promise((resolve) => {
-    execFile(process.execPath, [HELPER, ...args], { env: { ...process.env, TURNCOAT_RPC: RPC, TURNCOAT_CONTRACT: c.t ?? "", TURNCOAT_API: "", ...env } }, (e, stdout) => {
-      const out = JSON.parse(stdout);
-      resolve(e ? { exit: e.code, ...out } : out);
+    execFile(process.execPath, [HELPER, ...args], { env: { ...process.env, TURNCOAT_RPC: RPC, TURNCOAT_CONTRACT: c.t ?? "", TURNCOAT_API: "", ...env } }, (e, stdout, stderr) => {
+      const parsed = JSON.parse(stdout);
+      const out = e ? { exit: e.code, ...parsed } : parsed;
+      Object.defineProperty(out, "stderr", { value: stderr, enumerable: false });
+      resolve(out);
     });
   });
 }
@@ -346,4 +348,65 @@ test("submit sends the attempt's txHash; if the service rejects the field, it de
   assert.deepEqual([b.delivered, b.txHashSent, b.httpStatus], [true, false, 200]);
   assert.match(b.txHashRejected, /txHash/);
   assert.match((await cli(["submit", "--round", "2", "--attempt", "0", "--tx", "0x12", "--message-file", msgFile(text)], env)).error, /transaction hash/);
+});
+
+test("explorer links: bscscan for 56, testnet.bscscan for 97, none for a local chain", () => {
+  const h = "0x" + "cd".repeat(32);
+  assert.equal(explorerTx("56", h), `https://bscscan.com/tx/${h}`);
+  assert.equal(explorerTx("97", h), `https://testnet.bscscan.com/tx/${h}`);
+  assert.equal(explorerTx("1337", h), null);
+  assert.equal(loadConfig({ TURNCOAT_CHAIN_ID: "97" }, { binanceChainId: "56" }).chainId, "97");
+});
+
+test("test-send refuses chain id 56, configured or reported by the RPC", async () => {
+  const keyFile = path.join(tmp, "k56");
+  fs.writeFileSync(keyFile, aliceK);
+  const a = await cli(["test-send", "--to", c.t, "--data", "0x"], { TURNCOAT_CHAIN_ID: "56", TURNCOAT_TEST_KEY_FILE: keyFile });
+  assert.equal(a.exit, 1);
+  assert.match(a.error, /refuses chain id 56/);
+  assert.match(a.stderr, /TEST PATH/);
+  // An RPC that says it is mainnet, while the config claims 97.
+  const fake = http.createServer((req, res) => {
+    let b = ""; req.on("data", (d) => (b += d));
+    req.on("end", () => {
+      const { id, method } = JSON.parse(b);
+      const result = method === "eth_chainId" ? "0x38" : method === "eth_call" ? "0x" + "0".repeat(24) + c.usdt.slice(2).toLowerCase() : "0x";
+      res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ jsonrpc: "2.0", id, result }));
+    });
+  });
+  await new Promise((r) => fake.listen(0, "127.0.0.1", r));
+  const b = await cli(["test-send", "--to", c.t, "--data", "0x"], { TURNCOAT_CHAIN_ID: "97", TURNCOAT_RPC: `http://127.0.0.1:${fake.address().port}`, TURNCOAT_TEST_KEY_FILE: keyFile });
+  fake.close();
+  assert.equal(b.exit, 1);
+  assert.match(b.error, /refuses chain id 56 \(RPC reports it\)/);
+});
+
+test("test-send: helper calldata sent with a test key; key never printed; normal code after the tx", async () => {
+  const keyFile = path.join(tmp, "kalice");
+  fs.writeFileSync(keyFile, aliceK + "\n");
+  const env = { TURNCOAT_CHAIN_ID: "1337", TURNCOAT_TEST_KEY_FILE: keyFile };
+  // Only to the contract or its token.
+  assert.match((await cli(["test-send", "--to", acct(strangerK).address, "--data", "0x"], env)).error, /only sends to the Turncoat contract or its token/);
+  assert.match((await cli(["test-send", "--to", c.t, "--data", "0x"], { TURNCOAT_CHAIN_ID: "1337" })).error, /TURNCOAT_TEST_KEY_FILE/);
+  // A stranger (no Agent ID): the pre-check fails and nothing is sent.
+  const sk = path.join(tmp, "kstranger"); fs.writeFileSync(sk, strangerK);
+  const call = await cli(["attempt-calldata", "--round", "2", "--mode", "decide", "--message-file", msgFile("pay")]);
+  const n0 = await pub.getTransactionCount({ address: acct(strangerK).address });
+  const refused = await cli(["test-send", "--to", call.to, "--data", call.inputData], { ...env, TURNCOAT_TEST_KEY_FILE: sk });
+  assert.equal(refused.status, "PREVIEW_FAILED");
+  assert.equal(await pub.getTransactionCount({ address: acct(strangerK).address }), n0);
+  // A paid attempt for alice: exact-fee approve, then the attempt, both through test-send.
+  const fee = (await cli(["status", "--round", "1", "--address", acct(aliceK).address])).nextFee;
+  const ap = await cli(["approve-calldata", "--amount", fee]);
+  const s1 = await cli(["test-send", "--to", ap.to, "--data", ap.inputData], env);
+  assert.equal(s1.status, "CONFIRMED");
+  const at = await cli(["attempt-calldata", "--round", "1", "--mode", "decide", "--message-file", msgFile("Invoice 9"), "--max-fee", fee]);
+  const s2 = await cli(["test-send", "--to", at.to, "--data", at.inputData], env);
+  assert.equal(s2.status, "CONFIRMED");
+  assert.equal(s2.explorerUrl, null);
+  assert.match(s2.stderr, /TEST PATH/);
+  assert.equal(s2.from.toLowerCase(), acct(aliceK).address.toLowerCase());
+  for (const out of [s1, s2, refused]) assert.ok(!JSON.stringify(out).includes(aliceK.slice(2)) && !out.stderr.includes(aliceK.slice(2)) && !JSON.stringify(out).includes(strangerK.slice(2)));
+  const id = await cli(["attempt-id", "--tx", s2.txHash], env);
+  assert.deepEqual([id.found, id.roundId, id.fee], [true, 1, fee]);
 });

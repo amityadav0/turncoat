@@ -181,6 +181,12 @@ export function loadConfig(env = process.env, defaults = readDefaults()) {
   return cfg;
 }
 
+/** Transaction link: bscscan for 56, testnet.bscscan for 97, none for a local or other chain. */
+export function explorerTx(chainId, txHash) {
+  const base = { "56": "https://bscscan.com", "97": "https://testnet.bscscan.com" }[String(chainId)];
+  return base ? `${base}/tx/${txHash}` : null;
+}
+
 export const NOT_LIVE = "Turncoat is not live yet: this skill has no guard service or contract address until deployment.";
 
 function need(cfg, ...keys) {
@@ -278,6 +284,7 @@ export async function attemptFromTx(cfg, txHash) {
     messageHash: "0x" + data[0],
     fee: asBig(data[1]).toString(),
     txHash,
+    explorerUrl: explorerTx(cfg.chainId, txHash),
   };
 }
 
@@ -398,6 +405,8 @@ const HELP = `turncoat.mjs <command> [options]
   settle-calldata --round N --attempt N --signature 0x..
                                                  settle() calldata built locally from the verdict signature
   practice  --level N --message-file F           POST /practice (free, no wallet, nothing on-chain)
+  test-send --to 0x.. --data 0x.. [--value WEI]  TEST PATH ONLY, local chain / testnet: sign with the key in
+                                                 TURNCOAT_TEST_KEY_FILE and send; refuses chain id 56
 `;
 
 export async function main(argv) {
@@ -452,6 +461,16 @@ export async function main(argv) {
     case "settle-calldata":
       need(cfg, "contract");
       return { binanceChainId: cfg.chainId, to: cfg.contract, value: "0", inputData: encode.settle(intArg(opts, "round"), intArg(opts, "attempt"), req(opts, "signature")) };
+    case "test-send": {
+      // TEST PATH ONLY (local chain / BSC testnet). Not in SKILL.md; see skill/README.md "Testing".
+      const { testSend, TEST_PATH_WARNING, refuseMainnet } = await import("./testsend.mjs");
+      process.stderr.write(TEST_PATH_WARNING + "\n");
+      refuseMainnet(cfg.chainId, "configured chain id");
+      need(cfg, "contract", "rpc");
+      const token = asAddr(words(await call(cfg, cfg.contract, selector(SIG.token)))[0]);
+      const out = await testSend(cfg, { to: req(opts, "to"), data: req(opts, "data"), value: opts.value ?? "0", allowedTo: [cfg.contract, token] });
+      return out.txHash ? { ...out, explorerUrl: explorerTx(cfg.chainId, out.txHash) } : out;
+    }
     case "practice":
       need(cfg, "api");
     {
