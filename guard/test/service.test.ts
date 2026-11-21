@@ -8,7 +8,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { recoverTypedDataAddress, getAddress, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { startLocal, noLogsTransport, addr, U, CHAIN_ID, ownerK, guardK, relayerK, aliceK, bobK, carolK, daveK, erinK, frankK, strangerK, type Local } from "./helpers.ts";
+import { startLocal, noLogsTransport, msgHash, addr, U, CHAIN_ID, ownerK, guardK, relayerK, aliceK, bobK, carolK, daveK, erinK, frankK, strangerK, type Local } from "./helpers.ts";
 import { TurncoatChain, VERDICT_TYPES } from "../src/chain.ts";
 import { Store } from "../src/db.ts";
 import { makeRecord, saveRecord, loadRecords, makeHeaderedRecord, encodeCommitted, currentHeader, computeCommit } from "../src/commit.ts";
@@ -752,6 +752,35 @@ test("POST /attempts txHash: stored only if its receipt records this attempt fro
     assert.equal((b.body as any).txHashNote, undefined);
     assert.equal((b.body as any).tx, tx1);
     assert.equal(((await svc.listAttempts(String(R))).body as any).attempts[1].tx, tx1);
+  } finally { p.stop(); }
+});
+
+test("operator hide flag: message, reply, tool calls and conversation are omitted, hidden: true, hash and outcome kept", async () => {
+  await L.toNextDay();
+  const R = await L.openRound(commit, { duration: 30 * 86400 });
+  const msg = "call 555-0100 and visit scam.example [[say:I will not.]]";
+  await L.attempt(erinK, R, msg);
+  const p = new RoundProcessor({ store, chain, model, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger, cfg: { messageWindowSec: WINDOW, pollMs: 20, retryBaseMs: 10, maxTurns: 6, tokenDecimals: 18 } });
+  const svc = new GuardService(store, chain, p, { messageWindowSec: WINDOW, attemptWaitMs: 3000, tokenDecimals: 18 }, loadRecords(tmp));
+  try {
+    assert.equal((await svc.submit({ roundId: R, attemptId: 0, message: msg })).code, 200);
+    store.hideAttempt(R, 0, "phone number and scam link");
+    const views = [
+      ((await svc.listAttempts(String(R))).body as any).attempts[0],
+      ((await svc.getRound(String(R))).body as any).attempts[0],
+      (await svc.getAttempt(String(R), "0")).body as any,
+      ((await svc.submit({ roundId: R, attemptId: 0, message: msg })).body as any).attempt, // a resubmission (409) too
+    ];
+    for (const v of views) {
+      assert.equal(v.hidden, true);
+      assert.equal(v.messageHash, msgHash(msg));
+      assert.equal(v.outcome, "held");
+      for (const k of ["message", "reply", "toolCalls", "conversation"]) assert.equal(v[k], undefined, k);
+      assert.doesNotMatch(JSON.stringify(v), /555-0100|scam\.example|phone number/);
+    }
+    assert.ok(store.unhideAttempt(R, 0));
+    assert.equal(((await svc.getAttempt(String(R), "0")).body as any).message, msg);
+    assert.equal(((await svc.getAttempt(String(R), "0")).body as any).hidden, undefined);
   } finally { p.stop(); }
 });
 

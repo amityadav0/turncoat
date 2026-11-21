@@ -387,6 +387,13 @@ export class GuardService {
       answeredAt: done ? row!.finished_at! : undefined,
       note: row?.note ?? (status === "expired" && !row ? `message not delivered within ${this.cfg.messageWindowSec}s of the attempt` : undefined),
     };
+    // Operator hide flag (doxxing, scam links): keep the outcome and the on-chain hash, drop all text.
+    if (this.store.isHidden(c.round_id, c.attempt_id)) {
+      const { message: _m, reply: _r, toolCalls: _t, ...rest } = base;
+      const kept = { ...rest, hidden: true as const };
+      if (!full) return kept;
+      return { ...kept, receivedAt: row?.received_at ?? undefined, model: row?.model ?? undefined, guardCommit: row?.guard_commit ?? undefined, ...this.verdictFields(c, row) };
+    }
     if (!full) return base;
     return {
       ...base,
@@ -396,6 +403,13 @@ export class GuardService {
       guardCommit: row?.guard_commit ?? undefined,
       stopReason: row?.stop_reason ?? undefined,
       conversation: done ? JSON.parse(row!.conversation ?? "[]") : undefined,
+      ...this.verdictFields(c, row),
+    };
+  }
+
+  /** The signed verdict (with settle calldata) and relayer status: kept even when an attempt's text is hidden. */
+  private verdictFields(c: ChainAttemptRow, row: AttemptRow | undefined) {
+    return {
       verdict: row?.verdict_sig
         ? {
             roundId: c.round_id,

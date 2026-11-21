@@ -78,6 +78,11 @@ CREATE TABLE IF NOT EXISTS reveals (
   round_id INTEGER PRIMARY KEY,
   salt TEXT NOT NULL, instructions TEXT NOT NULL, tx TEXT NOT NULL            -- from a GuardRevealed event (receipt or log)
 );
+CREATE TABLE IF NOT EXISTS hidden_attempts (
+  round_id INTEGER NOT NULL, attempt_id INTEGER NOT NULL,
+  reason TEXT NOT NULL, hidden_at TEXT NOT NULL,                             -- operator-only; the reason is never served
+  PRIMARY KEY (round_id, attempt_id)
+);
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);   -- e.g. last block the optional log scanner read
 CREATE TABLE IF NOT EXISTS attacker_names (
   address TEXT PRIMARY KEY,               -- lowercase
@@ -134,6 +139,19 @@ export class Store {
   }
   getReveal(roundId: number): { salt: string; instructions: string; tx: string } | undefined {
     return this.db.prepare("SELECT salt, instructions, tx FROM reveals WHERE round_id = ?").get(roundId) as { salt: string; instructions: string; tx: string } | undefined;
+  }
+  /** Operator hide flag: the API omits this attempt's message, reply, tool calls and conversation. */
+  hideAttempt(roundId: number, attemptId: number, reason: string) {
+    this.db.prepare("INSERT INTO hidden_attempts VALUES (?,?,?,?) ON CONFLICT(round_id, attempt_id) DO UPDATE SET reason = excluded.reason, hidden_at = excluded.hidden_at").run(roundId, attemptId, reason, new Date().toISOString());
+  }
+  unhideAttempt(roundId: number, attemptId: number): boolean {
+    return this.db.prepare("DELETE FROM hidden_attempts WHERE round_id = ? AND attempt_id = ?").run(roundId, attemptId).changes === 1;
+  }
+  isHidden(roundId: number, attemptId: number): boolean {
+    return !!this.db.prepare("SELECT 1 FROM hidden_attempts WHERE round_id = ? AND attempt_id = ?").get(roundId, attemptId);
+  }
+  hiddenAttempts(): { round_id: number; attempt_id: number; reason: string; hidden_at: string }[] {
+    return this.db.prepare("SELECT * FROM hidden_attempts ORDER BY round_id, attempt_id").all() as { round_id: number; attempt_id: number; reason: string; hidden_at: string }[];
   }
   getKv(key: string): string | undefined {
     return (this.db.prepare("SELECT value FROM kv WHERE key = ?").get(key) as { value: string } | undefined)?.value;

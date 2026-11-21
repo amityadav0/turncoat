@@ -86,6 +86,8 @@ If the model call fails or times out (`MODEL_TIMEOUT_MS`, default 60 s; the SDK 
 
 `GET /health` reports queue size and age, last model success and error, failed attempts, last chain read and the count of failed chain reads, and returns 503 when the oldest queued attempt has waited more than `HEALTH_MAX_QUEUE_AGE_SECONDS` (300) or the chain has not been read in 120 s (it probes the chain itself at most every 15 s). Shape in [`web/API.md`](../web/API.md).
 
+**Hiding an attempt** (operator only, shell on the server, no HTTP route): `npm run hide -- --round N --attempt M --reason "…"`, `--unhide`, `--list`. The API then serves the attempt with `hidden: true`, keeping its outcome, decision, `messageHash`, tx and verdict, and omitting its message, reply, tool calls and conversation. The reason is never served.
+
 The queue survives restarts: the per-round cursor, the queued messages and each result are in SQLite. A result and a round's first win are written in one transaction, and each attempt has one row, so an attempt can be neither stored twice nor skipped.
 
 ## Model

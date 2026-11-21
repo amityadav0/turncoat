@@ -142,3 +142,23 @@ test("npm run demo shows the launch shape end to end (scripted models, no AI)", 
   assert.match(out, /round 1 on the API: openTx 0x[0-9a-f]{4}…[0-9a-f]{4}  settleTx 0x[0-9a-f]{4}…[0-9a-f]{4}  payout 100 USDT  reveal chain 0x[0-9a-f]{4}…[0-9a-f]{4}/);
   assert.match(out, /eth_getLogs calls the service made: 0/);
 });
+
+test("npm run hide: hide, list, unhide one attempt in the service database; reason required; no HTTP route", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hide-test-"));
+  const db = path.join(dir, "g.sqlite");
+  const run = (a: string[]) => runScript("hide.ts", a, { DB_PATH: db });
+  try {
+    assert.equal(run(["--round", "1", "--attempt", "2"]).status, 2); // no reason
+    const h = run(["--round", "1", "--attempt", "2", "--reason", "doxxing"]);
+    assert.equal(h.status, 0, h.stderr);
+    assert.match(run(["--list"]).stdout, /round 1 attempt 2 .* reason: doxxing/);
+    const { Store } = await import("../src/db.ts");
+    const st = new Store(db);
+    assert.equal(st.isHidden(1, 2), true);
+    st.close();
+    assert.match(run(["--round", "1", "--attempt", "2", "--unhide"]).stdout, /visible again/);
+    assert.match(run(["--list"]).stdout, /no hidden attempts/);
+    const src = fs.readFileSync(path.join(GUARD_ROOT, "src/server.ts"), "utf8");
+    assert.doesNotMatch(src, /hide/i);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
