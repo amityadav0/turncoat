@@ -11,7 +11,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { bytesToHex } from "viem";
 import { makeHeaderedRecord, saveRecord, committedHeader } from "../src/commit.ts";
-import { GUARD_ROOT } from "../src/config.ts";
+import { GUARD_ROOT, loadGuardEnv } from "../src/config.ts";
 import { resolveVersion, resolveMode, levelFile } from "../src/levels.ts";
 
 const args = process.argv.slice(2);
@@ -20,8 +20,7 @@ const level = Number(flag("--level") ?? 1);
 const explicitFile = flag("--file");
 const version = explicitFile ? undefined : resolveVersion(flag("--version") ?? process.env.GUARD_VERSION);
 const mode = resolveMode(flag("--mode") ?? process.env.GUARD_MODE);
-const envFile = path.join(GUARD_ROOT, ".env");
-if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+loadGuardEnv();
 const model = flag("--model") ?? (process.env.MODEL_PROVIDER ? `${process.env.MODEL_PROVIDER}/${process.env.MODEL_NAME || (process.env.MODEL_PROVIDER === "anthropic" ? "claude-opus-5-5" : "")}` : undefined);
 if (model !== undefined && !/^[a-z]+\/[A-Za-z0-9._:-]+$/.test(model)) { console.error(`--model must look like provider/model, got "${model}"`); process.exit(2); }
 if (!model) { console.error("no model: pass --model provider/model or set MODEL_PROVIDER/MODEL_NAME (the model is part of the commit)"); process.exit(2); }

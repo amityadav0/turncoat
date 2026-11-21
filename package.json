@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node scripts/compile.mjs && node --test test/*.test.mjs",
     "build": "node scripts/compile.mjs",
-    "deploy": "node scripts/deploy.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "e2e:local": "node scripts/compile.mjs && node scripts/e2e-local.mjs"
   },
   "keywords": [],
   "author": "",

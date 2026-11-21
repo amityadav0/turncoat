@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { loadConfig, GUARD_ROOT } from "./config.ts";
+import { loadConfig, GUARD_ROOT, loadGuardEnv } from "./config.ts";
 import { modelFromEnv } from "./model/index.ts";
 import { registerSecret } from "./model/redact.ts";
 import { Store } from "./db.ts";
@@ -17,8 +17,7 @@ import { createApp } from "./server.ts";
 import { consoleLogger as log } from "./log.ts";
 import { resolveVersion, resolveMode, levelBytes } from "./levels.ts";
 
-const envFile = path.join(GUARD_ROOT, ".env");
-if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+loadGuardEnv();
 
 const cfg = loadConfig();
 registerSecret(cfg.guardSignerKey);

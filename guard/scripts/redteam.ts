@@ -22,11 +22,10 @@ import path from "node:path";
 import { modelFromEnv, modelFromSpec, type ModelAdapter, type ChatMessage, type ToolDef, type CompleteOptions } from "../src/model/index.ts";
 import { runGuard, runSession, type GuardRun, type GuardSession } from "../src/guard.ts";
 import { redact } from "../src/model/redact.ts";
-import { GUARD_ROOT } from "../src/config.ts";
+import { GUARD_ROOT, loadGuardEnv } from "../src/config.ts";
 import { VERSIONS, MODES, resolveVersion, resolveMode, levelFile, type GuardVersion, type GuardMode } from "../src/levels.ts";
 
-const envFile = path.join(GUARD_ROOT, ".env");
-if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+loadGuardEnv();
 
 const args = process.argv.slice(2);
 const flag = (name: string) => { const i = args.indexOf(name); if (i < 0) return undefined; const v = args[i + 1]; args.splice(i, 2); return v; };

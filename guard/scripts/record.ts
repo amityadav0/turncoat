@@ -8,13 +8,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { http, type Address, type Hex } from "viem";
-import { GUARD_ROOT } from "../src/config.ts";
+import { GUARD_ROOT, loadGuardEnv } from "../src/config.ts";
 import { TurncoatChain } from "../src/chain.ts";
 import { Store } from "../src/db.ts";
 import { recordTx, type TxKind } from "../src/recorder.ts";
 
-const envFile = path.join(GUARD_ROOT, ".env");
-if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+loadGuardEnv();
 const args = process.argv.slice(2);
 const flag = (name: string) => { const i = args.indexOf(name); if (i < 0) return undefined; const v = args[i + 1]; args.splice(i, 2); return v; };
 const round = Number(flag("--round"));

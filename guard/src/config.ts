@@ -1,10 +1,25 @@
 // All configuration comes from env. See guard/.env.example.
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Hex, Address } from "viem";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const GUARD_ROOT = path.resolve(here, "..");
+
+/**
+ * Loads guard settings from an env file into process.env (variables already set win).
+ * GUARD_ENV_FILE picks the file: unset = guard/.env if it exists; "none" = load nothing (tests, the
+ * local e2e run, which must never pick up real keys); a path = that file, which must exist (e.g. a
+ * testnet env file).
+ */
+export function loadGuardEnv(env: NodeJS.ProcessEnv = process.env) {
+  const choice = env.GUARD_ENV_FILE;
+  if (choice === "none") return;
+  const file = choice ? path.resolve(choice) : path.join(GUARD_ROOT, ".env");
+  if (fs.existsSync(file)) process.loadEnvFile(file);
+  else if (choice) throw new Error(`GUARD_ENV_FILE=${choice} does not exist`);
+}
 
 function req(env: NodeJS.ProcessEnv, k: string): string {
   const v = env[k];

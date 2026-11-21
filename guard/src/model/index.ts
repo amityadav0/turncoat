@@ -34,8 +34,12 @@ export function modelFromEnv(env: NodeJS.ProcessEnv = process.env): ModelAdapter
       registerSecret(apiKey);
       return new OpenAIAdapter({ apiKey, model: env.MODEL_NAME, maxTokens, baseURL, timeoutMs });
     }
-    case "fake":
-      return new FakeAdapter();
+    case "fake": {
+      // Scripted stand-ins (tests, local e2e): "fake/<name>" keeps its own id; "fake/fail" always errors.
+      const name = env.MODEL_NAME || "";
+      if (name === "fail") return new FakeAdapter(() => { throw new Error("scripted model failure (fake/fail)"); }, "fake/fail");
+      return new FakeAdapter(undefined, name ? `fake/${name}` : "fake/scripted");
+    }
     default:
       throw new Error(`unknown MODEL_PROVIDER: ${provider}`);
   }

@@ -96,6 +96,10 @@ The queue survives restarts: the per-round cursor, the queued messages and each 
 
 ## Model
 
+Settings load from `guard/.env` unless `GUARD_ENV_FILE` says otherwise: `GUARD_ENV_FILE=none` loads no file (the local e2e run uses this so it can never pick up real keys); `GUARD_ENV_FILE=path` loads that file (for example a testnet env file). Variables already set in the environment win.
+
+`MODEL_PROVIDER=fake` (or a commit's `fake/<name>` model) is a scripted stand-in that keeps its own id; `fake/fail` always errors (used to test the failure path).
+
 `MODEL_PROVIDER` picks the adapter: `anthropic` (official SDK, default model `claude-opus-5-5`), `openai` (official SDK, any Chat Completions endpoint via `MODEL_BASE_URL`), or `fake` (scripted, for tests). Adding a provider means one file in `src/model/` implementing `complete(messages, tools)` and one case in `src/model/index.ts`. API keys are read from env only and are redacted from logs, stored transcripts and responses.
 
 Server-side refusal fallbacks are deliberately not enabled. A fallback would silently judge some attempts with a different model than the one the round advertises.

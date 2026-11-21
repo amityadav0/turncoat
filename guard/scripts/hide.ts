@@ -9,11 +9,10 @@
 // In Docker: docker compose exec guard npm run hide -- --round 1 --attempt 7 --reason "scam link"
 import fs from "node:fs";
 import path from "node:path";
-import { GUARD_ROOT } from "../src/config.ts";
+import { GUARD_ROOT, loadGuardEnv } from "../src/config.ts";
 import { Store } from "../src/db.ts";
 
-const envFile = path.join(GUARD_ROOT, ".env");
-if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+loadGuardEnv();
 const args = process.argv.slice(2);
 const has = (n: string) => { const i = args.indexOf(n); if (i < 0) return false; args.splice(i, 1); return true; };
 const flag = (n: string) => { const i = args.indexOf(n); if (i < 0) return undefined; const v = args[i + 1]; args.splice(i, 2); return v; };
