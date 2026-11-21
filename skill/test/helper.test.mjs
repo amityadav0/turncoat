@@ -394,6 +394,7 @@ test("test-send: helper calldata sent with a test key; key never printed; normal
   const n0 = await pub.getTransactionCount({ address: acct(strangerK).address });
   const refused = await cli(["test-send", "--to", call.to, "--data", call.inputData], { ...env, TURNCOAT_TEST_KEY_FILE: sk });
   assert.equal(refused.status, "PREVIEW_FAILED");
+  assert.equal(refused.revert, "NotAgentIdHolder");
   assert.equal(await pub.getTransactionCount({ address: acct(strangerK).address }), n0);
   // A paid attempt for alice: exact-fee approve, then the attempt, both through test-send.
   const fee = (await cli(["status", "--round", "1", "--address", acct(aliceK).address])).nextFee;
@@ -409,4 +410,13 @@ test("test-send: helper calldata sent with a test key; key never printed; normal
   for (const out of [s1, s2, refused]) assert.ok(!JSON.stringify(out).includes(aliceK.slice(2)) && !out.stderr.includes(aliceK.slice(2)) && !JSON.stringify(out).includes(strangerK.slice(2)));
   const id = await cli(["attempt-id", "--tx", s2.txHash], env);
   assert.deepEqual([id.found, id.roundId, id.fee], [true, 1, fee]);
+});
+
+test("a 410 from the service means no time is left, even if this machine's clock disagrees", async () => {
+  const future = Math.floor(Date.now() / 1000) + 600; // e.g. a time-travelled or skewed chain clock
+  const srv = http.createServer((req, res) => { req.resume(); req.on("end", () => { res.statusCode = 410; res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ error: "message must be delivered within 180s of the on-chain attempt", attempt: { messageDeadline: future, status: "expired" } })); }); });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const out = await cli(["submit", "--round", "2", "--attempt", "0", "--message-file", msgFile("late")], { TURNCOAT_API: `http://127.0.0.1:${srv.address().port}`, TURNCOAT_RETRY_MS: "10" });
+  srv.close();
+  assert.deepEqual([out.delivered, out.httpStatus, out.tries, out.secondsLeft], [false, 410, 1, 0]);
 });

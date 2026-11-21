@@ -356,7 +356,8 @@ export async function deliver(cfg, roundId, attemptId, message, { deliverBy, txH
     tries: log.length,
     results: log,
     ...last,
-    ...(deadline ? { messageDeadline: deadline, secondsLeft: Math.max(0, deadline - now()) } : {}),
+    // 410: the service says the window has passed, whatever this machine's clock says.
+    ...(deadline ? { messageDeadline: deadline, secondsLeft: last?.httpStatus === 410 ? 0 : Math.max(0, deadline - now()) } : last?.httpStatus === 410 ? { secondsLeft: 0 } : {}),
     note: "delivery failed; the on-chain attempt stands. Retry delivery with the same message file while secondsLeft > 0. Do not send the transaction again.",
   };
 }

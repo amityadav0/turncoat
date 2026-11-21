@@ -15,6 +15,19 @@ export function refuseMainnet(chainId, where) {
   if (Number(chainId) === MAINNET_CHAIN_ID) throw new Error(`test-send refuses chain id 56 (${where}). On mainnet use baw contract-call preview/execute with the user's confirmation.`);
 }
 
+// Turncoat's custom errors (contracts/src/Turncoat.sol), so a failed pre-check names its cause.
+const ERRORS = ["NotOwner()", "BadParams()", "RoundsArePaused()", "RoundNotLive()", "RoundStillLive()", "RoundClosed()", "NotAgentIdHolder()", "OperatorCannotAttack()", "PaidAttemptsOff()", "FeeAboveMax(uint256 fee)", "NoSuchAttempt()", "BadVerdict()", "TooLateToSettle()", "CommitMismatch()", "InsufficientBalance()"];
+
+function revertName(viem, e) {
+  let raw;
+  e?.walk?.((x) => { if (typeof x?.data === "string" && x.data.startsWith("0x") && x.data.length >= 10) raw = x.data; return false; });
+  if (!raw) return undefined;
+  try {
+    const d = viem.decodeErrorResult({ abi: viem.parseAbi(ERRORS.map((x) => `error ${x}`)), data: raw });
+    return d.args?.length ? `${d.errorName}(${d.args.map(String).join(",")})` : d.errorName;
+  } catch { return undefined; }
+}
+
 function readKey(env) {
   const p = env.TURNCOAT_TEST_KEY_FILE;
   if (!p) throw new Error("test-send needs TURNCOAT_TEST_KEY_FILE: the path of a file holding a test private key");
@@ -45,7 +58,8 @@ export async function testSend(cfg, { to, data, value = "0", allowedTo }, env = 
   try {
     await pub.call({ ...tx, account: account.address });
   } catch (e) {
-    return { warning: TEST_PATH_WARNING, status: "PREVIEW_FAILED", from: account.address, error: String(e.shortMessage ?? e.message).slice(0, 300) };
+    const revert = revertName(viem, e);
+    return { warning: TEST_PATH_WARNING, status: "PREVIEW_FAILED", from: account.address, ...(revert ? { revert } : {}), error: String(e.shortMessage ?? e.message).slice(0, 300) };
   }
   const gas = await pub.estimateGas({ ...tx, account: account.address });
   const wallet = viem.createWalletClient({ account, chain, transport });
