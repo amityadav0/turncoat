@@ -8,3 +8,4 @@ AGENTS.md
 .claude/
 prompts/
 dist/
+.env.deploy

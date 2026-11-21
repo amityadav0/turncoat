@@ -4,3 +4,4 @@ data/
 .secrets/
 redteam/results/
 redteam/private/
+.env.server
