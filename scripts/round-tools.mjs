@@ -1,5 +1,6 @@
 // After-round and recovery actions. Anyone can send these; none needs the owner key.
 // Env: RPC_URL, SENDER_PRIVATE_KEY (or OWNER_PRIVATE_KEY / DEPLOYER_PRIVATE_KEY), TURNCOAT_ADDRESS (or deployments/bsc.json)
+// Add --network testnet for BSC testnet (deployments/bsc-testnet.json, TESTNET_* keys from .env.deploy).
 // Usage:
 //   node scripts/round-tools.mjs status <roundId>
 //   node scripts/round-tools.mjs settle <roundId> <attemptId> <signature> [--confirm-mainnet]

@@ -2,7 +2,7 @@
 // Env: RPC_URL, OWNER_PRIVATE_KEY (or DEPLOYER_PRIVATE_KEY), TURNCOAT_ADDRESS (or deployments/bsc.json)
 // Usage:
 //   node scripts/open-round.mjs --commit 0x<guardCommit> [--level 1] [--hours 72] [--seed 100]
-//        [--seed-from-reserve 0] [--base-fee 0] [--paid off] [--confirm-mainnet]
+//        [--seed-from-reserve 0] [--base-fee 0] [--paid off] [--network testnet] [--confirm-mainnet]
 // --seed and --base-fee are in whole tokens. The seed is pulled with an approval for exactly that amount.
 import { parseUnits, formatUnits, parseEventLogs } from "viem";
 import { art, args, clients, turncoatAddress, sendAndWait, mainnetGuard } from "./lib.mjs";
