@@ -1,7 +1,10 @@
 // Walks every state the guard service can put on the site and prints one line per check.
 //
-//   node e2e/walk.mjs --api <guard API base> --chain <id> [--contract 0x…] [--site <url>] [--out <dir>]
+//   node e2e/walk.mjs --api <guard API base> --chain <id> [--contract 0x…] [--site <url>] [--out <dir>] [--same-origin]
 //
+// --same-origin: for a service that sends no CORS headers (a local one without CORS_ORIGINS). The walk serves
+// the built site itself and passes /api/* through to --api unchanged, so the browser never needs CORS. The
+// output says so; it does not test the service's CORS setup.
 // Without --site it builds the site against --api (VITE_CHAIN_ID=--chain) and serves it with vite preview.
 // With --site it walks that deployed site instead; --api must be the service that site was built against.
 //
@@ -13,14 +16,16 @@
 //   N/A           not possible on this build (e.g. no explorer links on a local chain)
 // Exit code 1 if any FAIL or SIM-FAIL.
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright';
 
 const args = Object.fromEntries(
-  process.argv.slice(2).reduce((acc, v, i, all) => (v.startsWith('--') ? [...acc, [v.slice(2), all[i + 1]]] : acc), []),
+  process.argv.slice(2).reduce((acc, v, i, all) => (v.startsWith('--') ? [...acc, [v.slice(2), all[i + 1]?.startsWith('--') ? true : (all[i + 1] ?? true)]] : acc), []),
 );
+const sameOrigin = Boolean(args['same-origin']);
 if (!args.api || (!args.site && !args.chain)) {
   console.error('Usage: node e2e/walk.mjs --api <base> --chain <id> [--contract 0x…] [--site <url>] [--out <dir>]');
   process.exit(2);
@@ -71,9 +76,10 @@ let preview;
 async function startSite() {
   if (args.site) return args.site.replace(/\/+$/, '');
   const dist = mkdtempSync(join(tmpdir(), 'turncoat-walk-'));
-  const env = { ...process.env, VITE_API_BASE_URL: API, VITE_CHAIN_ID: String(args.chain), VITE_CONTRACT_ADDRESS: args.contract ?? '', VITE_MOCK: '' };
-  execFileSync('npx', ['vite', 'build', '--logLevel', 'error', '--outDir', dist], { cwd: WEB, env, stdio: 'inherit' });
   const port = 4600 + Math.floor(Math.random() * 300);
+  const env = { ...process.env, VITE_API_BASE_URL: sameOrigin ? `http://localhost:${port}/api` : API, VITE_CHAIN_ID: String(args.chain), VITE_CONTRACT_ADDRESS: args.contract ?? '', VITE_MOCK: '' };
+  execFileSync('npx', ['vite', 'build', '--logLevel', 'error', '--outDir', dist], { cwd: WEB, env, stdio: 'inherit' });
+  if (sameOrigin) return serveSameOrigin(dist, port);
   preview = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort', '--outDir', dist], { cwd: WEB, stdio: 'ignore', detached: true });
   const url = `http://localhost:${port}`;
   for (let i = 0; i < 60; i++) {
@@ -85,8 +91,34 @@ async function startSite() {
   throw new Error('vite preview did not start');
 }
 
+/** Static site with the SPA fallback, plus /api/* passed through to the service byte for byte. */
+let server;
+async function serveSameOrigin(dist, port) {
+  const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json' };
+  server = http.createServer(async (req, res) => {
+    if (req.url.startsWith('/api/')) {
+      const body = req.method === 'POST' ? await new Promise((ok) => { const c = []; req.on('data', (d) => c.push(d)); req.on('end', () => ok(Buffer.concat(c))); }) : undefined;
+      try {
+        const r = await fetch(API + req.url.slice(4), { method: req.method, headers: { 'content-type': req.headers['content-type'] ?? 'application/json', accept: 'application/json' }, body });
+        res.writeHead(r.status, Object.fromEntries([...r.headers].filter(([k]) => !['content-encoding', 'content-length', 'transfer-encoding', 'connection'].includes(k))));
+        return res.end(Buffer.from(await r.arrayBuffer()));
+      } catch {
+        res.writeHead(502);
+        return res.end();
+      }
+    }
+    let f = join(dist, decodeURIComponent(req.url.split('?')[0]));
+    if (!f.startsWith(dist) || !existsSync(f) || statSync(f).isDirectory()) f = join(dist, 'index.html');
+    res.writeHead(200, { 'content-type': types[f.slice(f.lastIndexOf('.'))] ?? 'application/octet-stream' });
+    createReadStream(f).pipe(res);
+  });
+  await new Promise((r) => server.listen(port, r));
+  return `http://localhost:${port}`;
+}
+
 const SITE = await startSite();
-console.log(`Site ${SITE}\nAPI  ${API}\nOut  ${OUT}\n`);
+console.log(`Site ${SITE}\nAPI  ${API}${sameOrigin ? '  (through the walk\'s same-origin pass-through: the service sends no CORS headers; CORS is not tested)' : ''}\nOut  ${OUT}\n`);
+if (sameOrigin) report('INFO', 'same-origin', 'API reached through the walk\'s /api pass-through, responses unchanged; the service\'s CORS setup is not tested');
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -139,7 +171,8 @@ report('INFO', 'build', `explorer links ${links ? 'on' : 'off'}, test-network ba
     if (models.length !== live.length) problems.push(`${models.length} cards for ${live.length} live rounds`);
     else if (!want.every((m, i) => models[i].includes(m))) problems.push(`order ${models.join(' | ')}, expected lighter first: ${want.join(' | ')}`);
     if (signersShown.length !== live.length) problems.push(`signer shown on Fairness for ${signersShown.length} of ${live.length}`);
-    problems.length ? fail(name, problems.join('; ')) : pass(name, `${models.join(' | ')}; signers on Fairness`);
+    const unranked = live.every((r) => rank(r.model) === FAMILY.length) ? ' (no model names a family, so lighter-first is not checkable; order is by round id)' : '';
+    problems.length ? fail(name, problems.join('; ')) : pass(name, `${models.join(' | ')}; signers on Fairness${unranked}`);
   }
 }
 
@@ -196,7 +229,10 @@ await attemptCheck('Hidden attempt', (a) => a.hidden === true, (a, i) => [
 // ---------- rounds ----------
 {
   const name = 'Broken round: misfire label and payout';
-  const r = rounds.find((x) => x.status === 'broken' && details[x.id].attempts.some((a) => a.breakKind === 'misfire')) ?? rounds.find((x) => x.status === 'broken');
+  // Prefer a misfire break whose payout the service knows; an absent payout means unknown (API.md), not zero.
+  const misfire = (x) => details[x.id].attempts.some((a) => a.breakKind === 'misfire');
+  const broken = rounds.filter((x) => x.status === 'broken');
+  const r = broken.find((x) => misfire(x) && x.payout) ?? broken.find((x) => x.payout) ?? broken.find(misfire) ?? broken[0];
   if (!r) missing(name, 'no broken round');
   else {
     await go(`/library/${r.id}`);
@@ -205,15 +241,17 @@ await attemptCheck('Hidden attempt', (a) => a.hidden === true, (a, i) => [
     const kinds = await page.locator('.tag-kind').allInnerTexts();
     const settleLinked = r.settleTx ? (await page.locator(`.page-head a[href*="${r.settleTx}"]`).count()) > 0 : false;
     await page.screenshot({ path: file('broken-round'), fullPage: true });
-    const misfire = details[r.id].attempts.some((a) => a.breakKind === 'misfire');
+    const hasMisfire = misfire(r);
     const problems = [
       !head.includes('Broken') && !head.includes('BROKEN') && 'no Broken status',
-      misfire && !kinds.some((k) => /misfire/i.test(k)) && 'no Misfire label',
-      !misfire && 'API has no misfire break in this round (label not checked)',
-      r.payout ? !/pot of .* was paid/.test(head) && 'payout amount not shown' : 'API sends no payout',
+      hasMisfire && !kinds.some((k) => /misfire/i.test(k)) && 'no Misfire label',
+      r.payout ? !/pot of .* was paid/.test(head) && 'payout amount not shown' : /pot of .* was paid/.test(head) && r.pot === '0' && 'an amount is shown though the service has no payout',
       links && r.settleTx && !settleLinked && 'no payout tx link',
     ].filter(Boolean);
-    problems.length ? fail(name, `round ${r.id}: ${problems.join('; ')}`) : pass(name, `round ${r.id}: ${head.split('\n').find((l) => l.includes('pot of')) ?? ''}`);
+    const notes = [!hasMisfire && 'no misfire break in any round, label not checked', !r.payout && 'no broken round with a payout, so only "no amount shown" was checked'].filter(Boolean);
+    problems.length
+      ? fail(name, `round ${r.id}: ${problems.join('; ')}`)
+      : pass(name, `round ${r.id}: ${head.split('\n').find((l) => l.includes('pot of')) ?? 'no amount shown'}${notes.length ? ` (${notes.join('; ')})` : ''}`);
   }
 }
 {
@@ -334,6 +372,7 @@ await done();
 async function done() {
   await browser?.close();
   if (preview) try { process.kill(-preview.pid); } catch {}
+  server?.close();
   writeFileSync(join(OUT, 'results.txt'), `Site ${SITE}\nAPI  ${API}\n${new Date().toISOString()}\n\n${results.join('\n')}\n`);
   const bad = results.filter((l) => l.startsWith('FAIL') || l.startsWith('SIM-FAIL')).length;
   console.log(`\n${results.filter((l) => /^(SIM-)?PASS/.test(l)).length} pass, ${bad} fail, ${results.filter((l) => l.startsWith('MISSING')).length} missing. Screenshots and results.txt in ${OUT}`);
