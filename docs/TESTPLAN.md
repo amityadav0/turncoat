@@ -46,20 +46,20 @@ Owned by the web session. Each row is one line (W1 the `INFO build` line) from `
 
 | # | Site state | What must show | Local | Testnet | Mainnet |
 |---|---|---|---|---|---|
-| W1 | Network | No banner on 56; "Test network. Nothing here has real value." on anything else; explorer links to testnet.bscscan.com on 97 and none on a local chain | not run | not run | not run |
-| W2 | Two live rounds | Two cards, lighter model first, each with model and version; signer on Fairness | not run | not run | not run |
-| W3 | Held attempt, with and without `tx` | Held tag; a tx link only when `tx` is present and the build has an explorer | not run | not run | not run |
-| W4 | Expired attempt | "Not answered" and "Never answered", never Held | not run | not run | not run |
-| W5 | Rejected attempt (wrong message) | "Not answered" with the note. Row 9 says the service stores nothing, so this may never occur | not run | not run | not run |
-| W6 | Failed attempt | "Not answered" and "Not judged: …", never Held | not run | not run | not run |
-| W7 | Hidden attempt | "Hidden by the operator" and the message hash; no message or reply text | not run | not run | not run |
-| W8 | Broken round | Broken, Misfire label, "The pot of … was paid", payout tx link when there is an explorer | not run | not run | not run |
-| W9 | Unbroken round rolled over | "Nobody turned Argus. The pot rolled into the next round." | not run | not run | not run |
-| W10 | Reveal from chain / from the service | Match; "Revealed on-chain" or the service-record line; model, mode, version, max turns, tools hash and follow-up from the header | not run | not run | not run |
-| W11 | Reveal mismatch (SIM) | "Mismatch" and no header facts | not run | not run | not run |
-| W12 | Service down and recovery (SIM, plus the real `/health` as it is) | Banner on 503 / `ok: false`; cleared on the next 30 s poll | not run | not run | not run |
-| W13 | 429 on reads (SIM) | No down banner | not run | not run | not run |
-| W14 | Practice | A verdict from the service | not run | not run | not run |
+| W1 | Network | No banner on 56; "Test network. Nothing here has real value." on anything else; explorer links to testnet.bscscan.com on 97 and none on a local chain | pass: e2e:local --keep + walk --same-origin, chain 1337; banner shown, no explorer links; 56/97 builds checked separately (no banner / testnet.bscscan.com) | not run | not run |
+| W2 | Two live rounds | Two cards, lighter model first, each with model and version; signer on Fairness | pass: 4 live rounds, model, version and signer on Fairness; `fake/*` names carry no family, so lighter-first is only by round id here | not run | not run |
+| W3 | Held attempt, with and without `tx` | Held tag; a tx link only when `tx` is present and the build has an explorer | pass: held round 1 #0 (tx) and round 2 #0 (no tx); no tx links on a local build (no explorer), as designed | not run | not run |
+| W4 | Expired attempt | "Not answered" and "Never answered", never Held | pass: round 2 #1 Not answered, Never answered | not run | not run |
+| W5 | Rejected attempt (wrong message) | "Not answered" with the note. Row 9 says the service stores nothing, so this may never occur | n/a: the service answers 400 and stores nothing (row 9), so no rejected attempt exists to show | not run | not run |
+| W6 | Failed attempt | "Not answered" and "Not judged: …", never Held | pass: round 5 #0 Not answered, Not judged | not run | not run |
+| W7 | Hidden attempt | "Hidden by the operator" and the message hash; no message or reply text | pass: round 1 #1 Hidden by the operator + hash, no text | not run | not run |
+| W8 | Broken round | Broken, Misfire label, "The pot of … was paid", payout tx link when there is an explorer | pass: round 4 Misfire, "The pot of 10 USDT was paid" | not run | not run |
+| W9 | Unbroken round rolled over | "Nobody turned Argus. The pot rolled into the next round." | pass: round 10 rolled-over line | not run | not run |
+| W10 | Reveal from chain / from the service | Match; "Revealed on-chain" or the service-record line; model, mode, version, max turns, tools hash and follow-up from the header | pass: round 1 chain, round 10 service; Match and fake/lighter · decide · v2 · 6 turns, tools hash, follow-up | not run | not run |
+| W11 | Reveal mismatch (SIM) | "Mismatch" and no header facts | pass (SIM): Mismatch, no header facts | not run | not run |
+| W12 | Service down and recovery (SIM, plus the real `/health` as it is) | Banner on 503 / `ok: false`; cleared on the next 30 s poll | pass: real /health 200, no banner; SIM 503 → banner, cleared on the next poll | not run | not run |
+| W13 | 429 on reads (SIM) | No down banner | pass (SIM): no banner | not run | not run |
+| W14 | Practice | A verdict from the service | pass: verdict "He held." | not run | not run |
 
 ## What only mainnet can prove (the mainnet smoke test)
 
