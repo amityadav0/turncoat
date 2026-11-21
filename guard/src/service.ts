@@ -249,7 +249,7 @@ export class GuardService {
       guardCommit: r.guardCommit,
       /** The only key whose verdict can pay this round, fixed when it opened (roundSigner). */
       signer: await this.chain.roundSigner(id),
-      /** Which instruction version the round runs ("v1", …). Public from the start; the text stays secret until reveal. */
+      /** Which instruction version the round runs ("v1", …). Public from the start, like the instruction files in the repo; the commit proves they were not changed during the round. */
       guardVersion: this.commits.get(r.guardCommit.toLowerCase())?.version,
       /** Model Argus runs on for this round ("provider/model"), fixed when the service first saw the round. */
       model: this.commits.get(r.guardCommit.toLowerCase())?.model ?? (this.cfg.modelId ? this.store.roundModel(id, this.cfg.modelId) : undefined),
