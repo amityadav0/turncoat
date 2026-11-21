@@ -311,20 +311,30 @@ export async function liveRounds(cfg, address) {
  * 409 "already submitted" counts as delivered: the service holds the message. On failure, reports how long is left,
  * from the service's messageDeadline if it answers, else from `deliverBy` (attempt-id's block time + window).
  */
-export async function deliver(cfg, roundId, attemptId, message, { deliverBy, tries = 3, waitMs = Number(process.env.TURNCOAT_RETRY_MS ?? 2000) } = {}) {
+export async function deliver(cfg, roundId, attemptId, message, { deliverBy, txHash, tries = 3, waitMs = Number(process.env.TURNCOAT_RETRY_MS ?? 2000) } = {}) {
   const now = () => Math.floor(Date.now() / 1000);
   const log = [];
   let last;
+  let sendTx = txHash;
+  let txHashDropped;
   for (let i = 1; i <= tries; i++) {
     try {
-      last = await api(cfg, "POST", "/attempts", { roundId, attemptId, message });
+      last = await api(cfg, "POST", "/attempts", sendTx ? { roundId, attemptId, message, txHash: sendTx } : { roundId, attemptId, message });
+      // txHash is optional (web/API.md): if the service rejects it, deliver again without it, straight away.
+      if (sendTx && last.httpStatus === 400 && /txHash/i.test(String(last.error ?? ""))) {
+        txHashDropped = last.error;
+        sendTx = undefined;
+        log.push(400);
+        last = await api(cfg, "POST", "/attempts", { roundId, attemptId, message });
+      }
     } catch (e) {
       last = { networkError: String(e?.cause?.code ?? e?.message ?? e) };
     }
     const code = last.httpStatus;
     log.push(code ?? last.networkError);
-    if (code === 200 || code === 202) return { delivered: true, tries: i, ...last };
-    if (code === 409) return { delivered: true, alreadySubmitted: true, tries: i, ...last };
+    const extra = txHashDropped ? { txHashSent: false, txHashRejected: txHashDropped } : { txHashSent: !!txHash };
+    if (code === 200 || code === 202) return { delivered: true, tries: i, ...extra, ...last };
+    if (code === 409) return { delivered: true, alreadySubmitted: true, tries: i, ...extra, ...last };
     const retryable = code === undefined || code >= 500 || code === 429;
     if (!retryable || (deliverBy && now() >= deliverBy) || i === tries) break;
     await new Promise((r) => setTimeout(r, waitMs));
@@ -380,9 +390,10 @@ const HELP = `turncoat.mjs <command> [options]
                                                  {to, value, inputData} for baw contract-call preview
   approve-calldata --amount WEI                  exact-fee approve of the contract on the round token
   attempt-id --tx 0x..                           attemptId, blockTime and deliverBy from the Attempted event
-  submit    --round N --attempt N --message-file F [--deliver-by UNIX]
+  submit    --round N --attempt N --message-file F [--tx 0x..] [--deliver-by UNIX]
                                                  POST /attempts at once after the attempt confirms; retries delivery
-                                                 (never the transaction) and reports secondsLeft if it fails
+                                                 (never the transaction) and reports secondsLeft if it fails;
+                                                 --tx sends the attempt's txHash so the site can link it
   result    --round N --attempt N                GET /attempts/:round/:attempt
   settle-calldata --round N --attempt N --signature 0x..
                                                  settle() calldata built locally from the verdict signature
@@ -433,7 +444,8 @@ export async function main(argv) {
     case "submit":
       need(cfg, "api");
       if (opts["deliver-by"] !== undefined) intArg(opts, "deliver-by");
-      return deliver(cfg, Number(intArg(opts, "round")), Number(intArg(opts, "attempt")), readMessage(opts), { deliverBy: opts["deliver-by"] ? Number(opts["deliver-by"]) : undefined });
+      if (opts.tx !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(opts.tx)) throw new Error("--tx must be a transaction hash");
+      return deliver(cfg, Number(intArg(opts, "round")), Number(intArg(opts, "attempt")), readMessage(opts), { deliverBy: opts["deliver-by"] ? Number(opts["deliver-by"]) : undefined, txHash: opts.tx });
     case "result":
       need(cfg, "api");
       return api(cfg, "GET", `/attempts/${intArg(opts, "round")}/${intArg(opts, "attempt")}`);

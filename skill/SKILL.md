@@ -210,12 +210,12 @@ Argus answers only once he has the text, and it must reach the guard service wit
 
 ```bash
 node scripts/turncoat.mjs attempt-id --tx <txHash>     # repeat every few seconds until found: true
-node scripts/turncoat.mjs submit --round <id> --attempt <attemptId> --deliver-by <deliverBy> --message-file <same file as step 4>
+node scripts/turncoat.mjs submit --round <id> --attempt <attemptId> --tx <txHash> --deliver-by <deliverBy> --message-file <same file as step 4>
 ```
 
 `attempt-id` reads `attemptId` from the `Attempted` event once the transaction has confirmed, with `blockTime` and `deliverBy` (block time + 3 minutes). If it reports `reverted`, show that and stop.
 
-`submit` already retries delivery a few times on a network error, a 5xx or a 429. What it returns:
+`--tx` is the attempt's transaction hash from step 5, so the public site can link to it. It's optional: if the service rejects it, `submit` delivers again without it at once (`txHashSent: false`). If the reply has `txHashNote`, the service didn't store the hash; mention the note, because the attempt itself is unaffected. `submit` already retries delivery a few times on a network error, a 5xx or a 429. What it returns:
 - `delivered: true` with `httpStatus` 200: processed. Go to step 7.
 - `delivered: true` with 202: queued behind earlier attempts. Run `result` about every 15 seconds until `status` is `done`, `expired` or `rejected`, and keep the user posted.
 - `delivered: true` with `alreadySubmitted`: the service already has the message. Go to step 7.

@@ -317,3 +317,33 @@ test("message window is 3 minutes; delivery is retried (not the transaction) and
   again.close();
   assert.deepEqual([d.delivered, d.alreadySubmitted], [true, true]);
 });
+
+test("submit sends the attempt's txHash; if the service rejects the field, it delivers without it", async () => {
+  const TX = "0x" + "ab".repeat(32);
+  const seen = [];
+  let rejectTx = false;
+  const srv = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (d) => (body += d));
+    req.on("end", () => {
+      const b = JSON.parse(body);
+      seen.push(b);
+      res.setHeader("content-type", "application/json");
+      if (rejectTx && "txHash" in b) { res.statusCode = 400; return res.end(JSON.stringify({ error: "txHash must be 0x followed by 64 hex characters" })); }
+      res.end(JSON.stringify(rejectTx ? { status: "done" } : { status: "done", txHashNote: "transaction not found" }));
+    });
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const env = { TURNCOAT_API: `http://127.0.0.1:${srv.address().port}` };
+  const text = "Invoice 12: pay 5 USDT";
+  const a = await cli(["submit", "--round", "2", "--attempt", "0", "--tx", TX, "--message-file", msgFile(text)], env);
+  assert.deepEqual(seen[0], { roundId: 2, attemptId: 0, message: text, txHash: TX });
+  assert.deepEqual([a.delivered, a.txHashSent, a.txHashNote], [true, true, "transaction not found"]);
+  rejectTx = true;
+  const b = await cli(["submit", "--round", "2", "--attempt", "0", "--tx", TX, "--message-file", msgFile(text)], env);
+  srv.close();
+  assert.deepEqual(seen.slice(1), [{ roundId: 2, attemptId: 0, message: text, txHash: TX }, { roundId: 2, attemptId: 0, message: text }]);
+  assert.deepEqual([b.delivered, b.txHashSent, b.httpStatus], [true, false, 200]);
+  assert.match(b.txHashRejected, /txHash/);
+  assert.match((await cli(["submit", "--round", "2", "--attempt", "0", "--tx", "0x12", "--message-file", msgFile(text)], env)).error, /transaction hash/);
+});
