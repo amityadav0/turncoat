@@ -1,6 +1,6 @@
 # Mainnet end-to-end checklist
 
-For Amit, with his own Agent ID wallet on BNB Smart Chain mainnet, against a deployed Turncoat contract and a running guard service. Each step lists what to do and what you should see. Fill in what actually happened and how long the step took. Stop at the first step that doesn't match, and note it.
+For the operator, with their own Agent ID wallet on BNB Smart Chain mainnet, against a deployed Turncoat contract and a running guard service. Each step lists what to do and what you should see. Fill in what actually happened and how long the step took. Stop at the first step that doesn't match, and note it.
 
 Know this before section D. Real attempts are contract calls, and an Agentic Wallet only makes contract calls with Developer Mode on. You switch it on in the Binance App, and it stays on for 7 days from the last time you use it. A wallet holding more than the Developer Mode balance cap can't switch it on, so keep the test wallet small. Practice (section C) needs none of this.
 

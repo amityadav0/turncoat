@@ -44,15 +44,15 @@ RPC_URL=http://127.0.0.1:8545 DEPLOYER_PRIVATE_KEY=0x… GUARD_SIGNER_ADDRESS=0x
 
 | Item | Used for | Rules |
 |---|---|---|
-| **Deployer key** (becomes the contract **owner**) | Deploys the contract; opens rounds; pays the seed; can rotate the guard signer, pause new rounds and withdraw the 15% running-cost share | Needs BNB for gas and the USDT for the seed. Keep it off the server. Never use it as the guard signer or the relayer. |
-| **Guard signer key** | Lives on the guard server; signs verdicts. Anyone holding it can sign a verdict that pays a pot. | A fresh key used for nothing else. Holds no funds. Never reuse it elsewhere. If it leaks, rotate it at once (section 7). |
+| **Deployer key** (becomes the contract **owner**) | Deploys the contract; opens rounds; pays the seed; can set the guard signer for rounds opened later, pause new rounds and withdraw the 15% running-cost share | Needs BNB for gas and the USDT for the seed. Keep it off the server. Never use it as the guard signer or the relayer. |
+| **Guard signer key** | Lives on the guard server; signs verdicts. Anyone holding it can sign a verdict that pays the pot of every round opened with it. | A fresh key used for nothing else. Holds no funds. Never reuse it elsewhere. A round's signer cannot be changed once the round is open, so keep pots at an amount you can afford to lose. If it leaks, see section 7. |
 | **Relayer key** (optional) | Lives on the guard server; submits `settle()` so a winner is paid without doing it themselves | A fresh key with a small BNB balance for gas only. Not the owner, not the signer. |
 | **Model API key** | The guard model (`MODEL_PROVIDER`, default Anthropic) | Server env only. The service redacts it from logs and responses. |
 | **USDT for the seed** | Round 1's pot (BSC-USD, 18 decimals) | Held by the deployer/owner address. |
 | **A server for the guard service** | Runs `guard/` 24/7 during rounds | Node 20+, a persistent disk (SQLite database and commit records), and HTTPS in front: the site's Content-Security-Policy only allows `https:` API calls. |
 | **BscScan API key** | Only for API-based verification | Optional. The repo's verification path is BscScan's web form, which needs no key. |
 
-The contract stops the owner and the guard signer from making attempts, so a mix-up between those keys fails safely. Separate keys also keep the "owner cannot pay a pot without a valid break" promise in the README meaningful.
+The contract stops the owner and the guard signer from making attempts, so a mix-up between those keys fails safely. A round keeps the signer it opened with (`roundSigner(roundId)` on the contract), so the owner key cannot take over a live round's payout by changing the signer.
 
 ---
 
@@ -290,4 +290,4 @@ OWNER_PRIVATE_KEY=0x… RPC_URL=… node scripts/open-round.mjs --commit 0x<new 
 - **Guard service down mid-round.** Attempts keep landing on-chain. Restart the service: queued attempts resume in order from SQLite, and nothing is processed twice. An attempt whose message could not be delivered within `MESSAGE_WINDOW_SECONDS` of its on-chain time is marked expired. If an outage was long, you can raise `MESSAGE_WINDOW_SECONDS` before restarting so those attackers can resubmit; say so publicly, since it changes the rule for everyone.
 - **A verdict was not relayed** (`relayer.status` is `failed` or `unknown` in `GET /attempts/<r>/<a>`, usually a relayer with no BNB). The signature is still valid until `settleDeadline`. Submit it with `round-tools.mjs settle …` (section 6), or give the attacker the `verdict.settle` calldata; anyone can send it.
 - **An attempt is stuck as `queued`.** Look at the service log. "no local instructions match round guardCommit" means the commit record is not in `COMMITS_DIR` on this server: copy `0x<guardCommit>.json` there (it is picked up within seconds). A model error means the model key, quota or provider is the problem; the attempt is retried with backoff and later attempts wait behind it, in order.
-- **The guard signer key leaked.** From the owner key, call `setGuardSigner(<new address>)` on the contract (BscScan "Write Contract" works), then put the new key in the server's `.env` and restart. Until that call, anyone with the old key can sign a verdict for the live round. **Not run locally.**
+- **The guard signer key leaked.** Rounds that are already open keep the leaked key as their signer and cannot be changed: anyone holding it, with any Agent ID wallet, can take those pots until the rounds are paid or roll over. This is the price of the owner not being able to change a live round. What you can do: from the owner key, call `setGuardSigner(<new address>)` (BscScan "Write Contract" works) so no new round uses the leaked key, put the new key in the server's `.env`, and open new rounds only after that. Say publicly what happened. **Signer change tested on a local chain (`test/signer.test.mjs`); the server steps are not run.**

@@ -43,8 +43,8 @@ The game is the incentive. The product is what comes out of it.
 | **Post-mortems** | Everyone | One short write-up per break: the attack, the cause, the fix. |
 | **Guard rulebook** | Skill developers | The fixes, collected into rules you can copy into your own skill. |
 | **Model record** | Anyone choosing a model for a wallet agent | Each round names the model Argus runs on. Over time the rounds show which models hold, and against what. |
-| **Practice mode** | Anyone | Every level, free, no pot, no transaction and no wallet. Learn what each attack looks like before it happens to your own agent. |
-| **Tester record** | Attackers | Attempts made and guards broken, recorded on-chain under your .ai name. |
+| **Practice mode** | Anyone | Level 1, free, no pot, no transaction and no wallet. Learn what an attack looks like before it happens to your own agent. |
+| **Tester record** | Attackers | Attempts made and guards broken, recorded on-chain against your Agent ID wallet. The site shows it under your .ai name. |
 
 ## The levels
 
@@ -68,7 +68,7 @@ The same level can run on models of different strength at the same time, each as
 
 Argus is not a fortress on day one, and he gets harder to fool in public. When he is broken, the attack is published, one rule is added to answer it, and the next round runs the patched guard. Each version contains everything from the version before.
 
-It has already happened once. Before launch we ran our own attacks against the plain guard, version 1. Hundreds of attempts failed on two different models, and one attack turned him every time. That attack and its fix are written up as the first post-mortem, and round 1 runs version 2.
+It has already happened once. Before launch we ran our own attacks against the plain guard, version 1. Hundreds of attempts failed, and one attack turned him on every run. That attack and its fix are written up as the first post-mortem, and round 1 runs version 2.
 
 That makes every break useful twice: the attacker keeps the pot, and every skill developer gets a tested rule to copy. The history of versions is the guard rulebook.
 
@@ -78,22 +78,23 @@ Agent ID is one per Binance user and cannot be transferred. Turncoat depends on 
 
 | Where | What Agent ID does | What breaks without it |
 |---|---|---|
-| Attempts | Only Agent ID holders can attack | Bots flood the guard |
+| Attempts | Only Agent ID holders can make an attempt that counts | One person submits unlimited attempts from fresh wallets |
 | Free daily attempt | One free attempt per Agent ID per day | One person farms unlimited free attempts with fresh wallets |
 | Rising fee | Each extra paid attempt by the same ID in a round costs 10% of the base fee more, up to five times the base | The price resets with every new wallet |
-| Record | Breaks and cleared levels are tied to a .ai name for good | Reputation can be bought, sold or reset |
+| Record | Breaks are counted on-chain against the Agent ID wallet, which cannot be transferred | Reputation can be bought, sold or reset |
 | Payout | The pot is paid to the Agent ID wallet that sent the winning attempt | — |
 
 ## Fairness: how you know it isn't rigged
 
 The guard is a language model, so it runs off-chain. These are the checks that let anyone verify a round:
 
-- **The guard's instructions are committed before the round.** Their hash goes on-chain when the round opens. The full text is revealed when the round ends, and anyone can check it matches.
+- **The guard's instructions are public and fixed for the round.** Every version is in `guard/levels/`. The hash of the exact text, with a salt, goes on-chain when the round opens. When the round ends the salt is published, and anyone can check that the text Argus ran is the text in the repo. The instructions are not a secret: you can read them, and test against them in practice mode, before you spend an attempt.
 - **Every attempt is on-chain.** The hash of each message is recorded in the attempt transaction, so no message can be added, removed or edited later.
 - **Every attempt is public as soon as Argus answers it:** the message and his full reply, while the round is still live. Anyone can watch, learn from failed attempts and check the result.
-- **The pot is locked in the contract.** The owner cannot withdraw it. It leaves only to an attacker with a valid break, or rolls into the next round.
+- **The pot is locked in the contract.** The owner cannot withdraw it. It leaves only on a verdict signed by the round's signer, to the wallet that sent that attempt, or it rolls into the next round.
+- **A round's signer cannot be changed.** The key whose signature pays a round is fixed when the round opens and is readable on-chain (`roundSigner`). The owner can set a different signer only for rounds opened later.
 
-What you still have to trust: that the guard service ran the committed instructions honestly during the round. The public transcripts and the revealed instructions make cheating visible; they do not make it impossible.
+What you still have to trust: the guard service. It holds the round's signing key, and the contract pays whoever that key signs for. The contract cannot check that a signed verdict matches a real break, or that the service ran the committed instructions. We run the service and we open the rounds, so this is trust in us. The public transcripts and the on-chain attempt hashes make a false payout visible to everyone; they do not make it impossible.
 
 ## Cost to play
 
@@ -108,7 +109,7 @@ What you still have to trust: that the guard service ran the committed instructi
 | Hackathon rule | How Turncoat meets it |
 |---|---|
 | No web QR login or server-held sessions | The site is read-only. Attackers act through their own Agentic Wallet. |
-| Never bypass transaction confirmation | The skill previews every transaction and waits for the user to confirm. Attempts are never looped automatically. |
+| Never bypass transaction confirmation | The skill previews every transaction and waits for the user to confirm. It tells the agent never to loop attempts. |
 | No unlimited approvals or hidden transfers | Free attempts need no approval. Paid attempts approve the exact fee. |
 | Open source, owner permissions documented | See the next section. |
 | No collection of seed phrases, keys or pairing codes | None is asked for anywhere. |
@@ -119,11 +120,13 @@ What you still have to trust: that the guard service ran the committed instructi
 
 | The owner can | The owner cannot |
 |---|---|
-| Open a round and fund its seed | Withdraw or redirect a pot |
-| Rotate the guard's signing key | Pay a pot without a valid break |
-| Withdraw the 15% running-cost share | Touch the next-round seed reserve except to seed a round |
+| Open a round and fund its seed | Withdraw a pot |
+| Set the signing key for rounds opened later | Change the signing key of a round that is already open |
+| Withdraw the 15% running-cost share | Withdraw the next-round seed reserve; it can only become a round's pot |
 | Pause the opening of new rounds | Pause attempts or payouts in a live round |
 | Transfer ownership (two-step) | Change a round's rules after it opens |
+
+What this table does not promise: the owner chooses each round's signing key when the round opens, and a pot is paid to whoever that key signs for. So a pot, including one seeded from the reserve, is as safe as that key and as honest as whoever holds it. See "What you still have to trust" above. The contract is not audited.
 
 ## Architecture
 
@@ -145,12 +148,12 @@ Agentic Wallet (baw) ── attempt(roundId, messageHash) ──▶ Turncoat con
 
 | Part | State |
 |---|---|
-| Contract | Built. 13 tests pass on a local chain. Not audited. |
-| Guard service (`guard/`) | Built: attempt checks and ordered queue, sandboxed wallet tools, break detector in code, verdict signer, optional relayer, practice mode, public API, Docker image. Launch configuration: level 1 in decide mode, guard version 2, as two rounds at once on Claude Haiku 5.5 and Claude Opus 5.5, each round's model fixed when it opens. Three guard versions exist (v1 plain, v2, v3 hardened). Red-teamed before launch with real models: version 1 was broken by one attack (post-mortem 0); version 2 held 56 attempts on Haiku and 50 on Opus, and the two-round launch was rehearsed locally with both real models. 57 tests pass on a local chain. Not deployed. |
+| Contract | Built. 16 tests pass on a local chain. Not audited. |
+| Guard service (`guard/`) | Built: attempt checks and ordered queue, sandboxed wallet tools, break detector in code, verdict signer, optional relayer, practice mode, public API, Docker image. Launch configuration: level 1 in decide mode, guard version 2, as two rounds at once on Claude Haiku 5.5 and Claude Opus 5.5, each round's model fixed when it opens. Three guard versions exist (v1 plain, v2, v3 hardened). Red-teamed before launch with real models: version 1 was broken by one attack (post-mortem 0); version 2 held 56 attempts on Haiku and 50 on Opus (our own runs; the raw results are not in the repo), and the two-round launch was rehearsed locally with both real models. 58 tests pass on a local chain. Not deployed. |
 | Agent skill (`skill/`) | Built: `SKILL.md` (free practice first, Agent ID and Developer Mode checks, a choice between all live rounds with each one's model, mode and next fee, payment-request framing for `decide` mode, preview and explicit confirmation before every transaction, exact-fee approval for paid attempts, message delivery, reply with misfire/persuaded label, settle; stops before any transaction on a mode it doesn't know) and a dependency-free helper for hashing, calldata, contract reads and the guard API. 20 skill tests pass, 12 of them on a local chain. Not yet run with a real Agentic Wallet; the mainnet checklist is `docs/E2E.md`. Contract address and guard URL are placeholders until deployment. |
 | Site (`web/`) | Built: home with every live round of the ladder (lighter model first), live feed, practice, library with JSONL download, post-mortems, fairness with an in-browser hash check, share cards. Shows Approved/Rejected on each decide-mode reply and Misfire/Persuaded on breaks. Run locally against the guard service's demo; has a demo-data mode with a visible banner. Not deployed. |
 | Mainnet deployment | Not deployed |
-| Levels | Level 1 (payment requests) at launch. Level 2 (poisoned token) built and red-teamed (held 50 of 50 on Haiku), not at launch. Later levels planned. |
+| Levels | Level 1 (payment requests) at launch. Level 2 (poisoned token) exists in the guard as a second mode and held 50 of 50 of our own attacks on Haiku. The skill and practice mode do not serve it yet, and it is not at launch. Later levels planned. |
 | Attack library and post-mortems | Site pages built. Post-mortem 0 (pre-launch testing, not a round) is published at `/library/prelaunch`. No round has run yet, so the round library is empty until the first round closes. |
 
 Contract address: _added at deployment._

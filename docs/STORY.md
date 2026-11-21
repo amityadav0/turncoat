@@ -60,7 +60,7 @@ We turned him ourselves before launch. Our own attacks failed hundreds of times 
 ## Launch posts for X (drafts)
 
 **1. The hook**
-> We gave an AI agent a pot of USDT and one rule: never give it away.
+> We gave an AI agent a pot of USDT and one job: approve the payments it should, reject the ones it shouldn't.
 >
 > If you hold an Agent ID, you get one free try a day to talk it out of the money.
 >
@@ -79,7 +79,7 @@ We turned him ourselves before launch. Our own attacks failed hundreds of times 
 > One ID per person, and it can't be transferred. So one free attempt a day really means one. No fresh-wallet farming, and every break stays on your .ai name for good.
 
 **4. How it stays honest**
-> Argus's instructions are hashed on-chain before each round and revealed after. Every attempt's hash is on-chain. Every transcript is published. The pot sits in a contract the owner cannot withdraw from.
+> Argus's instructions are public, and their hash is fixed on-chain when a round opens. Every attempt's hash is on-chain. Every transcript is published. The pot sits in a contract the owner cannot withdraw from, and the key that pays a round cannot be changed once it opens.
 
 **5. After a break (template)**
 > Argus was turned. Attempt {n}, by {name}.ai, level {level}.

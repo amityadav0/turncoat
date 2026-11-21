@@ -15,10 +15,13 @@ interface IAgentID {
 /// @notice A guard agent holds a pot. Agent ID holders send it one message per attempt.
 ///         If the guard takes a forbidden action, the guard service signs a verdict and this
 ///         contract pays the pot to the attacker who sent that attempt.
-/// @dev Owner powers (complete list, see README): open and seed rounds, rotate the guard signer,
-///      withdraw the running-cost share, pause the opening of new rounds, transfer ownership.
-///      The owner can never withdraw a pot, pay a pot without a valid verdict, pause attempts or
-///      payouts in a live round, or change a round after it opens.
+/// @dev Owner powers (complete list, see README): open and seed rounds, set the guard signer for
+///      rounds opened later, withdraw the running-cost share, pause the opening of new rounds,
+///      transfer ownership. The owner can never withdraw a pot, pause attempts or payouts in a
+///      live round, or change a round after it opens, including the signer whose verdict pays it.
+///      Trust that remains: a round pays whoever its signer signs for. The signer is fixed when the
+///      round opens and is public (`roundSigner`), but the contract cannot check that a signed
+///      verdict matches a real break. That is checked off-chain against the public transcript.
 contract Turncoat is EIP712, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -62,12 +65,16 @@ contract Turncoat is EIP712, ReentrancyGuard {
 
     address public owner;
     address public pendingOwner;
+    /// @notice Signer given to rounds opened from now on. Rounds already open keep their own.
     address public guardSigner;
     bool public roundsPaused;
 
     uint256 public roundCount;
     mapping(uint256 => Round) internal _rounds;
     mapping(uint256 => Attempt[]) internal _attempts;
+    /// @notice The only key whose verdict can pay this round. Copied from `guardSigner` when the
+    ///         round opens and never changed afterwards.
+    mapping(uint256 => address) public roundSigner;
     mapping(uint256 => mapping(address => uint32)) public paidAttempts; // per round, per attacker
 
     /// @dev Stores (UTC day index + 1) of the last free attempt, so 0 means "never".
@@ -103,6 +110,7 @@ contract Turncoat is EIP712, ReentrancyGuard {
     event GuardRevealed(uint256 indexed roundId, bytes32 salt, bytes instructions);
     event OpsWithdrawn(address indexed to, uint256 amount);
     event GuardSignerChanged(address signer);
+    event RoundSignerFixed(uint256 indexed roundId, address signer);
     event RoundsPaused(bool paused);
     event OwnershipTransferStarted(address indexed from, address indexed to);
     event OwnershipTransferred(address indexed from, address indexed to);
@@ -175,7 +183,9 @@ contract Turncoat is EIP712, ReentrancyGuard {
         r.baseFee = baseFee;
         r.guardCommit = guardCommit;
         r.pot = seedFromOwner + seedFromReserve;
+        roundSigner[roundId] = guardSigner;
 
+        emit RoundSignerFixed(roundId, guardSigner);
         emit RoundOpened(roundId, level, r.startTime, r.endTime, baseFee, paidEnabled, guardCommit, r.pot);
     }
 
@@ -192,7 +202,9 @@ contract Turncoat is EIP712, ReentrancyGuard {
     {
         Round storage r = _rounds[roundId];
         if (r.startTime == 0 || r.closed || block.timestamp > r.endTime) revert RoundNotLive();
-        if (msg.sender == owner || msg.sender == guardSigner) revert OperatorCannotAttack();
+        if (msg.sender == owner || msg.sender == roundSigner[roundId] || msg.sender == guardSigner) {
+            revert OperatorCannotAttack();
+        }
         if (agentId.balanceOf(msg.sender) == 0) revert NotAgentIdHolder();
         if (messageHash == bytes32(0)) revert BadParams();
 
@@ -226,7 +238,8 @@ contract Turncoat is EIP712, ReentrancyGuard {
     }
 
     /// @notice Pay the pot to the attacker whose attempt broke the guard. Anyone can submit the
-    ///         guard service's signed verdict. The first valid verdict settles the round.
+    ///         signed verdict. It must be signed by the signer fixed when this round opened;
+    ///         changing `guardSigner` later has no effect here. The first valid verdict settles.
     function settle(uint256 roundId, uint256 attemptId, bytes calldata signature) external nonReentrant {
         Round storage r = _rounds[roundId];
         if (r.startTime == 0 || r.closed) revert RoundClosed();
@@ -235,7 +248,7 @@ contract Turncoat is EIP712, ReentrancyGuard {
 
         address attacker = _attempts[roundId][attemptId].attacker;
         bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(VERDICT_TYPEHASH, roundId, attemptId, attacker)));
-        if (ECDSA.recover(digest, signature) != guardSigner) revert BadVerdict();
+        if (ECDSA.recover(digest, signature) != roundSigner[roundId]) revert BadVerdict();
 
         uint256 pot = r.pot;
         r.pot = 0;
@@ -317,6 +330,8 @@ contract Turncoat is EIP712, ReentrancyGuard {
         emit OpsWithdrawn(to, amount);
     }
 
+    /// @notice Sets the signer for rounds opened after this call. Rounds already open are not
+    ///         affected: each keeps the signer it opened with until it is paid or rolls over.
     function setGuardSigner(address signer) external onlyOwner {
         if (signer == address(0)) revert BadParams();
         guardSigner = signer;
