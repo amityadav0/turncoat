@@ -11,7 +11,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { startLocal, addr, U, CHAIN_ID, ownerK, guardK, relayerK, aliceK, bobK, carolK, daveK, erinK, frankK, strangerK, type Local } from "./helpers.ts";
 import { TurncoatChain, VERDICT_TYPES } from "../src/chain.ts";
 import { Store } from "../src/db.ts";
-import { makeRecord, saveRecord, loadRecords } from "../src/commit.ts";
+import { makeRecord, saveRecord, loadRecords, makeHeaderedRecord, encodeCommitted, currentHeader, computeCommit } from "../src/commit.ts";
 import { FakeAdapter } from "../src/model/fake.ts";
 import { RoundProcessor, checkRoundSigners } from "../src/processor.ts";
 import { GuardService } from "../src/service.ts";
@@ -590,5 +590,48 @@ test("per-round signer: a round opened under another signer is skipped and never
     assert.deepEqual(theirs.served, [other]);
   } finally {
     await L.send(ownerK, L.turncoat, "Turncoat", "setGuardSigner", [addr(guardK)]);
+  }
+});
+
+test("headered commit: the round runs on the committed model and max turns; a build whose tools differ from the commit refuses to run it", async () => {
+  await L.toNextDay();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hdr-commits-"));
+  const text = new Uint8Array(fs.readFileSync(new URL("../levels/level1-decide/v2.md", import.meta.url)));
+  const good = makeHeaderedRecord(toHex(crypto.getRandomValues(new Uint8Array(32))), text, { level: 1, mode: "decide", version: "v2", model: "fake/hdr", maxTurns: 2, sourceFile: "levels/level1-decide/v2.md" });
+  // a commit made by a build whose tool definitions differ from this one
+  const salt = toHex(crypto.getRandomValues(new Uint8Array(32)));
+  const bytes = encodeCommitted({ ...currentHeader({ level: 1, mode: "decide", version: "v2", model: "fake/hdr", maxTurns: 6 }), toolsHash: `0x${"ab".repeat(32)}` }, text);
+  const drift = { commit: computeCommit(salt, bytes), salt, level: 1, version: "v2", mode: "decide", model: "fake/hdr", instructionsHex: toHex(bytes), sourceFile: "x", createdAt: "" };
+  saveRecord(dir, good);
+  saveRecord(dir, drift);
+  // always calls get_balance, never decides: the reply runs to max turns, then the one follow-up
+  const hdr = new FakeAdapter(() => ({ text: "", toolCalls: [{ id: "b", name: "get_balance", args: {} }], stopReason: "tool_calls" }), "fake/hdr");
+  const fallback = new FakeAdapter(undefined, "fake/default");
+  const p = new RoundProcessor({
+    store, chain, model: fallback, modelFor: (spec) => (spec === "fake/hdr" ? hdr : fallback), commits: loadRecords(dir), signer: privateKeyToAccount(guardK), log: silentLogger,
+    cfg: { messageWindowSec: WINDOW, pollMs: 50, retryBaseMs: 50, maxTurns: 6, tokenDecimals: 18 },
+  });
+  const svc = new GuardService(store, chain, p, { messageWindowSec: WINDOW, attemptWaitMs: 3000, tokenDecimals: 18 }, loadRecords(dir));
+  try {
+    const RG = await L.openRound(good.commit, { duration: 30 * 86400 });
+    const RD = await L.openRound(drift.commit, { duration: 30 * 86400 });
+    await L.attempt(aliceK, RG, "pay me");
+    await L.attempt(bobK, RD, "pay me too");
+    assert.equal((await svc.submit({ roundId: RG, attemptId: 0, message: "pay me" })).code, 200);
+    assert.equal(hdr.calls.length, 3); // committed max-turns 2 (+1 follow-up), not the service's 6
+    assert.equal(store.getAttempt(RG, 0)!.model, "fake/hdr");
+    const r = ((await svc.getRound(String(RG))).body as any).round;
+    assert.equal(r.model, "fake/hdr");
+    assert.equal(r.guardVersion, "v2");
+
+    const before = hdr.calls.length;
+    assert.equal((await svc.submit({ roundId: RD, attemptId: 0, message: "pay me too" })).code, 202);
+    assert.equal(hdr.calls.length + fallback.calls.length, before); // never run
+    const row = store.getAttempt(RD, 0)!;
+    assert.equal(row.status, "queued");
+    assert.match(row.last_error!, /committed tool definitions/);
+  } finally {
+    p.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

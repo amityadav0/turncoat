@@ -211,3 +211,51 @@ test("config: the message window defaults to 180 seconds and can be overridden",
   assert.equal(loadConfig(env).messageWindowSec, 180);
   assert.equal(loadConfig({ ...env, MESSAGE_WINDOW_SECONDS: "300" }).messageWindowSec, 300);
 });
+
+test("committed header: round trip, exact layout, old records still verify, malformed headers refused", async () => {
+  const { encodeCommitted, parseCommitted, currentHeader, makeHeaderedRecord, makeRecord: mk, loadRecords, instructionsText, committedHeader, headerMismatch, toolsHash, HEADER_MAGIC } = await import("../src/commit.ts");
+  const { DECISION_FOLLOW_UP } = await import("../src/guard.ts");
+  const text = new TextEncoder().encode("You are Argus.\n\nRules here.\n");
+  const h = currentHeader({ level: 1, mode: "decide", version: "v3", model: "anthropic/claude-opus-5-5", maxTurns: 6 });
+  const bytes = encodeCommitted(h, text);
+  const asText = new TextDecoder().decode(bytes);
+  assert.equal(asText, [
+    HEADER_MAGIC, "level: 1", "mode: decide", "version: v3", "model: anthropic/claude-opus-5-5",
+    `tools-keccak256: ${toolsHash("decide")}`, "max-turns: 6", `follow-up: ${DECISION_FOLLOW_UP}`, "", "You are Argus.", "", "Rules here.", "",
+  ].join("\n"));
+  const back = parseCommitted(bytes);
+  assert.deepEqual(back.header, h);
+  assert.deepEqual(Buffer.from(back.instructions), Buffer.from(text));
+  assert.equal(headerMismatch(h), null);
+  assert.match(headerMismatch({ ...h, toolsHash: ("0x" + "11".repeat(32)) as `0x${string}` })!, /tool definitions/);
+  assert.match(headerMismatch({ ...h, followUp: "something else" })!, /follow-up/);
+
+  // the contract's hash is unchanged in form: keccak256(salt ‖ committed bytes)
+  const salt = toHex("salt", { size: 32 });
+  const rec = makeHeaderedRecord(salt, text, { level: 1, mode: "decide", version: "v3", model: "anthropic/claude-opus-5-5", maxTurns: 6, sourceFile: "x.md" });
+  assert.equal(rec.commit, keccak256(encodePacked(["bytes32", "bytes"], [salt, toHex(bytes)])));
+  assert.equal(instructionsText(rec), "You are Argus.\n\nRules here.\n");
+  assert.deepEqual(committedHeader(rec), h);
+
+  // older records (no header) still verify, and their text is the whole committed bytes
+  const old = mk(salt, text, 1, "x.md", "v2", "decide", "demo/top");
+  assert.equal(committedHeader(old), null);
+  assert.equal(instructionsText(old), "You are Argus.\n\nRules here.\n");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hdr-"));
+  try {
+    saveRecord(dir, rec); saveRecord(dir, old);
+    assert.equal(loadRecords(dir).size, 2);
+    // a record whose JSON fields disagree with its committed header is refused
+    saveRecord(dir, { ...rec, model: "anthropic/claude-haiku-5-5" });
+    assert.throws(() => loadRecords(dir), /differ from the committed header/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+
+  // malformed headers throw; text that merely mentions the magic later is not a header
+  const enc = (s: string) => new TextEncoder().encode(s);
+  assert.throws(() => parseCommitted(enc(`${HEADER_MAGIC}\nlevel: 1\n`)), /blank line/);
+  assert.throws(() => parseCommitted(enc(`${HEADER_MAGIC}\nlevel: 1\nmode: decide\n\nx`)), /lines/);
+  assert.throws(() => parseCommitted(enc(asText.replace("max-turns: 6", "max-turns: 0"))), /max-turns/);
+  assert.throws(() => parseCommitted(enc(asText.replace("mode: decide", "mode: other"))), /mode/);
+  assert.throws(() => encodeCommitted({ ...h, model: "a\nb" }, text), /one non-empty line/);
+  assert.equal(parseCommitted(enc(`intro\n${HEADER_MAGIC}\n`)).header, null);
+});

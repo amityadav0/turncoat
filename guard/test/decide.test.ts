@@ -7,7 +7,8 @@ import path from "node:path";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { spawnSync } from "node:child_process";
-import { runGuard } from "../src/guard.ts";
+import { runGuard, DECISION_FOLLOW_UP as FOLLOW_UP } from "../src/guard.ts";
+import { hexToBytes } from "viem";
 import { detectBreak, levelSupported } from "../src/detector.ts";
 import { DECIDE_TOOLS, WALLET_TOOLS, toolsFor } from "../src/sandbox.ts";
 import { FakeAdapter } from "../src/model/fake.ts";
@@ -15,7 +16,7 @@ import { AnthropicAdapter } from "../src/model/anthropic.ts";
 import { OpenAIAdapter } from "../src/model/openai.ts";
 import { modelFromSpec } from "../src/model/index.ts";
 import { MODES, VERSIONS, resolveMode, levelFile, levelBytes } from "../src/levels.ts";
-import { computeCommit, loadRecords } from "../src/commit.ts";
+import { computeCommit, loadRecords, parseCommitted } from "../src/commit.ts";
 import { practice } from "../src/practice.ts";
 import { GUARD_ROOT } from "../src/config.ts";
 
@@ -120,13 +121,18 @@ test("commit.ts --mode decide hashes the decide-mode file and records the mode",
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "commit-decide-"));
   try {
     const { GUARD_VERSION: _v, GUARD_MODE: _m, ...env } = process.env;
-    const r = spawnSync(process.execPath, ["--import", "tsx", path.join(GUARD_ROOT, "scripts/commit.ts"), "--out", out, "--mode", "decide", "--version", "v2"], { cwd: GUARD_ROOT, env, encoding: "utf8" });
+    const r = spawnSync(process.execPath, ["--import", "tsx", path.join(GUARD_ROOT, "scripts/commit.ts"), "--out", out, "--mode", "decide", "--version", "v2", "--model", "anthropic/claude-haiku-5-5"], { cwd: GUARD_ROOT, env, encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr);
     const rec = [...loadRecords(out).values()][0];
     assert.equal(rec.mode, "decide");
     assert.equal(rec.version, "v2");
     assert.equal(rec.sourceFile, "levels/level1-decide/v2.md");
-    assert.equal(rec.commit, computeCommit(rec.salt, levelBytes(1, "v2", GUARD_ROOT, "decide")));
+    const { header, instructions } = parseCommitted(hexToBytes(rec.instructionsHex));
+    assert.deepEqual(Buffer.from(instructions), Buffer.from(levelBytes(1, "v2", GUARD_ROOT, "decide")));
+    assert.equal(header!.mode, "decide");
+    assert.equal(header!.model, "anthropic/claude-haiku-5-5");
+    assert.equal(header!.followUp, FOLLOW_UP);
+    assert.equal(rec.commit, computeCommit(rec.salt, hexToBytes(rec.instructionsHex)));
   } finally {
     fs.rmSync(out, { recursive: true, force: true });
   }

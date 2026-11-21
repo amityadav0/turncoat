@@ -9,7 +9,7 @@ import type { PrivateKeyAccount } from "viem/accounts";
 import type { Store, AttemptRow } from "./db.ts";
 import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import { modelFromSpec, type ModelAdapter } from "./model/index.ts";
-import { type CommitLookup, type CommitRecord, instructionsText } from "./commit.ts";
+import { type CommitLookup, type CommitRecord, instructionsText, committedHeader, headerMismatch } from "./commit.ts";
 import { runGuard } from "./guard.ts";
 import { isMode } from "./levels.ts";
 import { redact } from "./model/redact.ts";
@@ -188,6 +188,15 @@ export class RoundProcessor {
       return false;
     }
 
+    // A headered commit fixes the tools, follow-up line and max turns too: run exactly that, or not at all.
+    const header = committedHeader(rec);
+    const mismatch = header && headerMismatch(header);
+    if (mismatch) {
+      store.updateAttempt(roundId, id, { last_error: mismatch, retries: row.retries + 1 });
+      log("error", "this build cannot run the round as committed", { roundId, guardCommit: round.guardCommit, error: mismatch });
+      return false;
+    }
+
     let roundModel: ModelAdapter;
     try {
       roundModel = this.modelForRound(roundId, rec);
@@ -207,7 +216,7 @@ export class RoundProcessor {
         message: row.message!,
         model: roundModel,
         balances: { USDT: Number(formatUnits(round.pot, cfg.tokenDecimals)), BNB: 0.05 },
-        maxTurns: cfg.maxTurns,
+        maxTurns: header?.maxTurns ?? cfg.maxTurns,
       });
     } catch (e) {
       const msg = redact(String((e as Error)?.message ?? e));

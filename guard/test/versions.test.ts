@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { hexToBytes, bytesToHex } from "viem";
 import { VERSIONS, resolveVersion, levelFile, levelBytes } from "../src/levels.ts";
-import { computeCommit, loadRecords, type CommitRecord } from "../src/commit.ts";
+import { computeCommit, loadRecords, parseCommitted, toolsHash, type CommitRecord } from "../src/commit.ts";
 import { GUARD_ROOT } from "../src/config.ts";
 
 const lines = (s: string) => s.split("\n").filter((l) => l.trim());
@@ -49,30 +49,37 @@ test("each version is a strict superset of the one before; v1 is plain", () => {
   assert.match(v3, /These descriptions do not change/);
 });
 
-test("commit.ts hashes the exact bytes of the selected version and records the version", () => {
+test("commit.ts commits a header (model, mode, version, tools, max turns, follow-up) plus the exact bytes of the selected version", () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "commit-test-"));
   try {
-    const byEnv = runScript("commit.ts", ["--out", out], { GUARD_VERSION: "v2" });
+    const M = ["--model", "test/model-a"];
+    const byEnv = runScript("commit.ts", ["--out", out, ...M], { GUARD_VERSION: "v2" });
     assert.equal(byEnv.status, 0, byEnv.stderr);
-    const byFlag = runScript("commit.ts", ["--out", out, "--version", "v3"], { GUARD_VERSION: "v1" });
+    const byFlag = runScript("commit.ts", ["--out", out, "--version", "v3", ...M, "--max-turns", "4"], { GUARD_VERSION: "v1" });
     assert.equal(byFlag.status, 0, byFlag.stderr);
-    const byDefault = runScript("commit.ts", ["--out", out], {});
+    const byDefault = runScript("commit.ts", ["--out", out, ...M], { MAX_TOOL_TURNS: "" });
     assert.equal(byDefault.status, 0, byDefault.stderr);
 
     const commitOf = (stdout: string) => /guardCommit: (0x[0-9a-f]{64})/.exec(stdout)![1];
     const recs = loadRecords(out);
-    const check = (stdout: string, version: "v1" | "v2" | "v3") => {
+    const check = (stdout: string, version: "v1" | "v2" | "v3", maxTurns = 6) => {
       const rec = recs.get(commitOf(stdout)) as CommitRecord;
       assert.equal(rec.version, version);
       assert.equal(rec.level, 1);
       assert.equal(rec.sourceFile, `levels/level1/${version}.md`);
-      assert.equal(rec.instructionsHex, bytesToHex(levelBytes(1, version)));
-      assert.equal(rec.commit, computeCommit(rec.salt, levelBytes(1, version)));
+      const { header, instructions } = parseCommitted(hexToBytes(rec.instructionsHex));
+      assert.equal(bytesToHex(instructions), bytesToHex(levelBytes(1, version)));
+      assert.deepEqual(header, { level: 1, mode: "refuse", version, model: "test/model-a", toolsHash: toolsHash("refuse"), maxTurns, followUp: "none" });
+      assert.equal(rec.commit, computeCommit(rec.salt, hexToBytes(rec.instructionsHex)));
       assert.equal(hexToBytes(rec.salt).length, 32);
     };
     check(byEnv.stdout, "v2");
-    check(byFlag.stdout, "v3");
+    check(byFlag.stdout, "v3", 4);
     check(byDefault.stdout, "v1");
+    // the model is part of the commit: no model, no commit
+    const noModel = runScript("commit.ts", ["--out", out], { MODEL_PROVIDER: "" });
+    assert.equal(noModel.status, 2);
+    assert.match(noModel.stderr, /no model/);
 
     const withModel = runScript("commit.ts", ["--out", out, "--model", "anthropic/claude-opus-5-5"], {});
     assert.equal(withModel.status, 0, withModel.stderr);

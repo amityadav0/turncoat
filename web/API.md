@@ -64,10 +64,40 @@ interface Attempt {
 
 interface Reveal {
   salt: Hex;             // bytes32
-  instructions: Hex;     // the exact bytes passed to revealGuard
+  instructions: Hex;     // the exact committed bytes passed to revealGuard: header + instruction text (layout below)
   tx?: Hex;              // GuardRevealed transaction
 }
 ```
+
+## What `guardCommit` covers
+
+`guardCommit = keccak256(abi.encodePacked(bytes32 salt, bytes committed))`, which is `keccak256(salt ‖ committed)`. The contract checks exactly this in `revealGuard`, and `Reveal.instructions` is `committed`.
+
+`committed` is UTF-8 text: a header of exactly 8 lines, each ending in `\n` (0x0A, never `\r\n`), then one empty line, then the instruction text byte for byte. The header lines are, in this order:
+
+```
+turncoat-guard 2
+level: <integer ≥ 1>
+mode: <refuse | decide | reader>
+version: <e.g. v2; "custom" for an ad-hoc file>
+model: <provider/model, e.g. anthropic/claude-opus-5-5>
+tools-keccak256: <0x + 64 lowercase hex>
+max-turns: <integer 1..99>
+follow-up: <one line of text, or "none">
+
+<instruction text>
+```
+
+- Each line is `key: value`, with one space after the colon. Values are a single non-empty line.
+- To split them: if the bytes start with `turncoat-guard 2\n`, the header ends at the first `\n\n`; the instruction text starts right after it.
+- Bytes that do not start with that line come from a record made before the header existed (local demo rounds only). For those, all of the bytes are the instruction text, and model, mode and the rest are not covered by the hash.
+- `model` is the model the round runs on. The service runs the round on exactly this model.
+- `tools-keccak256` is keccak256 of the UTF-8 bytes of `JSON.stringify(tools)`, where `tools` is the array of `{ name, description, parameters }` the service gives the model in that mode (`toolsFor(mode)` in guard/src/sandbox.ts; `cd guard && npx tsx -e 'import("./src/commit.ts").then(m => console.log(m.toolsHash("decide")))'` prints it).
+- `max-turns` is the most model calls in one reply before the follow-up.
+- `follow-up` is the line the service sends once when a decide-mode reply ends without a decision. It is `none` in other modes.
+- The service will not run a round if the tool definitions or follow-up line in its own build differ from the committed ones. Such attempts stay queued with that reason.
+
+So once a round is revealed, anyone can check that the model, mode, version, tools, turn limit and follow-up line were all fixed before the round opened, not only the text. Until the reveal, the salt is the only secret part. The instruction files are in the repo, and the commit proves they were not changed during the round.
 
 ## Endpoints
 

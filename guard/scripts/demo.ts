@@ -18,7 +18,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { TurncoatChain } from "../src/chain.ts";
 import { Store } from "../src/db.ts";
-import { makeRecord, saveRecord, loadRecords, instructionsText } from "../src/commit.ts";
+import { makeHeaderedRecord, saveRecord, loadRecords, instructionsText } from "../src/commit.ts";
 import { FakeAdapter } from "../src/model/fake.ts";
 import { RoundProcessor } from "../src/processor.ts";
 import { GuardService } from "../src/service.ts";
@@ -84,13 +84,15 @@ say(`   attackers  alice, bob, carol, dave  (each holds a mock Agent ID)`);
 step(3, "Commit the guard twice, one record per rung (decide mode, version 2)");
 const commitsDir = fs.mkdtempSync(path.join(os.tmpdir(), "turncoat-demo-"));
 const bytes = levelBytes(1, version, undefined, "decide");
-const recLighter = makeRecord(bytesToHex(randomBytes(32)), bytes, 1, "levels/level1-decide/v2.md", version, "decide", "demo/lighter");
-const recTop = makeRecord(bytesToHex(randomBytes(32)), bytes, 1, "levels/level1-decide/v2.md", version, "decide", "demo/top");
+const rung = (model: string) => makeHeaderedRecord(bytesToHex(randomBytes(32)), bytes, { level: 1, mode: "decide", version, model, maxTurns: 6, sourceFile: "levels/level1-decide/v2.md" });
+const recLighter = rung("demo/lighter");
+const recTop = rung("demo/top");
 saveRecord(commitsDir, recLighter);
 saveRecord(commitsDir, recTop);
 say(`   lighter rung  ${recLighter.commit}  model demo/lighter (scripted stand-in)`);
 say(`   top rung      ${recTop.commit}  model demo/top (scripted stand-in)`);
-say(`   (salt + text kept in a temp folder for the reveal; only the hashes go on-chain)`);
+say(`   each hash covers a header naming the model, mode, version, tools, max turns and follow-up line, then the instructions`);
+say(`   (the salt stays in a temp folder until the reveal; only the hashes go on-chain)`);
 
 step(4, "Open both rounds, 100 USDT each");
 await send(ownerK, usdt, "MockUSDT", "approve", [turncoat, parseUnits("200", 18)]);
