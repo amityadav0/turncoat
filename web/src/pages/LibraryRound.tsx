@@ -98,6 +98,14 @@ export default function LibraryRound() {
         {roundLevelLine(r) && <p className="muted">{roundLevelLine(r)}</p>}
         {attempts.some((a) => a.breakKind) && <p className="muted small">{t.breakKinds}</p>}
         {r.status === 'held' && <p>{t.heldText}</p>}
+        {r.signer && (
+          <p className="small">
+            {copy.fairness.signer}:{' '}
+            <a href={explorer.address(r.signer)} target="_blank" rel="noopener noreferrer" className="hash">
+              {r.signer}
+            </a>
+          </p>
+        )}
         {!closed && <p className="muted">{t.openText}</p>}
       </header>
 

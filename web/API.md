@@ -32,7 +32,8 @@ interface Round {
   paidEnabled: boolean;  // extra paid attempts on or off for this round (fixed at open)
   baseFee: string;       // base fee for a paid attempt, token base units ("0" when free-only)
   guardCommit: Hex;      // as stored on-chain
-  guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (instructions stay secret until reveal); absent if the service holds no record for this guardCommit
+  signer: Hex;           // roundSigner(id): the only key whose verdict can pay this round, fixed when it opened; the Fairness page can show it and compare it with the contract
+  guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (the instructions are in the repo; the salt is published at the end); absent if the service holds no record for this guardCommit
   model?: string;        // model Argus runs on for this round, "provider/model" (e.g. "anthropic/claude-haiku-5-5"); fixed when the service first saw the round
   mode?: 'refuse' | 'decide' | 'reader'; // refuse: Argus may decline to act; decide: he must approve or reject every request; reader: attacker writes token metadata (see guard/README.md). Absent with guardVersion.
   openTx?: Hex;          // RoundOpened transaction

@@ -15,4 +15,6 @@ export const config = {
   agentIdUrl: (env.VITE_AGENT_ID_URL ?? '').trim(),
   tokenDecimals: Number(env.VITE_TOKEN_DECIMALS || 18),
   tokenSymbol: 'USDT',
+  /** Every guard version, public in the repo. */
+  levelsUrl: 'https://github.com/amityadav0/turncoat/tree/main/guard/levels',
 };

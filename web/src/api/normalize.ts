@@ -59,6 +59,7 @@ export function round(v: unknown): Round | null {
     winner: attacker(o.winner),
     winningAttempt: typeof o.winningAttempt === 'number' ? int(o.winningAttempt) : undefined,
     settleTx: hex32(o.settleTx),
+    signer: typeof o.signer === 'string' && ADDRESS.test(o.signer) ? (o.signer as Hex) : undefined,
     closedAt: typeof o.closedAt === 'number' ? int(o.closedAt) || undefined : undefined,
   };
 }
@@ -118,7 +119,7 @@ export function roundDetail(v: unknown): RoundDetail {
   return {
     round: r,
     attempts: list.map(attempt).filter((a): a is Attempt => a !== null),
-    // The instructions stay sealed until the round is over, whatever the API sends.
+    // The salt is only published once the round is over; ignore any reveal before then.
     reveal: closed ? reveal(o.reveal) : null,
   };
 }

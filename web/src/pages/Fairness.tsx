@@ -13,7 +13,7 @@ const t = copy.fairness;
 
 export default function Fairness() {
   const rounds = useAsync(() => api.rounds(), []);
-  const links = { code: explorer.code(), events: explorer.events(), read: explorer.read() };
+  const links = { code: explorer.code(), events: explorer.events(), read: explorer.read(), levels: config.levelsUrl };
 
   return (
     <>
@@ -130,6 +130,17 @@ function FairRound({ round: r }: { round: Round }) {
             </Ext>
           </div>
         </dd>
+        {r.signer && (
+          <>
+            <dt>{t.signer}</dt>
+            <dd>
+              <a href={explorer.address(r.signer)} target="_blank" rel="noopener noreferrer" className="hash">
+                {r.signer}
+              </a>
+              <div className="muted small">{t.signerNote}</div>
+            </dd>
+          </>
+        )}
         {chain.error && (
           <dd className="muted small">{chain.error}</dd>
         )}
@@ -140,7 +151,7 @@ function FairRound({ round: r }: { round: Round }) {
         )}
       </dl>
 
-      {!closed && <p className="muted small">{t.sealed}</p>}
+      {!closed && <p className="muted small">{t.beforeReveal}</p>}
       {closed && check.state === 'checking' && <p className="muted small">{t.checking}</p>}
       {closed && noReveal && <p className="muted small">{t.notRevealed}</p>}
       {check.state === 'done' && (

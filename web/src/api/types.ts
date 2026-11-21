@@ -34,6 +34,8 @@ export interface Round {
   winner?: Attacker;
   winningAttempt?: number;
   settleTx?: Hex;
+  /** The round's signer (roundSigner on-chain): the only key whose verdict can pay this pot. */
+  signer?: Hex;
   /** Block time of the settle transaction; a broken round can close before endTime. */
   closedAt?: number;
 }

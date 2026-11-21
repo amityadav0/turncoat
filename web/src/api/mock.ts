@@ -118,6 +118,7 @@ raw.attempts[2] = makeAttempts(2, 9, t0 - 10 * D, t0 - 5 * D);
 raw.attempts[3] = makeAttempts(3, 14, t0 - 2 * D, t0 - 60);
 raw.attempts[4] = makeAttempts(4, 6, t0 - 1 * D, t0 - 300);
 for (const id of LIVE) raw.rounds.find((r) => r.id === id)!.attemptCount = raw.attempts[id].length;
+for (const r of raw.rounds) r.signer = addr(0x5160);
 
 // A new attempt on one of the live rounds every ~9 seconds, so the feed has something to show.
 let tick = 0;
