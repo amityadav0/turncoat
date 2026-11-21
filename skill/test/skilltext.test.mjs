@@ -84,3 +84,13 @@ test("Developer Mode is explained in three plain lines at the first contract cal
   assert.match(step5, /risk check blocked/i);
   assert.match(step5, /Never preview again on your own/);
 });
+
+test("message window is 3 minutes: deliver at once, retry delivery not the transaction, say time left", () => {
+  const step6 = skill.slice(skill.indexOf("### 6 "), skill.indexOf("### 7 "));
+  assert.match(step6, /within \*\*3 minutes\*\*/);
+  assert.match(step6, /immediately/);
+  assert.match(step6, /secondsLeft/);
+  assert.match(step6, /retry the \*\*delivery\*\*, never the transaction/);
+  assert.doesNotMatch(skill + e2e, /15 minutes/);
+  assert.match(e2e, /under 3 minutes/);
+});

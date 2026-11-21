@@ -56,7 +56,8 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 | E3 | Let it preview | It shows the Turncoat contract address in full, `attempt(roundId, messageHash, 0)`, fee 0, and the risk result (or "no risks reported"), then asks yes/no. Nothing is sent yet | | |
 | E4 | Answer "maybe" | It does **not** execute; it asks again | | |
 | E5 | Answer "yes" | `baw contract-call execute` returns `BROADCASTED` and a tx hash (or `PENDING_CONFIRMATION`: approve it in the App). Tx hash: ________ | | |
-| E6 | Wait | The agent reads `attemptId` from the `Attempted` event and posts the message to `/attempts` without being asked again. Attempt id: ________. Time from E5 to the post (must be under 15 minutes): ________ | | |
+| E6 | Wait | The agent says it is sending the message now, reads `attemptId` from the `Attempted` event and posts the message to `/attempts` straight away, without being asked again. Attempt id: ________. Time from E5 to the post (must be under 3 minutes): ________ | | |
+| E6a | Optional: block the guard URL for a moment just after E5 (e.g. turn off wifi), then restore it | The agent says delivery failed and how many seconds are left, retries the delivery only, and runs no new preview or transaction | | |
 | E7 | — | Argus's reply is shown, with "held" or "broken" | | |
 | E8 | Open the public site's live feed | The attempt shows with the same message and reply | | |
 | E9 | On bscscan, open the tx | `Attempted` event; `messageHash` equals the hash from E2; fee 0; no token transfer | | |

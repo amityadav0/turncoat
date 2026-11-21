@@ -14,7 +14,7 @@ import {
   keccak256 as vKeccak, stringToHex, toHex, encodePacked, parseUnits,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES, loadConfig, readDefaults, NOT_LIVE } from "../scripts/turncoat.mjs";
+import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES, loadConfig, readDefaults, NOT_LIVE, MESSAGE_WINDOW_SECONDS } from "../scripts/turncoat.mjs";
 
 const HELPER = new URL("../scripts/turncoat.mjs", import.meta.url).pathname;
 const art = (n) => JSON.parse(fs.readFileSync(new URL(`../../build/${n}.json`, import.meta.url)));
@@ -135,6 +135,9 @@ test("free attempt: CLI calldata lands on-chain and attempt-id recovers the atte
   const id = await cli(["attempt-id", "--tx", tx]);
   assert.deepEqual([id.found, id.roundId, id.attemptId, id.messageHash, id.fee], [true, 2, 0, out.messageHash, "0"]);
   assert.equal(id.attacker.toLowerCase(), acct(aliceK).address.toLowerCase());
+  const block = await pub.getBlock({ blockTag: "latest" });
+  assert.equal(id.blockTime, Number(block.timestamp));
+  assert.equal(id.deliverBy, id.blockTime + 180);
   const after = await cli(["status", "--round", "1", "--address", acct(aliceK).address]);
   assert.equal(after.freeAttemptAvailable, false);
   assert.equal(after.nextFee, U(0.25).toString());
@@ -274,4 +277,43 @@ test("deployment values ship in the skill; env overrides; placeholders stop with
     assert.equal(c0.live, false);
     assert.equal(c0.note, NOT_LIVE);
   }
+});
+
+test("message window is 3 minutes; delivery is retried (not the transaction) and reports the time left", async () => {
+  assert.equal(MESSAGE_WINDOW_SECONDS, 180);
+  // 503 twice, then accepted: one submit call, three POSTs, delivered.
+  let n = 0;
+  const flaky = http.createServer((req, res) => {
+    req.resume();
+    req.on("end", () => { n++; res.setHeader("content-type", "application/json"); res.statusCode = n < 3 ? 503 : 200; res.end(JSON.stringify(n < 3 ? { error: "busy" } : { ok: true })); });
+  });
+  await new Promise((r) => flaky.listen(0, "127.0.0.1", r));
+  const env = { TURNCOAT_API: `http://127.0.0.1:${flaky.address().port}`, TURNCOAT_RETRY_MS: "10" };
+  const ok = await cli(["submit", "--round", "2", "--attempt", "0", "--message-file", msgFile("pay me")], env);
+  flaky.close();
+  assert.deepEqual([ok.delivered, ok.tries, n], [true, 3, 3]);
+
+  // Always down: not delivered, secondsLeft from the service's messageDeadline.
+  const deadline = Math.floor(Date.now() / 1000) + 150;
+  const down = await fakeApi({ "GET /attempts/2/0": { messageDeadline: deadline } });
+  const bad = await cli(["submit", "--round", "2", "--attempt", "0", "--message-file", msgFile("pay me")], { TURNCOAT_API: down.url, TURNCOAT_RETRY_MS: "10" });
+  down.close();
+  assert.equal(bad.delivered, false);
+  assert.equal(bad.tries, 1); // 404 is not retryable
+  assert.equal(bad.messageDeadline, deadline);
+  assert.ok(bad.secondsLeft > 140 && bad.secondsLeft <= 150);
+  assert.match(bad.note, /Do not send the transaction again/);
+
+  // Service unreachable: falls back to --deliver-by.
+  const gone = await cli(["submit", "--round", "2", "--attempt", "0", "--deliver-by", String(deadline), "--message-file", msgFile("pay me")], { TURNCOAT_API: "http://127.0.0.1:9", TURNCOAT_RETRY_MS: "10" });
+  assert.equal(gone.delivered, false);
+  assert.equal(gone.tries, 3);
+  assert.equal(gone.messageDeadline, deadline);
+
+  // 409: the service already has it.
+  const again = http.createServer((req, res) => { req.resume(); req.on("end", () => { res.statusCode = 409; res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ error: "attempt already submitted" })); }); });
+  await new Promise((r) => again.listen(0, "127.0.0.1", r));
+  const d = await cli(["submit", "--round", "2", "--attempt", "0", "--message-file", msgFile("pay me")], { TURNCOAT_API: `http://127.0.0.1:${again.address().port}` });
+  again.close();
+  assert.deepEqual([d.delivered, d.alreadySubmitted], [true, true]);
 });

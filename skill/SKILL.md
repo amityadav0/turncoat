@@ -206,19 +206,20 @@ baw contract-call preview --binanceChainId 56 --from <bscAddress> --to <to> --va
 
 ### 6 · Deliver the message to Argus
 
-Argus answers only once he has the text, and it must reach the guard service within 15 minutes of the on-chain attempt, or the attempt expires unanswered. Do this straight away.
+Argus answers only once he has the text, and it must reach the guard service within **3 minutes** of the on-chain attempt, or the attempt expires unanswered. Deliver it immediately, without waiting for the user, and tell them you're doing it: "Your attempt is on-chain. Sending your message to Argus now; it has to arrive within 3 minutes."
 
 ```bash
 node scripts/turncoat.mjs attempt-id --tx <txHash>     # repeat every few seconds until found: true
-node scripts/turncoat.mjs submit --round <id> --attempt <attemptId> --message-file <same file as step 4>
+node scripts/turncoat.mjs submit --round <id> --attempt <attemptId> --deliver-by <deliverBy> --message-file <same file as step 4>
 ```
 
-`attempt-id` reads `attemptId` from the `Attempted` event once the transaction has confirmed. If it reports `reverted`, show that and stop.
+`attempt-id` reads `attemptId` from the `Attempted` event once the transaction has confirmed, with `blockTime` and `deliverBy` (block time + 3 minutes). If it reports `reverted`, show that and stop.
 
-What `submit` returns:
-- 200: processed. Go to step 7.
-- 202: queued behind earlier attempts. Run `result` about every 15 seconds until `status` is `done`, `expired` or `rejected`, and keep the user posted.
-- 400 / 404 / 409 / 410: show `error` as returned.
+`submit` already retries delivery a few times on a network error, a 5xx or a 429. What it returns:
+- `delivered: true` with `httpStatus` 200: processed. Go to step 7.
+- `delivered: true` with 202: queued behind earlier attempts. Run `result` about every 15 seconds until `status` is `done`, `expired` or `rejected`, and keep the user posted.
+- `delivered: true` with `alreadySubmitted`: the service already has the message. Go to step 7.
+- `delivered: false`: tell the user delivery failed and how long is left (`secondsLeft`, from the service's `messageDeadline` when it answered). While time is left, run the same `submit` again with the same message file: retry the **delivery**, never the transaction. The attempt is already on-chain, and a new attempt would be a new transaction needing a new preview and a new yes. If `secondsLeft` is 0, or the error is a 400 / 404 / 410, show `error` as returned and stop retrying.
 
 ### 7 · Argus's reply
 

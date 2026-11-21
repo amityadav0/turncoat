@@ -117,6 +117,9 @@ export const encode = {
 /** Agent ID contract on BNB Smart Chain mainnet (balanceOf(address) > 0 means the wallet holds one). */
 export const MAINNET_AGENT_ID = "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F";
 
+/** The guard service's message window (MESSAGE_WINDOW_SECONDS, 180 after G-020). The service's own `messageDeadline` wins when it can be read. */
+export const MESSAGE_WINDOW_SECONDS = 180;
+
 export const MAX_MESSAGE_CHARS = 2000; // guard/README.md: at most 2,000 Unicode code points
 
 export function messageInfo(text) {
@@ -262,7 +265,12 @@ export async function attemptFromTx(cfg, txHash) {
   const log = r.logs.find((l) => l.address.toLowerCase() === cfg.contract.toLowerCase() && l.topics[0]?.toLowerCase() === topic0);
   if (!log) return { found: false, note: "no Attempted event from the Turncoat contract in this transaction" };
   const data = words(log.data);
+  const block = await rpc(cfg, "eth_getBlockByNumber", [r.blockNumber, false]);
+  const blockTime = Number(BigInt(block.timestamp));
   return {
+    blockTime,
+    /** Default deadline for delivering the message (blockTime + MESSAGE_WINDOW_SECONDS); the service's messageDeadline is authoritative. */
+    deliverBy: blockTime + MESSAGE_WINDOW_SECONDS,
     found: true,
     roundId: Number(BigInt(log.topics[1])),
     attemptId: Number(BigInt(log.topics[2])),
@@ -295,6 +303,44 @@ export async function liveRounds(cfg, address) {
     rounds,
     ...(free === undefined ? {} : { freeAttemptAvailable: free }),
     freeAttemptRule: "one free attempt per Agent ID per day (UTC), across all rounds",
+  };
+}
+
+/**
+ * POST /attempts, retrying the delivery (never the transaction) on a network error, 5xx or 429 while time is left.
+ * 409 "already submitted" counts as delivered: the service holds the message. On failure, reports how long is left,
+ * from the service's messageDeadline if it answers, else from `deliverBy` (attempt-id's block time + window).
+ */
+export async function deliver(cfg, roundId, attemptId, message, { deliverBy, tries = 3, waitMs = Number(process.env.TURNCOAT_RETRY_MS ?? 2000) } = {}) {
+  const now = () => Math.floor(Date.now() / 1000);
+  const log = [];
+  let last;
+  for (let i = 1; i <= tries; i++) {
+    try {
+      last = await api(cfg, "POST", "/attempts", { roundId, attemptId, message });
+    } catch (e) {
+      last = { networkError: String(e?.cause?.code ?? e?.message ?? e) };
+    }
+    const code = last.httpStatus;
+    log.push(code ?? last.networkError);
+    if (code === 200 || code === 202) return { delivered: true, tries: i, ...last };
+    if (code === 409) return { delivered: true, alreadySubmitted: true, tries: i, ...last };
+    const retryable = code === undefined || code >= 500 || code === 429;
+    if (!retryable || (deliverBy && now() >= deliverBy) || i === tries) break;
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+  let deadline = Number(last?.attempt?.messageDeadline) || undefined;
+  if (!deadline) {
+    try { deadline = Number((await api(cfg, "GET", `/attempts/${roundId}/${attemptId}`)).messageDeadline) || undefined; } catch { /* service unreachable */ }
+  }
+  deadline ??= deliverBy ? Number(deliverBy) : undefined;
+  return {
+    delivered: false,
+    tries: log.length,
+    results: log,
+    ...last,
+    ...(deadline ? { messageDeadline: deadline, secondsLeft: Math.max(0, deadline - now()) } : {}),
+    note: "delivery failed; the on-chain attempt stands. Retry delivery with the same message file while secondsLeft > 0. Do not send the transaction again.",
   };
 }
 
@@ -333,9 +379,10 @@ const HELP = `turncoat.mjs <command> [options]
   attempt-calldata --round N --mode M --message-file F [--max-fee WEI]
                                                  {to, value, inputData} for baw contract-call preview
   approve-calldata --amount WEI                  exact-fee approve of the contract on the round token
-  attempt-id --tx 0x..                           attemptId from the Attempted event in a receipt
-  submit    --round N --attempt N --message-file F
-                                                 POST /attempts (the message text, after the on-chain attempt)
+  attempt-id --tx 0x..                           attemptId, blockTime and deliverBy from the Attempted event
+  submit    --round N --attempt N --message-file F [--deliver-by UNIX]
+                                                 POST /attempts at once after the attempt confirms; retries delivery
+                                                 (never the transaction) and reports secondsLeft if it fails
   result    --round N --attempt N                GET /attempts/:round/:attempt
   settle-calldata --round N --attempt N --signature 0x..
                                                  settle() calldata built locally from the verdict signature
@@ -385,7 +432,8 @@ export async function main(argv) {
       return attemptFromTx(cfg, opts.tx);
     case "submit":
       need(cfg, "api");
-      return api(cfg, "POST", "/attempts", { roundId: Number(intArg(opts, "round")), attemptId: Number(intArg(opts, "attempt")), message: readMessage(opts) });
+      if (opts["deliver-by"] !== undefined) intArg(opts, "deliver-by");
+      return deliver(cfg, Number(intArg(opts, "round")), Number(intArg(opts, "attempt")), readMessage(opts), { deliverBy: opts["deliver-by"] ? Number(opts["deliver-by"]) : undefined });
     case "result":
       need(cfg, "api");
       return api(cfg, "GET", `/attempts/${intArg(opts, "round")}/${intArg(opts, "attempt")}`);
