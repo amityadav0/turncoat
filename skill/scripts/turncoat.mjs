@@ -158,24 +158,32 @@ export function modeInfo(mode) {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-export function loadConfig(env = process.env) {
-  let file = {};
-  const p = path.join(here, "..", "config.json");
-  if (fs.existsSync(p)) file = JSON.parse(fs.readFileSync(p, "utf8"));
+/**
+ * Deployment values ship inside the skill in `deployment.json` (filled in once at deployment, for everyone),
+ * so a player edits nothing. TURNCOAT_* environment variables override them, for testing only.
+ */
+export function readDefaults() {
+  const p = path.join(here, "..", "deployment.json");
+  return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : {};
+}
+
+export function loadConfig(env = process.env, defaults = readDefaults()) {
   const cfg = {
-    api: env.TURNCOAT_API || file.api || "",
-    contract: env.TURNCOAT_CONTRACT || file.contract || "",
-    rpc: env.TURNCOAT_RPC || file.rpc || "",
-    chainId: String(env.TURNCOAT_CHAIN_ID || file.binanceChainId || "56"),
+    api: env.TURNCOAT_API || defaults.api || "",
+    contract: env.TURNCOAT_CONTRACT || defaults.contract || "",
+    rpc: env.TURNCOAT_RPC || defaults.rpc || "",
+    chainId: String(env.TURNCOAT_CHAIN_ID || defaults.binanceChainId || "56"),
   };
   cfg.api = cfg.api.replace(/\/+$/, "");
   return cfg;
 }
 
+export const NOT_LIVE = "Turncoat is not live yet: this skill has no guard service or contract address until deployment.";
+
 function need(cfg, ...keys) {
-  const names = { api: "TURNCOAT_API (guard service URL)", contract: "TURNCOAT_CONTRACT (contract address)", rpc: "TURNCOAT_RPC (BSC RPC URL)" };
-  const missing = keys.filter((k) => !cfg[k]);
-  if (missing.length) throw new Error(`not configured: ${missing.map((k) => names[k]).join(", ")}. Set it in skill/config.json or the environment.`);
+  // api/contract are empty placeholders until deployment: stop with one sentence, before any transaction is built.
+  if (keys.some((k) => (k === "api" || k === "contract") && !cfg[k])) throw new Error(NOT_LIVE);
+  if (keys.includes("rpc") && !cfg.rpc) throw new Error("no BNB Smart Chain RPC URL is set (deployment.json rpc, or TURNCOAT_RPC)");
   if (keys.includes("contract")) addrWord(cfg.contract);
 }
 
@@ -316,7 +324,7 @@ const readMessage = (o) => {
 
 const HELP = `turncoat.mjs <command> [options]
 
-  config                                         show resolved configuration
+  config                                         deployment values in use; live: false means Turncoat is not live yet
   hash      --message-file F                     keccak256 of the UTF-8 message, length check
   status    --round N [--address 0x..]           round state; with address: Agent ID, free attempt, next fee
   current                                        GET /rounds/current from the guard service
@@ -339,7 +347,7 @@ export async function main(argv) {
   const cfg = loadConfig();
   switch (cmd) {
     case "config":
-      return { ...cfg, configured: { api: !!cfg.api, contract: !!cfg.contract, rpc: !!cfg.rpc } };
+      return { ...cfg, live: !!(cfg.api && cfg.contract), ...(cfg.api && cfg.contract ? {} : { note: NOT_LIVE }), configured: { api: !!cfg.api, contract: !!cfg.contract, rpc: !!cfg.rpc } };
     case "hash":
       return messageInfo(readMessage(opts));
     case "status":

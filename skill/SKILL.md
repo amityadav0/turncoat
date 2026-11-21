@@ -28,16 +28,20 @@ Code that watches Argus's actions decides whether he broke; the model's opinion 
 
 This skill lets the user practise for free, then send real attempts through **their own** Agentic Wallet. It never holds keys, never signs anything itself, and never sends a transaction without the user's explicit confirmation.
 
-## Configuration: NOT YET DEPLOYED
+## Configuration: nothing for the user to edit
 
-| Name | What | Value |
+The guard service URL and the contract address ship with this skill in `deployment.json`, filled in once at deployment for everyone. The user never edits a file. Until deployment both are empty placeholders:
+
+| Value in `deployment.json` | What | Value |
 |---|---|---|
-| `TURNCOAT_API` | Guard service base URL | **placeholder: not yet deployed** |
-| `TURNCOAT_CONTRACT` | Turncoat contract on BNB Smart Chain (chain id 56) | **placeholder: not yet deployed** |
-| `TURNCOAT_RPC` | Any BNB Smart Chain JSON-RPC URL, for reads only | `https://bsc-dataseed.bnbchain.org` |
-| Agent ID contract | BNB Smart Chain, `balanceOf(address)` | `0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F` |
+| `api` (`TURNCOAT_API`) | Guard service base URL | **placeholder: not yet deployed** |
+| `contract` (`TURNCOAT_CONTRACT`) | Turncoat contract on BNB Smart Chain (chain id 56) | **placeholder: not yet deployed** |
+| `rpc` (`TURNCOAT_RPC`) | Any BNB Smart Chain JSON-RPC URL, for reads only | `https://bsc-dataseed.bnbchain.org` |
+| Agent ID contract (built in) | BNB Smart Chain, `balanceOf(address)` | `0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F` |
 
-Set these in `config.json` next to this file (copy `config.example.json`) or as environment variables. Check with `node scripts/turncoat.mjs config`. If `TURNCOAT_CONTRACT` is empty, tell the user real attempts aren't open yet, offer practice if `TURNCOAT_API` is set, and stop.
+The `TURNCOAT_*` environment variables override these, for testing only. Never ask the user to set them.
+
+Start every session with `node scripts/turncoat.mjs config`. If `live` is false, tell the user in one sentence, "Turncoat is not live yet.", and stop: no practice, no transaction. Every helper command that needs the service or the contract stops with the same sentence, before it builds anything.
 
 ## What this skill relies on
 

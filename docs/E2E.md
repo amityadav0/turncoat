@@ -15,8 +15,8 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 | A1 | `npm install -g @binance/agentic-wallet@1.12.0`, then `baw --version` | `1.12.0` or later | | |
 | A2 | Install the official `binance-agentic-wallet` skill from github.com/binance/binance-skills-hub (`skills/binance-web3/binance-agentic-wallet`) into the agent's skills folder | The skill folder holds `SKILL.md`, version 1.15.0 or later | | |
 | A3 | Copy this repo's `skill/` folder into the same skills folder | `SKILL.md` and `scripts/turncoat.mjs` are present | | |
-| A4 | In that folder, copy `config.example.json` to `config.json` and fill in `api` and `contract` | — | | |
-| A5 | `node scripts/turncoat.mjs config` | `configured` shows `api`, `contract` and `rpc` all `true` | | |
+| A4 | Edit nothing. Open `deployment.json` in the installed folder | `api` and `contract` hold the deployed guard URL and contract address | | |
+| A5 | `node scripts/turncoat.mjs config` | `live: true`, and `configured` shows `api`, `contract` and `rpc` all `true` | | |
 | A6 | `node scripts/turncoat.mjs status --round <id>` | `live: true`, `level: 1`, and `agentIdContractIsMainnet: true` | | |
 | A7 | `node scripts/turncoat.mjs live` | Every open round is listed, each with `mode: "decide"`, `modeInfo.known: true`, its `model` and `guardVersion` | | |
 

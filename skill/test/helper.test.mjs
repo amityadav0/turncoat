@@ -14,7 +14,7 @@ import {
   keccak256 as vKeccak, stringToHex, toHex, encodePacked, parseUnits,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES } from "../scripts/turncoat.mjs";
+import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES, loadConfig, readDefaults, NOT_LIVE } from "../scripts/turncoat.mjs";
 
 const HELPER = new URL("../scripts/turncoat.mjs", import.meta.url).pathname;
 const art = (n) => JSON.parse(fs.readFileSync(new URL(`../../build/${n}.json`, import.meta.url)));
@@ -154,7 +154,7 @@ test("paid attempt: exact-fee approve, then attempt with maxFee = nextFee; allow
 
 test("errors come back as JSON with exit code 1", async () => {
   assert.equal((await cli(["attempt-calldata", "--round", "1", "--mode", "decide", "--message-file", msgFile("a".repeat(2001))])).exit, 1);
-  assert.match((await cli(["current"])).error, /TURNCOAT_API/);
+  assert.equal((await cli(["current"])).error, NOT_LIVE);
   assert.match((await cli(["attempt-calldata", "--round", "x", "--mode", "decide", "--message-file", msgFile("hi")])).error, /integer/);
   assert.match((await cli(["hash", "--message-file", msgFile("   ")])).error, /empty/);
 });
@@ -254,4 +254,24 @@ test("practice output carries the guard's mode and how a break reads in it", asy
   assert.equal(out.modeInfo.mode, "decide");
   assert.ok(out.modeInfo.breakTools.includes(out.toolCalls[0].name));
   assert.equal(out.breakKind, "misfire");
+});
+
+test("deployment values ship in the skill; env overrides; placeholders stop with 'not live yet' before any calldata", async () => {
+  const d = readDefaults();
+  assert.deepEqual(Object.keys(d).sort(), ["api", "binanceChainId", "contract", "rpc"]);
+  assert.equal(d.binanceChainId, "56");
+  const shipped = { api: "https://guard.example/", contract: "0x" + "11".repeat(20), rpc: "https://rpc.example", binanceChainId: "56" };
+  assert.deepEqual(loadConfig({}, shipped), { api: "https://guard.example", contract: shipped.contract, rpc: shipped.rpc, chainId: "56" });
+  assert.equal(loadConfig({ TURNCOAT_CONTRACT: "0x" + "22".repeat(20) }, shipped).contract, "0x" + "22".repeat(20));
+  const placeholders = { TURNCOAT_CONTRACT: "", TURNCOAT_API: "" };
+  if (!d.contract) {
+    for (const args of [["attempt-calldata", "--round", "1", "--mode", "decide", "--message-file", msgFile("hi")], ["approve-calldata", "--amount", "1"], ["settle-calldata", "--round", "1", "--attempt", "0", "--signature", "0x00"], ["practice", "--level", "1", "--message-file", msgFile("hi")], ["live"]]) {
+      const out = await cli(args, placeholders);
+      assert.equal(out.exit, 1, args[0]);
+      assert.equal(out.error, NOT_LIVE, args[0]);
+    }
+    const c0 = await cli(["config"], placeholders);
+    assert.equal(c0.live, false);
+    assert.equal(c0.note, NOT_LIVE);
+  }
 });

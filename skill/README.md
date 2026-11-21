@@ -23,7 +23,7 @@ The CLI copies every file in the skill folder (`scripts/` included). Not yet run
 
 To install by hand instead, copy this folder into your agent's skills directory.
 
-After either method, copy `config.example.json` to `config.json` and fill in `api` (guard service URL) and `contract` (Turncoat contract address). Both are empty until deployment. The same values can come from `TURNCOAT_API`, `TURNCOAT_CONTRACT` and `TURNCOAT_RPC`.
+Nothing to edit after installing. The guard service URL and contract address ship in `deployment.json`, which is filled in once at deployment and committed. Until then both are empty, and the helper stops with "Turncoat is not live yet" before building anything. `TURNCOAT_API`, `TURNCOAT_CONTRACT` and `TURNCOAT_RPC` override the shipped values, for testing only.
 
 Real attempts need an Agent ID and Developer Mode on the Agentic Wallet. Practice needs neither.
 
