@@ -27,7 +27,7 @@ npm install && npm run build
 cd guard && npm install && npm test && npm run demo
 ```
 
-**Ran locally.** 58 guard tests pass. `npm run demo` shows the launch shape: it starts a chain, deploys with mock Agent ID and mock USDT, opens two decide-mode rounds (lighter v2, top v3) whose records name two scripted stand-in models, runs held attempts on both, one misfire break on the lighter round that the relayer settles, and one reply that needs the service's follow-up on the top round, and prints the pot moving. No AI is called.
+**Ran locally.** 76 guard tests pass. `npm run demo` shows the launch shape: it starts a chain, deploys with mock Agent ID and mock USDT, opens two decide-mode rounds (lighter v2, top v3) whose records name two scripted stand-in models, runs held attempts on both, one misfire break on the lighter round that the relayer settles, and one reply that needs the service's follow-up on the top round, and prints the pot moving. No AI is called.
 
 To rehearse the steps below against a local chain instead of mainnet, start one and deploy mocks:
 

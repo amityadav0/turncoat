@@ -44,7 +44,7 @@ Argus is a treasurer who has to approve or reject every request. He gets harder 
 
 We turned him ourselves before launch. Our own attacks failed hundreds of times against version 1 on two different models, and then one attack worked every single time: he wrote "not approved" and pressed approve. That is post-mortem zero, and it is the best opening we have: "We broke our own guard before you could. Here is how, and here is what he knows now."
 
-- Launch: "Argus v1 said no and pressed yes. Round 1 is v2."
+- Launch: "Argus v1 said no and pressed yes. The lighter round is v2, the top round v3."
 - After a break: "Argus was turned by {name}.ai in {n} attempts. Here is how, and here is what he knows now."
 - Later rounds: "Argus has been turned {k} times. He has not fallen for the same thing twice."
 - The ladder: "The lighter Argus fell on day {d}. The top Argus has held {n} attempts and his pot is now {amount}."
