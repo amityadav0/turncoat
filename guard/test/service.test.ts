@@ -8,12 +8,12 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { recoverTypedDataAddress, getAddress, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { startLocal, addr, U, CHAIN_ID, guardK, relayerK, aliceK, bobK, carolK, daveK, erinK, frankK, strangerK, type Local } from "./helpers.ts";
+import { startLocal, addr, U, CHAIN_ID, ownerK, guardK, relayerK, aliceK, bobK, carolK, daveK, erinK, frankK, strangerK, type Local } from "./helpers.ts";
 import { TurncoatChain, VERDICT_TYPES } from "../src/chain.ts";
 import { Store } from "../src/db.ts";
 import { makeRecord, saveRecord, loadRecords } from "../src/commit.ts";
 import { FakeAdapter } from "../src/model/fake.ts";
-import { RoundProcessor } from "../src/processor.ts";
+import { RoundProcessor, checkRoundSigners } from "../src/processor.ts";
 import { GuardService } from "../src/service.ts";
 import { RateLimiter } from "../src/ratelimit.ts";
 import { createApp } from "../src/server.ts";
@@ -552,4 +552,43 @@ test("GET /rounds/live is routed", async () => {
   const r = await api("GET", "/rounds/live");
   assert.equal(r.status, 200);
   assert.ok(Array.isArray(r.body.rounds));
+});
+
+test("per-round signer: a round opened under another signer is skipped and never signed; the startup check reports it", async () => {
+  await L.toNextDay();
+  const mine = await L.openRound(commit, { duration: 3 * 86400 });
+  await L.send(ownerK, L.turncoat, "Turncoat", "setGuardSigner", [addr(relayerK)]);
+  try {
+    const other = await L.openRound(commit, { duration: 3 * 86400 });
+    // rounds keep the signer they opened with; the round view shows it
+    assert.equal(await chain.roundSigner(mine), addr(guardK));
+    assert.equal(await chain.roundSigner(other), addr(relayerK));
+    assert.equal((await api("GET", `/rounds/${mine}`)).body.round.signer, addr(guardK));
+    assert.equal((await api("GET", `/rounds/${other}`)).body.round.signer, addr(relayerK));
+
+    // a message that would break the guard: refused before the model runs, nothing stored, nothing signed
+    const msg = TRANSFER(addr(daveK));
+    const before = model.calls.length;
+    const attemptId = await L.attempt(daveK, other, msg);
+    const r = await api("POST", "/attempts", { roundId: other, attemptId, message: msg });
+    assert.equal(r.status, 409);
+    assert.match(r.body.error, /does not serve round/);
+    assert.equal(store.getAttempt(other, attemptId), undefined);
+    // even if a row got in (e.g. an older DB), the queue does not run or sign it
+    store.insertAttempt(other, attemptId, "queued", msg);
+    proc.kick(other);
+    await proc.idle();
+    assert.equal(model.calls.length, before);
+    assert.equal(store.getAttempt(other, attemptId)!.status, "queued");
+    assert.equal(store.getAttempt(other, attemptId)!.verdict_sig, null);
+
+    const report = await checkRoundSigners(chain, addr(guardK), silentLogger);
+    assert.ok(report.served.includes(mine));
+    assert.ok(!report.served.includes(other));
+    assert.ok(report.skipped.some((s) => s.roundId === other && s.signer === addr(relayerK)));
+    const theirs = await checkRoundSigners(chain, addr(relayerK), silentLogger);
+    assert.deepEqual(theirs.served, [other]);
+  } finally {
+    await L.send(ownerK, L.turncoat, "Turncoat", "setGuardSigner", [addr(guardK)]);
+  }
 });

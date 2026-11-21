@@ -64,6 +64,22 @@ export class RoundProcessor {
 
   constructor(private d: ProcessorDeps) {}
 
+  private skippedLogged = new Set<number>();
+
+  /**
+   * True if this service's key is the round's signer (roundSigner(roundId), fixed at open). The service
+   * never processes or signs for a round opened under another signer: its verdicts could not pay anyway.
+   */
+  async serves(roundId: number): Promise<boolean> {
+    const s = await this.d.chain.roundSigner(roundId);
+    const ok = s.toLowerCase() === this.d.signer.address.toLowerCase();
+    if (!ok && !this.skippedLogged.has(roundId)) {
+      this.skippedLogged.add(roundId);
+      this.d.log("warn", "not serving round: it was opened under another signer", { roundId, roundSigner: s, thisSigner: this.d.signer.address });
+    }
+    return ok;
+  }
+
   /** Resume every round that has queued work (after a restart). */
   resume() {
     for (const r of this.d.store.roundsWithQueued()) this.kick(r);
@@ -125,6 +141,7 @@ export class RoundProcessor {
 
   private async loop(roundId: number) {
     const { store, chain, cfg } = this.d;
+    if (!(await this.serves(roundId))) return;
     for (;;) {
       if (this.stopped) return;
       const round = await chain.getRound(roundId);
@@ -206,6 +223,7 @@ export class RoundProcessor {
       const fresh = await chain.getRound(roundId);
       if (st.won_attempt !== null && st.won_attempt !== id) note = `guard broken, but attempt ${st.won_attempt} already won this round; no verdict signed`;
       else if (fresh?.closed && st.won_attempt !== id) note = "guard broken, but the round is already closed on-chain; no verdict signed";
+      else if (!(await this.serves(roundId))) note = "guard broken, but this round's signer is not this service's key; no verdict signed";
       else {
         const attempt = await chain.getAttempt(roundId, id);
         sig = await chain.signVerdict(signer, roundId, id, attempt!.attacker);
@@ -254,4 +272,26 @@ export class RoundProcessor {
       log("warn", "relayer settle failed; verdict is still valid for manual settle", { roundId, attemptId, error: msg });
     }
   }
+}
+
+/**
+ * Startup check: which unfinished rounds (not closed, within the settle window) this service's key can
+ * pay. Logs one line per round it will not serve. The caller refuses to start only if there are
+ * unfinished rounds and it serves none of them.
+ */
+export async function checkRoundSigners(chain: TurncoatChain, me: string, log: Logger): Promise<{ served: number[]; skipped: { roundId: number; signer: string }[] }> {
+  const [count, now, grace] = await Promise.all([chain.roundCount(), chain.now(), chain.getSettleGrace()]);
+  const served: number[] = [];
+  const skipped: { roundId: number; signer: string }[] = [];
+  for (let id = 1; id <= count; id++) {
+    const r = await chain.getRound(id);
+    if (!r || r.closed || now > r.endTime + grace) continue;
+    const s = await chain.roundSigner(id);
+    if (s.toLowerCase() === me.toLowerCase()) served.push(id);
+    else {
+      skipped.push({ roundId: id, signer: s });
+      log("warn", "will not serve round: opened under another signer", { roundId: id, roundSigner: s, thisSigner: me });
+    }
+  }
+  return { served, skipped };
 }

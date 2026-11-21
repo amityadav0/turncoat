@@ -1,7 +1,7 @@
 // Read access to the Turncoat contract, verdict signing and optional relaying of settle().
 import fs from "node:fs";
 import {
-  createPublicClient, createWalletClient, defineChain, encodeFunctionData, getAddress,
+  createPublicClient, createWalletClient, defineChain, encodeFunctionData, getAddress, zeroAddress,
   type Abi, type Address, type Hex, type PublicClient, type Transport, type Chain as ViemChain,
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
@@ -108,6 +108,20 @@ export class TurncoatChain {
 
   async guardSigner(): Promise<Address> {
     return this.read<Address>("guardSigner");
+  }
+
+  private roundSigners = new Map<number, Address>();
+
+  /**
+   * The only key whose verdict can pay this round, fixed when the round opened (roundSigner(roundId)).
+   * Cached once set: it never changes for an opened round. Zero address for a round that does not exist.
+   */
+  async roundSigner(roundId: number): Promise<Address> {
+    const hit = this.roundSigners.get(roundId);
+    if (hit) return hit;
+    const s = getAddress(await this.read<Address>("roundSigner", [BigInt(roundId)]));
+    if (s !== zeroAddress) this.roundSigners.set(roundId, s);
+    return s;
   }
 
   async getSettleGrace(): Promise<number> {

@@ -70,6 +70,9 @@ export class GuardService {
 
     const round = await this.chain.getRound(roundId);
     if (!round) return { code: 404, body: { error: "no such round" } };
+    if (!(await this.proc.serves(roundId))) {
+      return { code: 409, body: { error: `this guard service does not serve round ${roundId}: it was opened under another signer (${await this.chain.roundSigner(roundId)})` } };
+    }
     const attempt = await this.chain.getAttempt(roundId, attemptId);
     if (!attempt) return { code: 404, body: { error: "no such attempt on-chain" } };
     if (!hashMatches(message, attempt.messageHash)) {
@@ -203,6 +206,8 @@ export class GuardService {
       attemptCount: r.attemptCount,
       processedCount: this.store.processedCount(id),
       guardCommit: r.guardCommit,
+      /** The only key whose verdict can pay this round, fixed when it opened (roundSigner). */
+      signer: await this.chain.roundSigner(id),
       /** Which instruction version the round runs ("v1", …). Public from the start; the text stays secret until reveal. */
       guardVersion: this.commits.get(r.guardCommit.toLowerCase())?.version,
       /** Model Argus runs on for this round ("provider/model"), fixed when the service first saw the round. */

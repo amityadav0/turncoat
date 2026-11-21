@@ -9,7 +9,7 @@ import { registerSecret } from "./model/redact.ts";
 import { Store } from "./db.ts";
 import { TurncoatChain } from "./chain.ts";
 import { CommitBook } from "./commit.ts";
-import { RoundProcessor } from "./processor.ts";
+import { RoundProcessor, checkRoundSigners } from "./processor.ts";
 import { GuardService } from "./service.ts";
 import { RateLimiter } from "./ratelimit.ts";
 import { createApp } from "./server.ts";
@@ -28,9 +28,15 @@ const chain = new TurncoatChain({ transport: http(cfg.rpcUrl), chainId: cfg.chai
 
 const onChainId = await chain.pub.getChainId();
 if (onChainId !== cfg.chainId) throw new Error(`RPC is on chain ${onChainId}, CHAIN_ID says ${cfg.chainId}`);
-const expected = await chain.guardSigner();
-if (expected.toLowerCase() !== signer.address.toLowerCase()) {
-  throw new Error(`GUARD_SIGNER_PRIVATE_KEY is for ${signer.address}, but the contract's guardSigner is ${expected}`);
+// Each round keeps the signer it opened with (roundSigner). Serve the unfinished rounds whose signer is
+// this key; refuse to start only if there are unfinished rounds and none of them is ours.
+const signers = await checkRoundSigners(chain, signer.address, log);
+if (signers.skipped.length && !signers.served.length) {
+  throw new Error(`GUARD_SIGNER_PRIVATE_KEY is for ${signer.address}, which is not the signer of any unfinished round (${signers.skipped.map((s) => `round ${s.roundId}: ${s.signer}`).join(", ")})`);
+}
+const currentSigner = await chain.guardSigner();
+if (currentSigner.toLowerCase() !== signer.address.toLowerCase()) {
+  log("warn", "this key is not the contract's current guardSigner: rounds opened from now on will not be served by this service", { guardSigner: currentSigner, thisSigner: signer.address });
 }
 
 const commits = new CommitBook(cfg.commitsDir);
@@ -52,7 +58,7 @@ proc.resume();
 app.listen(cfg.port, cfg.host, () => {
   log("info", "guard service listening", {
     url: `http://${cfg.host}:${cfg.port}`, model: model.id, contract: chain.address, chainId: cfg.chainId,
-    signer: signer.address, relayer: chain.relayerAddress ?? null, commitsLoaded: commits.size,
+    signer: signer.address, servedRounds: signers.served, skippedRounds: signers.skipped, relayer: chain.relayerAddress ?? null, commitsLoaded: commits.size,
     commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null, mode: c.mode ?? "refuse", model: c.model ?? null })), practiceVersion: guardVersion, practiceMode: guardMode,
   });
 });
