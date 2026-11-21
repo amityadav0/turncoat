@@ -172,7 +172,7 @@ export const mockApi: Api = {
         round: r,
         attempts: raw.attempts[id] ?? [],
         reveal: isClosed
-          ? { salt: saltFor(id), instructions: stringToHex(instructions(id)), tx: fakeHash(`reveal-${id}`) }
+          ? { salt: saltFor(id), instructions: stringToHex(instructions(id)), tx: fakeHash(`reveal-${id}`), source: 'chain' }
           : null,
       }),
     );

@@ -60,7 +60,7 @@ export interface Attempt {
   /** Taken from the attempt's tool calls (approve_payment / reject_payment). */
   decision?: Decision;
   breakKind?: BreakKind;
-  /** Guard service processing state, e.g. awaiting_message, queued, done, expired, rejected. */
+  /** Guard service processing state, e.g. awaiting_message, queued, done, expired, rejected, failed. */
   status?: string;
   note?: string;
 }
@@ -69,6 +69,8 @@ export interface Reveal {
   salt: Hex;
   instructions: Hex;
   tx?: Hex;
+  /** chain: a GuardRevealed transaction was recorded; service: from the guard service's own commit record. Absent from older services. */
+  source?: 'chain' | 'service';
 }
 
 export interface RoundDetail {

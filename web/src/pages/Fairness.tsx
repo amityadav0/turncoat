@@ -63,7 +63,7 @@ export default function Fairness() {
   );
 }
 
-type Check = { state: 'idle' | 'checking' } | { state: 'done'; computed: Hex; match: boolean; committed: Committed; tx?: Hex };
+type Check = { state: 'idle' | 'checking' } | { state: 'done'; computed: Hex; match: boolean; committed: Committed; tx?: Hex; source?: 'chain' | 'service' };
 
 function FairRound({ round: r }: { round: Round }) {
   const closed = isClosed(r);
@@ -102,6 +102,7 @@ function FairRound({ round: r }: { round: Round }) {
           match: computed.toLowerCase() === commit.toLowerCase(),
           committed: parseCommitted(d.reveal.instructions),
           tx: d.reveal.tx,
+          source: d.reveal.source,
         });
       },
       () => alive && setCheck({ state: 'idle' }),
@@ -165,15 +166,18 @@ function FairRound({ round: r }: { round: Round }) {
               <Hash value={check.computed} />
             </dd>
           </dl>
+          {check.source === 'service' && <p className="muted small">{t.fromServiceRecord}</p>}
+          {check.source !== 'service' && explorer.tx(check.tx) && (
+            <p className="small">
+              {check.source === 'chain' && <>{t.fromChain} · </>}
+              <Ext href={explorer.tx(check.tx)}>{t.revealTx}</Ext>
+            </p>
+          )}
+          {check.source === 'chain' && !explorer.tx(check.tx) && <p className="muted small">{t.fromChain}</p>}
           {check.match && <CommitFacts committed={check.committed} round={r} />}
           <details className="reveal">
             <summary>{t.read}</summary>
             <pre className="instructions">{check.committed.kind === 'notUtf8' ? t.badUtf8 : check.committed.text}</pre>
-            <p className="small">
-              <Ext href={explorer.tx(check.tx)} missing={null}>
-                {t.revealTx}
-              </Ext>
-            </p>
           </details>
         </>
       )}

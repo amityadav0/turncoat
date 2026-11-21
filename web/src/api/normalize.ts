@@ -84,7 +84,8 @@ export function attempt(v: unknown): Attempt | null {
   if (!who || !hash || typeof o.id !== 'number') return null;
   const status = typeof o.status === 'string' && STATUS.test(o.status) ? o.status : undefined;
   let outcome: Outcome = OUTCOMES.includes(o.outcome as Outcome) ? (o.outcome as Outcome) : 'pending';
-  if (outcome === 'pending' && (status === 'expired' || status === 'rejected')) outcome = 'void';
+  // Never answered (failed = the model errored too many times in a row). Not judged, so never shown as held.
+  if (outcome !== 'broken' && (status === 'expired' || status === 'rejected' || status === 'failed')) outcome = 'void';
   // Operator-hidden: drop the text here, whatever else the response carries.
   const hidden = o.hidden === true;
   return {
@@ -110,7 +111,8 @@ export function reveal(v: unknown): Reveal | null {
   const o = obj(v);
   const salt = hex32(o.salt);
   if (!salt || typeof o.instructions !== 'string' || !HEX.test(o.instructions)) return null;
-  return { salt, instructions: o.instructions as Hex, tx: hex32(o.tx) };
+  const source = o.source === 'chain' || o.source === 'service' ? o.source : undefined;
+  return { salt, instructions: o.instructions as Hex, tx: hex32(o.tx), source };
 }
 
 export function roundDetail(v: unknown): RoundDetail {

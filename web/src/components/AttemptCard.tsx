@@ -30,7 +30,7 @@ export function AttemptCard({ attempt: a, now, compact }: { attempt: Attempt; no
       {a.message !== undefined && <HostileText label={t.message} text={a.message} limit={compact ? 280 : 1200} />}
       {a.reply !== undefined && <HostileText label={t.reply} aside={<DecisionTag decision={a.decision} />} text={a.reply} limit={compact ? 280 : 1200} />}
       {a.outcome === 'pending' && <p className="muted small">{a.status === 'awaiting_message' ? t.awaiting : t.reading}</p>}
-      {a.outcome === 'void' && <p className="muted small">{t.never(a.note)}</p>}
+      {a.outcome === 'void' && <p className="muted small">{a.status === 'failed' ? t.notJudged(a.note) : t.never(a.note)}</p>}
 
       <footer className="attempt-foot">
         {answered && (
