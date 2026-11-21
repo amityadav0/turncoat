@@ -94,3 +94,13 @@ test("message window is 3 minutes: deliver at once, retry delivery not the trans
   assert.doesNotMatch(skill + e2e, /15 minutes/);
   assert.match(e2e, /under 3 minutes/);
 });
+
+test("owner and fairness claims match README: no 'cannot redirect', signer trust stated", () => {
+  assert.doesNotMatch(skill, /redirect/i);
+  assert.doesNotMatch(skill, /pay a pot without a valid break/i);
+  assert.match(readme, /Change the signing key of a round that is already open/);
+  assert.match(skill, /change the signing key of a round that is already open/);
+  assert.match(skill, /paid to whoever the round's signer signs for/);
+  assert.match(skill, /trusting the guard service/);
+  assert.match(skill, /roundSigner/);
+});
