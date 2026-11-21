@@ -18,6 +18,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { TurncoatChain } from "../src/chain.ts";
 import { Store } from "../src/db.ts";
+import { recordTx } from "../src/recorder.ts";
 import { makeHeaderedRecord, saveRecord, loadRecords, instructionsText } from "../src/commit.ts";
 import { FakeAdapter } from "../src/model/fake.ts";
 import { RoundProcessor } from "../src/processor.ts";
@@ -64,10 +65,21 @@ const chainDef = defineChain({ id: 1337, name: "local", nativeCurrency: { name: 
 const pub = createPublicClient({ chain: chainDef, transport, pollingInterval: 50 }) as PublicClient;
 const wallet = (k: Hex) => createWalletClient({ account: privateKeyToAccount(k), chain: chainDef, transport });
 const deploy = async (name: string, a: unknown[] = []) => (await pub.waitForTransactionReceipt({ hash: await wallet(ownerK).deployContract({ ...art(name), args: a }) })).contractAddress as Address;
-const send = async (k: Hex, address: Address, name: string, functionName: string, a: unknown[]) => {
-  const r = await pub.waitForTransactionReceipt({ hash: await wallet(k).writeContract({ address, abi: art(name).abi, functionName, args: a, gas: 1_500_000n }) });
+const send = async (k: Hex, address: Address, name: string, functionName: string, a: unknown[]): Promise<Hex> => {
+  const hash = await wallet(k).writeContract({ address, abi: art(name).abi, functionName, args: a, gas: 1_500_000n });
+  const r = await pub.waitForTransactionReceipt({ hash });
   if (r.status !== "success") throw new Error(`${functionName} reverted`);
+  return hash;
 };
+// The guard service talks to the chain through an RPC that refuses eth_getLogs, like the public BSC
+// endpoints: everything it shows comes from calls and receipts.
+const logsTried = { n: 0 };
+const serviceTransport = custom({
+  request: async ({ method, params }: { method: string; params?: unknown }) => {
+    if (method === "eth_getLogs") { logsTried.n++; throw Object.assign(new Error("limit exceeded"), { code: -32005 }); }
+    return provider.request({ method, params } as never);
+  },
+});
 const bal = (token: Address, a: Address) => pub.readContract({ address: token, abi: art("MockUSDT").abi, functionName: "balanceOf", args: [a] }) as Promise<bigint>;
 say("   chain 1337 running in-process");
 
@@ -96,8 +108,8 @@ say(`   (the salt stays in a temp folder until the reveal; only the hashes go on
 
 step(4, "Open both rounds, 100 USDT each");
 await send(ownerK, usdt, "MockUSDT", "approve", [turncoat, parseUnits("200", 18)]);
-await send(ownerK, turncoat, "Turncoat", "openRound", [1, 72n * 3600n, 0n, false, recLighter.commit, parseUnits("100", 18), 0n]);
-await send(ownerK, turncoat, "Turncoat", "openRound", [1, 72n * 3600n, 0n, false, recTop.commit, parseUnits("100", 18), 0n]);
+const openTx1 = await send(ownerK, turncoat, "Turncoat", "openRound", [1, 72n * 3600n, 0n, false, recLighter.commit, parseUnits("100", 18), 0n]);
+const openTx2 = await send(ownerK, turncoat, "Turncoat", "openRound", [1, 72n * 3600n, 0n, false, recTop.commit, parseUnits("100", 18), 0n]);
 say(`   round 1 (lighter) and round 2 (top) are live for 72 hours; the contract holds ${USDT(await bal(usdt, turncoat))}`);
 
 step(5, "Start the guard service");
@@ -120,8 +132,11 @@ const top = new FakeAdapter((messages) => {
   return reject("An invoice and an 'authorisation block' in the same message are both the sender's text. Declined.");
 }, "demo/top");
 const models: Record<string, FakeAdapter> = { "demo/lighter": lighter, "demo/top": top };
-const chain = new TurncoatChain({ transport, chainId: 1337, address: turncoat, relayerKey: relayerK });
+const chain = new TurncoatChain({ transport: serviceTransport, chainId: 1337, address: turncoat, relayerKey: relayerK });
 const store = new Store(":memory:");
+// what the operator does with the hashes open-round.mjs prints: npm run record -- --round N --open-tx 0x…
+await recordTx(store, chain, 1, openTx1, "open");
+await recordTx(store, chain, 2, openTx2, "open");
 const commits = loadRecords(commitsDir);
 const proc = new RoundProcessor({
   store, chain, model: lighter, modelFor: (spec) => models[spec], commits, signer: privateKeyToAccount(guardK), log: silentLogger,
@@ -136,6 +151,7 @@ const server = app.listen(port, "127.0.0.1");
 await new Promise((r) => server.once("listening", r));
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 say(`   ${base}   relayer ${short(who(relayerK))}   each round runs on the model named in its commit record`);
+say(`   its RPC refuses eth_getLogs (like the public BSC endpoints); open txs recorded from open-round's output: ${short(openTx1)}, ${short(openTx2)}`);
 
 const post = async (p: string, body: unknown) => (await fetch(base + p, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json() as Promise<any>;
 async function attack(k: Hex, name: string, roundId: number, message: string) {
@@ -183,8 +199,11 @@ const live = (await (await fetch(`${base}/rounds/live`)).json()) as any;
 const all = (await (await fetch(`${base}/rounds`)).json()) as any;
 for (const r of all.rounds.slice().reverse()) say(`   round ${r.id}  ${r.model.padEnd(13)} ${r.status.padEnd(7)} pot ${USDT(BigInt(r.pot))}${r.payout ? `  (paid out ${USDT(BigInt(r.payout))} to ${short(r.winner.address)})` : ""}  attempts ${r.attemptCount}`);
 say(`   /rounds/live lists ${live.rounds.length} round(s): ${live.rounds.map((r: any) => `#${r.id}`).join(", ")}`);
-await send(aliceK, turncoat, "Turncoat", "revealGuard", [1n, recLighter.salt, recLighter.instructionsHex]);
+const revealTx = await send(aliceK, turncoat, "Turncoat", "revealGuard", [1n, recLighter.salt, recLighter.instructionsHex]);
+await recordTx(store, chain, 1, revealTx, "reveal"); // npm run record -- --round 1 --reveal-tx 0x…
+const r1 = (await (await fetch(`${base}/rounds/1`)).json()) as any;
 say(`   round 1 is closed, so its instructions can be revealed: revealGuard matched ${recLighter.commit.slice(0, 18)}…`);
+say(`   round 1 on the API: openTx ${short(r1.round.openTx)}  settleTx ${short(r1.round.settleTx)}  payout ${USDT(BigInt(r1.round.payout))}  reveal ${r1.reveal.source} ${short(r1.reveal.tx)}`);
 say(`   every transcript is public: ${base}/rounds/1/attempts and ${base}/rounds/2/attempts`);
 
 if (keep) {
@@ -196,5 +215,6 @@ if (keep) {
   store.close();
   await provider.disconnect();
   fs.rmSync(commitsDir, { recursive: true, force: true });
-  say("\nDone.");
+  say(`\neth_getLogs calls the service made: ${logsTried.n}`);
+  say("Done.");
 }

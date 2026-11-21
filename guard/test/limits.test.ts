@@ -105,7 +105,7 @@ test("round and attacker views are cached for READ_CACHE_MS; concurrent requests
   const round = { level: 1, paidEnabled: false, closed: false, startTime: 1, endTime: 10_000, baseFee: 0n, attemptCount: 0, winningAttempt: 0, winner: "0x0000000000000000000000000000000000000000", guardCommit: "0x" + "00".repeat(32), pot: 5n };
   const { chain, calls } = countingChain({
     roundCount: () => 1, now: () => 100, getSettleGrace: () => 86400, getRound: () => round, roundSigner: () => "0x0000000000000000000000000000000000000002",
-    roundEvents: () => ({}), attackerRecord: () => ({ attempts: 0, breaks: 0 }), revealLogs: () => [],
+    attackerRecord: () => ({ attempts: 0, breaks: 0 }),
   });
   const store = new Store(":memory:");
   const svc = new GuardService(store, chain, proc, { messageWindowSec: 180, attemptWaitMs: 10, tokenDecimals: 18, readCacheMs: 150 }, new Map(), { resolve: async () => new Map() } as any);

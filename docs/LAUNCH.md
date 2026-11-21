@@ -102,7 +102,8 @@ cp .env.example .env && chmod 600 .env
 | `GUARD_SIGNER_PRIVATE_KEY` | The guard signer key. Each round keeps the signer it opened with (`roundSigner`); the service serves only rounds opened under this key, logs each one it will not serve, and refuses to start only if there are unfinished rounds and none is its own. |
 | `RELAYER_PRIVATE_KEY` | The relayer key, or empty to only return signed verdicts |
 | `TOKEN_DECIMALS` | `18` |
-| `LOGS_FROM_BLOCK` | `deployBlock` from `deployments/bsc.json` (used to find reveals) |
+| `USE_LOGS` | `0` on the public RPC. **The public BSC endpoints refuse `eth_getLogs`** (`-32005 limit exceeded`, even for one block), so the service does not need logs: it works from calls and receipts, and you record the open, roll-over and reveal transactions with `npm run record` (section 4 and 6). Set `1` only with an RPC plan that serves `eth_getLogs` for this contract; then it also scans every event in chunks of `LOG_CHUNK_BLOCKS` (5000) from `LOGS_FROM_BLOCK` and fills in anything not recorded |
+| `LOGS_FROM_BLOCK` | `deployBlock` from `deployments/bsc.json` (where the log scanner starts; `USE_LOGS=1` only) |
 | `GUARD_VERSION` | `v2` (sets what `npm run commit` commits and what practice mode runs) |
 | `GUARD_MODE` | `decide` (same: commit default and practice mode) |
 | `PORT`, `HOST` | `8787`, `127.0.0.1` (the HTTPS proxy forwards to it) |
@@ -220,6 +221,16 @@ node scripts/open-round.mjs --commit 0x<top guardCommit>     --level 1 --hours 7
 | `--commit` | from above | The guard this round runs (version, mode, model). Fixed once the round opens. |
 | `--seed-from-reserve` | omit | USDT moved from the contract's reserve into the pot; there is no reserve before the first round. |
 
+Each command prints `openRound: tx 0x…`. Record both on the guard server so the site can link them (the service cannot find them by itself on the public RPC):
+
+```bash
+cd guard && npm run record -- --round <lighter roundId> --open-tx 0x<openRound tx>
+cd guard && npm run record -- --round <top roundId>     --open-tx 0x<openRound tx>
+# in Docker: docker compose exec guard npm run record -- --round <id> --open-tx 0x…
+```
+
+It checks each hash against its receipt (a successful call to the contract carrying `RoundOpened` for that round) and stores it. Skipping it only means the site shows no open-transaction link.
+
 **Ran locally** (without `--confirm-mainnet`). It checks the sender is the owner, rounds are not paused, the duration is allowed and the owner holds the seed. It approves exactly the seed, calls `openRound`, and prints the round id, end time and pot. On chain 56 it sends nothing unless `--confirm-mainnet` is passed. The contract address comes from `TURNCOAT_ADDRESS` or `deployments/bsc.json`.
 
 Check them:
@@ -276,6 +287,14 @@ SENDER_PRIVATE_KEY=0x… RPC_URL=… node scripts/round-tools.mjs rollover <roun
 ```bash
 SENDER_PRIVATE_KEY=0x… RPC_URL=… node scripts/round-tools.mjs reveal <roundId> guard/.secrets/commits/0x<guardCommit>.json --confirm-mainnet
 ```
+
+Record what you sent (each command prints `…: tx 0x…`). The relayer's own settle is recorded automatically. Record a settle sent by anyone else, a roll-over and the reveal:
+
+```bash
+cd guard && npm run record -- --round <roundId> --settle-tx 0x<settle or rollOver tx> --reveal-tx 0x<revealGuard tx>
+```
+
+Until the reveal is recorded, the API serves the salt and committed bytes from the service's own record (`reveal.source: "service"`); after it, the on-chain one (`"chain"`, with its tx).
 
 **Ran locally** (without `--confirm-mainnet`): settle paid the pot to the attacker; rollover refused before the window ended and moved the pot to the reserve after it; reveal was accepted for the matching record and refused for a live round or a record from another round. `SENDER_PRIVATE_KEY` can be any funded key; none of these needs the owner.
 

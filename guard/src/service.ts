@@ -8,6 +8,7 @@ import { isMode } from "./levels.ts";
 import { levelSupported, classifyBreak } from "./detector.ts";
 import type { CommitLookup } from "./commit.ts";
 import { AttackerNames } from "./names.ts";
+import { verifyAttemptTx } from "./recorder.ts";
 
 export interface ServiceConfig {
   /** Model id from config ("provider/model"); recorded per round the first time a round is seen. */
@@ -112,6 +113,7 @@ export class GuardService {
       failedAttempts: ps?.failedAttempts ?? 0,
       lastChainReadAt: iso(st.lastOkAt),
       rpcErrors: st.errors,
+      rpcErrorsByMethod: { ...st.byMethod },
     };
     return { code: body.ok ? 200 : 503, body };
   }
@@ -131,6 +133,9 @@ export class GuardService {
       // Not recorded: the sender has not proven this is the committed message. If it is, the attempt
       // expires after the message window like any undelivered one.
       return { code: 400, body: { error: `message is longer than ${MAX_MESSAGE_CHARS} characters` } };
+    }
+    if (b.txHash !== undefined && (typeof b.txHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(b.txHash))) {
+      return { code: 400, body: { error: "txHash must be 0x followed by 64 hex characters" } };
     }
     if (b.messageHash !== undefined) {
       if (typeof b.messageHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(b.messageHash)) return { code: 400, body: { error: "messageHash must be 0x followed by 64 hex characters" } };
@@ -182,24 +187,17 @@ export class GuardService {
       return { code: 409, body: { error: "attempt already submitted", attempt: await this.attemptView(roundId, attemptId) } };
     }
     this.proc.kick(roundId);
+    // Optional: the attempt's transaction, for the public link. Checked against its receipt; a bad
+    // or unreadable one is not stored and never affects the attempt.
+    const txHashNote = typeof b.txHash === "string" ? await verifyAttemptTx(this.store, this.chain, roundId, attemptId, attempt.attacker, b.txHash as Hex) : null;
     const finished = await this.proc.waitFor(roundId, attemptId, this.cfg.attemptWaitMs);
     const view = await this.attemptView(roundId, attemptId);
-    return { code: finished ? 200 : 202, body: view };
+    return { code: finished ? 200 : 202, body: txHashNote ? { ...view, txHashNote } : view };
   }
 
   // ------------------------------------------------------------------ views
   private async syncAttempts(roundId: number, attemptCount: number): Promise<void> {
     await this.syncAttemptRows(roundId, attemptCount);
-    if (this.store.attemptsMissingTx(roundId) > 0) {
-      try {
-        const r = await this.chain.getRound(roundId);
-        const m = r ? await this.meta(roundId, r) : undefined;
-        const txs = await this.chain.attemptTxs(roundId, m?.open_block ? BigInt(m.open_block) : 0n);
-        for (const [id, tx] of txs) this.store.setAttemptTx(roundId, id, tx);
-      } catch {
-        /* leave absent */
-      }
-    }
   }
 
   private async syncAttemptRows(roundId: number, attemptCount: number): Promise<void> {
@@ -213,32 +211,12 @@ export class GuardService {
   }
 
   /**
-   * Open/close transactions, close time and payout for a round, from event logs. Cached in SQLite:
-   * the open never changes and the close is fetched once the round is closed. RPC failures (e.g. log
-   * range limits) leave the fields absent rather than failing the request.
+   * Open/close transactions, close time and payout for a round, as recorded in SQLite: from the
+   * relayer's own settle receipt, `npm run record`, or the optional log scanner. No chain call here;
+   * a field nobody recorded is absent (unknown), not wrong.
    */
-  private async meta(roundId: number, r: RoundInfo) {
-    let m = this.store.roundMeta(roundId);
-    const needOpen = !m?.open_tx;
-    const needClose = r.closed && !m?.close_tx;
-    if (needOpen || needClose) {
-      try {
-        const ev = await this.chain.roundEvents(roundId);
-        m = {
-          round_id: roundId,
-          open_tx: ev.open?.tx ?? m?.open_tx ?? null,
-          open_block: ev.open ? ev.open.block.toString() : m?.open_block ?? null,
-          close_kind: ev.close?.kind ?? null,
-          close_tx: ev.close?.tx ?? null,
-          closed_at: ev.close?.time ?? null,
-          payout: ev.close?.payout !== undefined ? ev.close.payout.toString() : null,
-        };
-        this.store.putRoundMeta(m);
-      } catch {
-        /* leave absent */
-      }
-    }
-    return m;
+  private meta(roundId: number) {
+    return this.store.roundMeta(roundId);
   }
 
   /**
@@ -252,7 +230,7 @@ export class GuardService {
     const settleDeadline = r.endTime + grace;
     const hasWinner = r.closed && r.winner !== zeroAddress;
     const status = hasWinner ? "broken" : r.closed ? "held" : now <= r.endTime ? "live" : now <= settleDeadline ? "settling" : "held";
-    const m = await this.meta(id, r);
+    const m = this.meta(id);
     if (hasWinner) await this.loadNames([r.winner]);
     return {
       id,
@@ -293,16 +271,19 @@ export class GuardService {
     };
   }
 
-  /** Null until the round is over for good: closed on-chain, or past its settle window (web/API.md). */
-  private async reveal(roundId: number, r: RoundInfo, now: number, grace: number) {
+  /**
+   * Null until the round is over for good (closed on-chain, or past its settle window). Then: the
+   * recorded GuardRevealed event (`source: "chain"`, with its tx), else the salt and committed bytes
+   * from this service's own commit record (`source: "service"`: anyone can check them against
+   * guardCommit, but the service has not seen a revealGuard transaction). Null after the round only
+   * if the service holds neither: that means unknown, not "not revealed".
+   */
+  private reveal(roundId: number, r: RoundInfo, now: number, grace: number) {
     if (!r.closed && now <= r.endTime + grace) return null;
-    try {
-      const logs = await this.chain.revealLogs(roundId);
-      const l = logs[logs.length - 1];
-      return l ? { salt: l.salt, instructions: l.instructions, tx: l.tx } : null;
-    } catch {
-      return null; // RPC log range limits etc.; the reveal is optional for the site
-    }
+    const onChain = this.store.getReveal(roundId);
+    if (onChain) return { salt: onChain.salt as Hex, instructions: onChain.instructions as Hex, tx: onChain.tx as Hex, source: "chain" as const };
+    const rec = this.commits.get(r.guardCommit.toLowerCase());
+    return rec ? { salt: rec.salt, instructions: rec.instructionsHex, source: "service" as const } : null;
   }
 
   listRounds(): Promise<Reply> {
@@ -365,7 +346,7 @@ export class GuardService {
       body: {
         round: await this.roundView(id, r, now, grace),
         attempts: this.store.chainAttempts(id).map((c) => this.view(c, rows.get(c.attempt_id), false, now)),
-        reveal: await this.reveal(id, r, now, grace),
+        reveal: this.reveal(id, r, now, grace),
         now,
       },
     };

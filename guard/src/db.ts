@@ -70,6 +70,15 @@ CREATE TABLE IF NOT EXISTS round_meta (
   open_tx TEXT, open_block TEXT,
   close_kind TEXT, close_tx TEXT, closed_at INTEGER, payout TEXT
 );
+CREATE TABLE IF NOT EXISTS attempt_txs (
+  round_id INTEGER NOT NULL, attempt_id INTEGER NOT NULL, tx TEXT NOT NULL,   -- Attempted transaction, verified from its receipt
+  PRIMARY KEY (round_id, attempt_id)
+);
+CREATE TABLE IF NOT EXISTS reveals (
+  round_id INTEGER PRIMARY KEY,
+  salt TEXT NOT NULL, instructions TEXT NOT NULL, tx TEXT NOT NULL            -- from a GuardRevealed event (receipt or log)
+);
+CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);   -- e.g. last block the optional log scanner read
 CREATE TABLE IF NOT EXISTS attacker_names (
   address TEXT PRIMARY KEY,               -- lowercase
   name TEXT,                              -- "<handle>.ai", or NULL if none found
@@ -111,11 +120,26 @@ export class Store {
       .prepare("INSERT OR IGNORE INTO chain_attempts (round_id, attempt_id, attacker, paid, time, message_hash) VALUES (?,?,?,?,?,?)")
       .run(roundId, attemptId, a.attacker.toLowerCase(), a.paid ? 1 : 0, a.time, a.messageHash);
   }
-  attemptsMissingTx(roundId: number): number {
-    return (this.db.prepare("SELECT COUNT(*) AS n FROM chain_attempts WHERE round_id = ? AND tx IS NULL").get(roundId) as { n: number }).n;
-  }
+  /** Records an attempt's transaction (verified by the caller). Works before or after the attempt row is synced. */
   setAttemptTx(roundId: number, attemptId: number, tx: string) {
-    this.db.prepare("UPDATE chain_attempts SET tx = ? WHERE round_id = ? AND attempt_id = ?").run(tx, roundId, attemptId);
+    this.db.prepare("INSERT INTO attempt_txs VALUES (?,?,?) ON CONFLICT(round_id, attempt_id) DO UPDATE SET tx = excluded.tx").run(roundId, attemptId, tx);
+  }
+  /** Sets the given round_meta fields, leaving the others as they are. */
+  patchRoundMeta(roundId: number, f: Partial<Omit<RoundMetaRow, "round_id">>) {
+    const cur = this.roundMeta(roundId) ?? { round_id: roundId, open_tx: null, open_block: null, close_kind: null, close_tx: null, closed_at: null, payout: null };
+    this.putRoundMeta({ ...cur, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined)) });
+  }
+  putReveal(roundId: number, r: { salt: string; instructions: string; tx: string }) {
+    this.db.prepare("INSERT INTO reveals VALUES (?,?,?,?) ON CONFLICT(round_id) DO NOTHING").run(roundId, r.salt, r.instructions, r.tx);
+  }
+  getReveal(roundId: number): { salt: string; instructions: string; tx: string } | undefined {
+    return this.db.prepare("SELECT salt, instructions, tx FROM reveals WHERE round_id = ?").get(roundId) as { salt: string; instructions: string; tx: string } | undefined;
+  }
+  getKv(key: string): string | undefined {
+    return (this.db.prepare("SELECT value FROM kv WHERE key = ?").get(key) as { value: string } | undefined)?.value;
+  }
+  setKv(key: string, value: string) {
+    this.db.prepare("INSERT INTO kv VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
   }
   roundMeta(roundId: number): RoundMetaRow | undefined {
     return this.db.prepare("SELECT * FROM round_meta WHERE round_id = ?").get(roundId) as RoundMetaRow | undefined;
@@ -126,7 +150,7 @@ export class Store {
       .run(m);
   }
   chainAttempts(roundId: number): ChainAttemptRow[] {
-    return this.db.prepare("SELECT * FROM chain_attempts WHERE round_id = ? ORDER BY attempt_id").all(roundId) as ChainAttemptRow[];
+    return this.db.prepare("SELECT c.round_id, c.attempt_id, c.attacker, c.paid, c.time, c.message_hash, COALESCE(t.tx, c.tx) AS tx FROM chain_attempts c LEFT JOIN attempt_txs t USING (round_id, attempt_id) WHERE c.round_id = ? ORDER BY c.attempt_id").all(roundId) as ChainAttemptRow[];
   }
   chainAttemptsBy(attacker: string): ChainAttemptRow[] {
     return this.db.prepare("SELECT * FROM chain_attempts WHERE attacker = ? ORDER BY round_id, attempt_id").all(attacker.toLowerCase()) as ChainAttemptRow[];

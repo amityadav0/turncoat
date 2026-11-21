@@ -1,7 +1,7 @@
 // Read access to the Turncoat contract, verdict signing and optional relaying of settle().
 import fs from "node:fs";
 import {
-  createPublicClient, createWalletClient, defineChain, encodeFunctionData, getAddress, zeroAddress,
+  createPublicClient, createWalletClient, defineChain, encodeFunctionData, getAddress, parseEventLogs, zeroAddress,
   type Abi, type Address, type Hex, type PublicClient, type Transport, type Chain as ViemChain,
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
@@ -37,6 +37,22 @@ export interface AttemptInfo {
   messageHash: Hex;
 }
 
+export interface ChainEvent {
+  name: string;
+  args: Record<string, unknown>;
+  tx: Hex;
+  block: bigint;
+}
+
+export interface TxInfo {
+  tx: Hex;
+  from: Address;
+  to: Address | null;
+  status: "success" | "reverted";
+  block: bigint;
+  events: ChainEvent[];
+}
+
 const HANDLE_ABI = [{ type: "function", name: "handleOf", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ name: "", type: "string" }] }] as const;
 
 export const VERDICT_TYPES = {
@@ -52,7 +68,7 @@ export interface ChainOptions {
   chainId: number;
   address: Address;
   relayerKey?: Hex;
-  /** First block to scan for events (the deploy block); public RPCs limit log ranges. */
+  /** First block for the optional log scanner (USE_LOGS=1): the deploy block. */
   logsFromBlock?: bigint;
 }
 
@@ -64,7 +80,7 @@ export class TurncoatChain {
   private chain: ViemChain;
   private relayer?: { account: PrivateKeyAccount; transport: Transport };
   private settleGrace?: number;
-  private logsFromBlock: bigint;
+  readonly logsFromBlock: bigint;
 
   constructor(o: ChainOptions) {
     this.address = getAddress(o.address);
@@ -79,24 +95,27 @@ export class TurncoatChain {
     return this.relayer?.account.address;
   }
 
-  /** RPC health: time of the last successful chain read, and how many reads have failed since start. */
-  readonly stats = { lastOkAt: null as number | null, errors: 0, lastError: null as string | null };
+  /**
+   * RPC health: time of the last successful chain call, and failures since start, in total and by
+   * JSON-RPC method. (Error text is not kept: RPC URLs often carry an API key.)
+   */
+  readonly stats = { lastOkAt: null as number | null, errors: 0, byMethod: {} as Record<string, number> };
 
-  /** Every chain read goes through here, so failures are counted and never silently swallowed. */
-  private async track<T>(p: Promise<T>): Promise<T> {
+  /** Every chain call goes through here, so failures are counted and never silently swallowed. */
+  private async track<T>(method: string, p: Promise<T>): Promise<T> {
     try {
       const v = await p;
       this.stats.lastOkAt = Date.now();
       return v;
     } catch (e) {
       this.stats.errors += 1;
-      this.stats.lastError = String((e as { shortMessage?: string })?.shortMessage ?? (e as Error)?.message ?? e).slice(0, 200);
+      this.stats.byMethod[method] = (this.stats.byMethod[method] ?? 0) + 1;
       throw e;
     }
   }
 
   private read<T>(functionName: string, args: unknown[] = []): Promise<T> {
-    return this.track(this.pub.readContract({ address: this.address, abi: this.abi, functionName, args }) as Promise<T>);
+    return this.track("eth_call", this.pub.readContract({ address: this.address, abi: this.abi, functionName, args }) as Promise<T>);
   }
 
   async roundCount(): Promise<number> {
@@ -152,45 +171,45 @@ export class TurncoatChain {
 
   /** Chain time (latest block timestamp), used for every time rule so it matches the contract. */
   async now(): Promise<number> {
-    return Number((await this.track(this.pub.getBlock({ blockTag: "latest" }))).timestamp);
+    return Number((await this.track("eth_getBlockByNumber", this.pub.getBlock({ blockTag: "latest" }))).timestamp);
   }
 
-  /** GuardRevealed events for a round (salt + exact instruction bytes). */
-  async revealLogs(roundId: number): Promise<{ salt: Hex; instructions: Hex; tx: Hex }[]> {
-    const logs = await this.pub.getContractEvents({ address: this.address, abi: this.abi, eventName: "GuardRevealed", args: { roundId: BigInt(roundId) }, fromBlock: this.logsFromBlock, toBlock: "latest" });
-    return logs.map((l) => {
-      const a = (l as unknown as { args: { salt: Hex; instructions: Hex } }).args;
-      return { salt: a.salt, instructions: a.instructions, tx: l.transactionHash as Hex };
+  async latestBlock(): Promise<bigint> {
+    return this.track("eth_blockNumber", this.pub.getBlockNumber());
+  }
+
+  async blockTime(blockNumber: bigint): Promise<number> {
+    return Number((await this.track("eth_getBlockByNumber", this.pub.getBlock({ blockNumber }))).timestamp);
+  }
+
+  /** Turncoat events in this contract's logs, decoded. Works on any log list (a receipt's or eth_getLogs'). */
+  decode(logs: readonly unknown[]): ChainEvent[] {
+    const mine = (logs as { address: string }[]).filter((l) => l.address.toLowerCase() === this.address.toLowerCase());
+    return parseEventLogs({ abi: this.abi, logs: mine as never }).map((l) => {
+      const x = l as unknown as { eventName: string; args: Record<string, unknown>; transactionHash: Hex; blockNumber: bigint; logIndex: number };
+      return { name: x.eventName, args: x.args, tx: x.transactionHash, block: x.blockNumber };
     });
   }
 
-  /** RoundOpened, then GuardBroken or RoundRolledOver, for one round, with block numbers and times. */
-  async roundEvents(roundId: number): Promise<{
-    open?: { tx: Hex; block: bigint };
-    close?: { kind: "broken" | "rolled_over"; tx: Hex; block: bigint; time: number; payout?: bigint };
-  }> {
-    const q = (eventName: string) => this.pub.getContractEvents({ address: this.address, abi: this.abi, eventName, args: { roundId: BigInt(roundId) }, fromBlock: this.logsFromBlock, toBlock: "latest" });
-    const [opened, broken, rolled] = await Promise.all([q("RoundOpened"), q("GuardBroken"), q("RoundRolledOver")]);
-    const out: Awaited<ReturnType<TurncoatChain["roundEvents"]>> = {};
-    if (opened[0]) out.open = { tx: opened[0].transactionHash as Hex, block: opened[0].blockNumber as bigint };
-    const c = broken[0] ?? rolled[0];
-    if (c) {
-      const block = await this.pub.getBlock({ blockNumber: c.blockNumber as bigint });
-      out.close = {
-        kind: broken[0] ? "broken" : "rolled_over",
-        tx: c.transactionHash as Hex,
-        block: c.blockNumber as bigint,
-        time: Number(block.timestamp),
-        payout: broken[0] ? BigInt((broken[0] as unknown as { args: { pot: bigint } }).args.pot) : undefined,
-      };
+  /**
+   * A transaction's receipt (eth_getTransactionReceipt, which every public RPC serves), with its
+   * Turncoat events decoded. null if the RPC has no receipt for it.
+   */
+  async inspectTx(hash: Hex): Promise<TxInfo | null> {
+    let r;
+    try {
+      r = await this.track("eth_getTransactionReceipt", this.pub.getTransactionReceipt({ hash }));
+    } catch (e) {
+      if ((e as Error)?.name === "TransactionReceiptNotFoundError") return null;
+      throw e;
     }
-    return out;
+    return { tx: hash, from: getAddress(r.from), to: r.to ? getAddress(r.to) : null, status: r.status, block: r.blockNumber, events: this.decode(r.logs) };
   }
 
-  /** Attempted events for one round from `fromBlock`: attemptId → transaction hash. */
-  async attemptTxs(roundId: number, fromBlock: bigint): Promise<Map<number, Hex>> {
-    const logs = await this.pub.getContractEvents({ address: this.address, abi: this.abi, eventName: "Attempted", args: { roundId: BigInt(roundId) }, fromBlock, toBlock: "latest" });
-    return new Map(logs.map((l) => [Number((l as unknown as { args: { attemptId: bigint } }).args.attemptId), l.transactionHash as Hex]));
+  /** Optional (USE_LOGS=1): every Turncoat event in [fromBlock, toBlock]. Public BSC RPCs refuse this call. */
+  async scanLogs(fromBlock: bigint, toBlock: bigint): Promise<ChainEvent[]> {
+    const logs = await this.track("eth_getLogs", this.pub.getLogs({ address: this.address, fromBlock, toBlock }));
+    return this.decode(logs);
   }
 
   private agentIdAddr?: Address;
@@ -205,8 +224,11 @@ export class TurncoatChain {
     let handle: string;
     try {
       handle = (await this.pub.readContract({ address: this.agentIdAddr, abi: HANDLE_ABI, functionName: "handleOf", args: [holder] })) as string;
+      this.stats.lastOkAt = Date.now();
     } catch (e) {
-      if (/revert|returned no data|execution reverted/i.test(String((e as Error)?.message))) return null;
+      if (/revert|returned no data|execution reverted/i.test(String((e as Error)?.message))) return null; // no handle: an answer, not an RPC failure
+      this.stats.errors += 1;
+      this.stats.byMethod.eth_call = (this.stats.byMethod.eth_call ?? 0) + 1;
       throw e;
     }
     // Handles are lowercase a-z0-9 (hyphens allowed); anything else is not shown.
@@ -234,10 +256,10 @@ export class TurncoatChain {
   async sendSettle(roundId: number, attemptId: number, signature: Hex): Promise<Hex> {
     if (!this.relayer) throw new Error("no relayer key configured");
     const wallet = createWalletClient({ account: this.relayer.account, chain: this.chain, transport: this.relayer.transport });
-    return wallet.writeContract({ address: this.address, abi: this.abi, functionName: "settle", args: [BigInt(roundId), BigInt(attemptId), signature] });
+    return this.track("eth_sendRawTransaction", wallet.writeContract({ address: this.address, abi: this.abi, functionName: "settle", args: [BigInt(roundId), BigInt(attemptId), signature] }));
   }
 
   async waitForReceipt(txHash: Hex): Promise<"success" | "reverted"> {
-    return (await this.pub.waitForTransactionReceipt({ hash: txHash, timeout: 180_000 })).status;
+    return (await this.track("eth_getTransactionReceipt", this.pub.waitForTransactionReceipt({ hash: txHash, timeout: 180_000 }))).status;
   }
 }

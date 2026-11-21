@@ -27,7 +27,7 @@ interface Round {
   startTime: number;     // unix seconds
   endTime: number;       // unix seconds
   pot: string;           // token base units, decimal string: the contract's current pot (0 after a payout)
-  payout?: string;       // amount paid to the winner (GuardBroken.pot), base units; the site shows "Paid out: <amount>"
+  payout?: string;       // amount paid to the winner (GuardBroken.pot), base units; the site shows "Paid out: <amount>". Absent = unknown (see "Without event logs")
   attemptCount: number;
   paidEnabled: boolean;  // extra paid attempts on or off for this round (fixed at open)
   baseFee: string;       // base fee for a paid attempt, token base units ("0" when free-only)
@@ -36,10 +36,10 @@ interface Round {
   guardVersion?: string; // which Argus runs: "v1", "v2", … public from round start (the instructions are in the repo; the salt is published at the end); absent if the service holds no record for this guardCommit
   model?: string;        // model Argus runs on for this round, "provider/model" (e.g. "anthropic/claude-haiku-5-5"); fixed when the service first saw the round
   mode?: 'refuse' | 'decide' | 'reader'; // refuse: Argus may decline to act; decide: he must approve or reject every request; reader: attacker writes token metadata (see guard/README.md). Absent with guardVersion.
-  openTx?: Hex;          // RoundOpened transaction
+  openTx?: Hex;          // RoundOpened transaction; absent = not recorded (unknown), see "Without event logs"
   winner?: Attacker;     // when status = 'broken'
   winningAttempt?: number;
-  settleTx?: Hex;        // GuardBroken or RoundRolledOver transaction
+  settleTx?: Hex;        // GuardBroken or RoundRolledOver transaction; absent on a closed round = not recorded (unknown)
   closedAt?: number;     // unix seconds: block time of settleTx (a broken round can close before endTime)
 }
 
@@ -56,7 +56,7 @@ interface Attempt {
   note?: string;         // why an attempt was expired or rejected
   messageHash: Hex;      // as stored on-chain
   hidden?: boolean;      // true when the operator hid this attempt: message and reply are omitted; the site shows "Hidden by the operator" and messageHash, and ignores any text sent anyway
-  tx?: Hex;              // Attempted transaction
+  tx?: Hex;              // Attempted transaction; present only if the attacker sent it as txHash (verified) or the operator's log scan found it
   message?: string;      // the attacker's message, once the guard has answered (hostile text)
   reply?: string;        // the guard's full reply, once answered (decide mode: the decision's reason)
   toolCalls?: { name: string; args: object }[]; // once answered: the tools Argus called; the site shows "Approved" / "Rejected" from the first approve_payment / reject_payment
@@ -65,7 +65,8 @@ interface Attempt {
 interface Reveal {
   salt: Hex;             // bytes32
   instructions: Hex;     // the exact committed bytes passed to revealGuard: header + instruction text (layout below)
-  tx?: Hex;              // GuardRevealed transaction
+  tx?: Hex;              // GuardRevealed transaction, when source = "chain"
+  source: 'chain' | 'service'; // chain: a GuardRevealed transaction was recorded; service: from the service's own commit record (check it against guardCommit yourself; the service has not seen a revealGuard tx)
 }
 ```
 
@@ -110,6 +111,22 @@ So once a round is revealed, anyone can check that the model, mode, version, too
 | GET | `/rounds/:id/attempts?after=<attemptId>` | `{ attempts: Attempt[] }`: attempts with id greater than `after`, oldest first |
 | POST | `/practice` | body `{ level: number, message: string }` → `{ reply: string, broken: boolean, toolCalls: { name, args }[], decision?: 'approve' \| 'reject', breakKind?: 'misfire' \| 'persuaded', action?: string }` |
 
+## Without event logs
+
+The public BSC RPC endpoints refuse `eth_getLogs`, so the service reads no event logs (unless the operator turns on `USE_LOGS` with an RPC that allows them). It learns transactions from receipts instead:
+
+- `settleTx`, `closedAt` and `payout` come from the receipt of the `settle()` the relayer sent.
+- `openTx`, a roll-over or someone else's settle, and the reveal tx are known once the operator records them with `npm run record`.
+- An attempt's `tx` is known if the attacker's skill sends `txHash` with `POST /attempts`.
+
+**An absent field means unknown, not "no".** A closed round with no `settleTx` was still closed: say "transaction not recorded". `reveal` is `null` until the round is over. After that it comes from the recorded `GuardRevealed` tx (`source: "chain"`) or from the service's commit record (`source: "service"`), and is `null` only if the service has neither, which also means unknown.
+
+## POST /attempts (used by the skill, not the site)
+
+Body: `{ roundId: number, attemptId: number, message: string, txHash?: Hex, messageHash?: Hex }`.
+
+`txHash` is optional: the hash of the `attempt()` transaction. The service reads its receipt and stores it only if it is a successful transaction from the attempt's attacker that recorded this `attemptId` in this `roundId`. Then the attempt shows `tx`. A malformed `txHash` gets a 400 before any chain read. A wrong or unreadable one never affects the attempt: the reply adds `txHashNote: string` saying why it was not stored. `messageHash`, if sent, must equal keccak256 of the message's UTF-8 bytes.
+
 `message` and `reply` are public as soon as the guard has answered an attempt (`outcome` is no longer `pending`), including while the round is live. `reveal` must be `null` until the round is closed; the site ignores it before then anyway.
 
 The feed polls `/rounds/:id/attempts?after=` from just below its oldest `pending` attempt, so an attempt that was pending is re-sent once it is answered. Return the current state of each attempt, not only new ones.
@@ -135,7 +152,8 @@ An attempt that is `pending` with `status` `expired`, `rejected` or `failed` wil
   modelErrors: number;              // model call failures since start
   failedAttempts: number;           // attempts marked failed since start
   lastChainReadAt: string | null;   // ISO time of the last successful chain read
-  rpcErrors: number;                // failed chain reads since start (none are swallowed silently)
+  rpcErrors: number;                // failed chain calls since start (none are swallowed silently)
+  rpcErrorsByMethod: Record<string, number>; // the same, by JSON-RPC method, e.g. { eth_call: 2, eth_getTransactionReceipt: 1 }
 }
 ```
 

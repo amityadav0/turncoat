@@ -10,6 +10,7 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "commit": "tsx scripts/commit.ts",
+    "record": "tsx scripts/record.ts",
     "redteam": "tsx scripts/redteam.ts",
     "typecheck": "tsc --noEmit",
     "pretest": "node ../scripts/compile.mjs",

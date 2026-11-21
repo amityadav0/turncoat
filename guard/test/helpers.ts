@@ -16,9 +16,26 @@ export const CHAIN_ID = 1337;
 export const U = (n: number | string) => parseUnits(String(n), 18);
 export const msgHash = (s: string) => keccak256(stringToHex(s));
 
+/**
+ * A transport like the public BSC RPCs: every eth_getLogs is refused with -32005. `calls` counts how
+ * often anything tried.
+ */
+export function noLogsTransport(provider: { request: (a: { method: string; params?: unknown }) => Promise<unknown> }) {
+  const counter = { getLogs: 0 };
+  const transport = custom({
+    request: async ({ method, params }: { method: string; params?: unknown }) => {
+      if (method === "eth_getLogs") { counter.getLogs++; throw Object.assign(new Error("limit exceeded"), { code: -32005 }); }
+      return provider.request({ method, params } as never);
+    },
+  });
+  return { transport, counter };
+}
+
 export interface Local {
   provider: ReturnType<typeof ganache.provider>;
   transport: ReturnType<typeof custom>;
+  /** Hash of the last transaction sent with `send` (e.g. the openRound or attempt just made). */
+  lastTx?: Hex;
   pub: PublicClient;
   turncoat: Address;
   usdt: Address;
@@ -39,6 +56,7 @@ export async function startLocal(): Promise<Local> {
     wallet: { accounts: KEYS.map((secretKey) => ({ secretKey, balance: "0x" + (10n ** 21n).toString(16) })) },
   });
   const transport = custom(provider);
+  const local = {} as Local;
   const chain = defineChain({ id: CHAIN_ID, name: "local", nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 }, rpcUrls: { default: { http: ["http://127.0.0.1:1"] } } });
   const pub = createPublicClient({ chain, transport, pollingInterval: 50 }) as PublicClient;
   const wallet = (k: Hex) => createWalletClient({ account: privateKeyToAccount(k), chain, transport });
@@ -52,6 +70,7 @@ export async function startLocal(): Promise<Local> {
     const hash = await wallet(k).writeContract({ address, abi: art(name).abi, functionName, args, gas: 1_500_000n });
     const r = await pub.waitForTransactionReceipt({ hash });
     if (r.status !== "success") throw new Error(`${functionName} reverted`);
+    local.lastTx = hash;
   };
   const sendRaw = async (k: Hex, to: Address, data: Hex) => {
     const hash = await wallet(k).sendTransaction({ to, data, gas: 1_500_000n });
@@ -86,5 +105,6 @@ export async function startLocal(): Promise<Local> {
     await warp(86400 - (now % 86400) + 60);
   };
   await toNextDay();
-  return { provider, transport, pub, turncoat, usdt, agent, send, sendRaw, read, warp, openRound, attempt, toNextDay };
+  Object.assign(local, { provider, transport, pub, turncoat, usdt, agent, send, sendRaw, read, warp, openRound, attempt, toNextDay });
+  return local;
 }

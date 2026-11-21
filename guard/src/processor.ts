@@ -13,6 +13,7 @@ import { type CommitLookup, type CommitRecord, instructionsText, committedHeader
 import { runGuard } from "./guard.ts";
 import { isMode } from "./levels.ts";
 import { redact } from "./model/redact.ts";
+import { recordTx } from "./recorder.ts";
 import type { Logger } from "./log.ts";
 
 export interface ProcessorConfig {
@@ -292,7 +293,13 @@ export class RoundProcessor {
       const tx = await chain.sendSettle(roundId, attemptId, sig);
       store.updateAttempt(roundId, attemptId, { relayer_tx: tx, relayer_status: "submitted" });
       const p = chain.waitForReceipt(tx)
-        .then((status) => store.updateAttempt(roundId, attemptId, { relayer_status: status }))
+        .then(async (status) => {
+          store.updateAttempt(roundId, attemptId, { relayer_status: status });
+          // The settle tx, close time and payout come from this receipt: no event logs needed.
+          if (status === "success") {
+            await recordTx(store, chain, roundId, tx, "settle").catch((e) => log("warn", "could not record the settle receipt", { roundId, tx, error: redact(String(e?.message ?? e)).slice(0, 200) }));
+          }
+        })
         .catch((e) => store.updateAttempt(roundId, attemptId, { relayer_status: "unknown", relayer_error: redact(String(e?.message ?? e)).slice(0, 500) }))
         .finally(() => this.bg.delete(p));
       this.bg.add(p);

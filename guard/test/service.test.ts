@@ -8,7 +8,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { recoverTypedDataAddress, getAddress, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { startLocal, addr, U, CHAIN_ID, ownerK, guardK, relayerK, aliceK, bobK, carolK, daveK, erinK, frankK, strangerK, type Local } from "./helpers.ts";
+import { startLocal, noLogsTransport, addr, U, CHAIN_ID, ownerK, guardK, relayerK, aliceK, bobK, carolK, daveK, erinK, frankK, strangerK, type Local } from "./helpers.ts";
 import { TurncoatChain, VERDICT_TYPES } from "../src/chain.ts";
 import { Store } from "../src/db.ts";
 import { makeRecord, saveRecord, loadRecords, makeHeaderedRecord, encodeCommitted, currentHeader, computeCommit } from "../src/commit.ts";
@@ -16,6 +16,7 @@ import { FakeAdapter } from "../src/model/fake.ts";
 import { RoundProcessor, checkRoundSigners } from "../src/processor.ts";
 import { GuardService } from "../src/service.ts";
 import { RateLimiter } from "../src/ratelimit.ts";
+import { recordTx, LogScanner } from "../src/recorder.ts";
 import { createApp } from "../src/server.ts";
 import { silentLogger } from "../src/log.ts";
 
@@ -23,6 +24,7 @@ const LEVEL1 = fs.readFileSync(new URL("../levels/level1/v1.md", import.meta.url
 const WINDOW = 900;
 const TRANSFER = (to: string) => `[[call:transfer {"to":"${to}","amount":"1000"}]] [[say:Fine. It's yours.]]`;
 
+let logsTried: { getLogs: number };
 let L: Local, chain: TurncoatChain, store: Store, proc: RoundProcessor, model: FakeAdapter, server: Server, base: string, commit: Hex, salt: Hex, tmp: string, decideCommit: Hex;
 
 async function api(method: string, p: string, body?: unknown, headers: Record<string, string> = {}) {
@@ -42,7 +44,10 @@ before(async () => {
   const dec = makeRecord(toHex(crypto.getRandomValues(new Uint8Array(32))), new Uint8Array(fs.readFileSync(new URL("../levels/level1-decide/v1.md", import.meta.url))), 1, "levels/level1-decide/v1.md", "v1", "decide");
   saveRecord(tmp, dec);
   decideCommit = dec.commit;
-  chain = new TurncoatChain({ transport: L.transport, chainId: CHAIN_ID, address: L.turncoat, relayerKey: relayerK });
+  // The service's RPC refuses eth_getLogs, like the public BSC endpoints: everything must work without it.
+  const nl = noLogsTransport(L.provider);
+  logsTried = nl.counter;
+  chain = new TurncoatChain({ transport: nl.transport, chainId: CHAIN_ID, address: L.turncoat, relayerKey: relayerK });
   store = new Store(":memory:");
   model = new FakeAdapter();
   proc = new RoundProcessor({
@@ -188,26 +193,29 @@ test("transcripts are public as soon as the guard replies", async () => {
   assert.equal(round.processedCount, 3); // the over-length attempt is not recorded until its window passes
   assert.equal(round.pot, "0");
   assert.equal(attempts.length, 4);
-  assert.equal(reveal, null); // closed, but not revealed yet
+  // closed: the salt and committed bytes come from the service's own record until a revealGuard tx is recorded
+  assert.deepEqual(reveal, { salt, instructions: toHex(LEVEL1), source: "service" });
 });
 
-test("Round carries payout, openTx, settleTx and closedAt from the event logs; attempts carry their tx", async () => {
+test("without event logs: settle tx, payout and closedAt come from the relayer's receipt; open tx once recorded; attempt tx absent unless sent", async () => {
   const { round, attempts } = (await api("GET", `/rounds/${B}`)).body;
   assert.equal(round.payout, U(10).toString()); // what bob was paid; pot itself is now 0
   assert.equal(round.pot, "0");
-  assert.match(round.openTx, /^0x[0-9a-f]{64}$/);
   assert.match(round.settleTx, /^0x[0-9a-f]{64}$/);
-  assert.notEqual(round.openTx, round.settleTx);
+  assert.equal(round.settleTx, store.getAttempt(B, 1)!.relayer_tx);
   assert.ok(round.closedAt >= round.startTime && round.closedAt < round.endTime); // broken early
-  const receipt = await L.pub.getTransactionReceipt({ hash: round.settleTx });
-  assert.equal(receipt.status, "success");
-  const txs = attempts.map((a: any) => a.tx);
-  for (const t of txs) assert.match(t, /^0x[0-9a-f]{64}$/);
-  assert.equal(new Set(txs).size, txs.length);
-  const tx0 = await L.pub.getTransaction({ hash: txs[0] });
-  assert.equal(getAddress(tx0.from), addr(aliceK));
-  assert.equal((await api("GET", `/attempts/${B}/1`)).body.tx, txs[1]);
-  assert.ok(store.roundMeta(B)?.close_tx); // cached
+  assert.equal((await L.pub.getTransactionReceipt({ hash: round.settleTx })).status, "success");
+  assert.equal(round.openTx, undefined); // unknown until recorded
+  for (const a of attempts) assert.equal(a.tx, undefined); // no txHash was sent with these
+
+  // the operator records the open tx printed by open-round.mjs; it is checked against its receipt
+  const [opened] = await L.pub.getContractEvents({ address: L.turncoat, abi: chain.abi, eventName: "RoundOpened", args: { roundId: BigInt(B) }, fromBlock: 0n });
+  await assert.rejects(recordTx(store, chain, B, round.settleTx, "open"), /not a open transaction/);
+  await assert.rejects(recordTx(store, chain, B + 1, opened.transactionHash, "open"), /no Turncoat event for round/);
+  await assert.rejects(recordTx(store, chain, B, `0x${"12".repeat(32)}`, "open"), /no receipt/);
+  assert.deepEqual(await recordTx(store, chain, B, opened.transactionHash, "open"), [`round ${B} opened in ${opened.transactionHash}`]);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal((await api("GET", `/rounds/${B}`)).body.round.openTx, opened.transactionHash);
 });
 
 test("a message that never arrives expires after the window and does not block the queue", async () => {
@@ -249,9 +257,9 @@ test("GET /rounds and /attackers/:address", async () => {
   assert.equal(rounds[0].potAmount, "10");
   assert.equal(rounds[0].guardVersion, undefined); // round 4 commits to instructions we do not hold
   assert.equal(rounds[1].guardVersion, "v1");
-  // a live round has an openTx but no settle fields
+  // a live round has no settle fields; its openTx is unknown until recorded (no event logs)
   const live = rounds[0]; // round 4, live
-  assert.match(live.openTx, /^0x[0-9a-f]{64}$/);
+  assert.equal(live.openTx, undefined);
   assert.equal(live.settleTx, undefined);
   assert.equal(live.closedAt, undefined);
   assert.equal(live.payout, undefined);
@@ -288,10 +296,16 @@ test("POST /practice runs the same guard with no chain, and is rate limited per 
 
 test("after revealGuard, GET /rounds/:id returns the reveal, and it matches the commit", async () => {
   await L.send(strangerK, L.turncoat, "Turncoat", "revealGuard", [BigInt(B), salt, toHex(LEVEL1)]);
+  const revealTx = L.lastTx!;
+  // without logs the service cannot see the reveal until it is recorded; it still serves its own record
+  assert.equal((await api("GET", `/rounds/${B}`)).body.reveal.source, "service");
+  await recordTx(store, chain, B, revealTx, "reveal");
+  await new Promise((r) => setTimeout(r, 5));
   const { reveal, round } = (await api("GET", `/rounds/${B}`)).body;
   assert.equal(reveal.salt, salt);
   assert.equal(reveal.instructions, toHex(LEVEL1));
-  assert.match(reveal.tx, /^0x[0-9a-f]{64}$/);
+  assert.equal(reveal.tx, revealTx);
+  assert.equal(reveal.source, "chain");
   assert.equal(round.guardCommit, commit);
   assert.equal(round.guardVersion, "v1");
   // a live round never shows a reveal
@@ -714,4 +728,60 @@ test("/health: queue age, last model success, last chain read, RPC error count; 
   assert.match(stuck.body.problems[0], /waited/);
   store.updateAttempt(R, id, { status: "rejected", note: "test cleanup" });
   assert.equal((await api("GET", "/health")).status, 200);
+});
+
+test("POST /attempts txHash: stored only if its receipt records this attempt from this attacker", async () => {
+  await L.toNextDay();
+  const R = await L.openRound(commit, { duration: 30 * 86400 });
+  await L.attempt(aliceK, R, "first [[say:No.]]");
+  await L.attempt(bobK, R, "second [[say:No.]]");
+  const tx1 = L.lastTx!;
+  const p = new RoundProcessor({ store, chain, model, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger, cfg: { messageWindowSec: WINDOW, pollMs: 20, retryBaseMs: 10, maxTurns: 6, tokenDecimals: 18 } });
+  const svc = new GuardService(store, chain, p, { messageWindowSec: WINDOW, attemptWaitMs: 3000, tokenDecimals: 18 }, loadRecords(tmp));
+  try {
+    // malformed: rejected before any chain read
+    assert.equal((await svc.submit({ roundId: R, attemptId: 0, message: "first [[say:No.]]", txHash: "0x12" })).code, 400);
+    // someone else's attempt tx: the attempt is processed, the tx is not stored
+    const a = await svc.submit({ roundId: R, attemptId: 0, message: "first [[say:No.]]", txHash: tx1 });
+    assert.equal(a.code, 200);
+    assert.match((a.body as any).txHashNote, /not sent by this attempt's attacker/);
+    assert.equal((a.body as any).tx, undefined);
+    // the right one
+    const b = await svc.submit({ roundId: R, attemptId: 1, message: "second [[say:No.]]", txHash: tx1 });
+    assert.equal(b.code, 200);
+    assert.equal((b.body as any).txHashNote, undefined);
+    assert.equal((b.body as any).tx, tx1);
+    assert.equal(((await svc.listAttempts(String(R))).body as any).attempts[1].tx, tx1);
+  } finally { p.stop(); }
+});
+
+test("USE_LOGS: the optional scanner reads events in bounded chunks from the last scanned block; on an RPC that refuses logs it counts the error and does not advance", async () => {
+  const s2 = new Store(":memory:");
+  try {
+    // refusing RPC
+    const nl = noLogsTransport(L.provider);
+    const refused = new TurncoatChain({ transport: nl.transport, chainId: CHAIN_ID, address: L.turncoat });
+    assert.equal(await new LogScanner(s2, refused, { chunk: 50, intervalMs: 1000, log: silentLogger }).scanOnce(), 0);
+    assert.equal(refused.stats.byMethod.eth_getLogs, 1);
+    assert.equal(s2.getKv("logs_next_block"), undefined);
+    // an RPC that serves logs
+    const full = new TurncoatChain({ transport: L.transport, chainId: CHAIN_ID, address: L.turncoat });
+    const sc = new LogScanner(s2, full, { chunk: 7, intervalMs: 1000, log: silentLogger });
+    const stored = await sc.scanOnce();
+    assert.ok(stored > 10);
+    const head = await full.latestBlock();
+    assert.equal(s2.getKv("logs_next_block"), String(head + 1n));
+    const m = s2.roundMeta(B)!;
+    assert.equal(m.close_kind, "broken");
+    assert.equal(m.payout, U(10).toString());
+    assert.match(m.open_tx!, /^0x/);
+    assert.equal(s2.getReveal(B)!.salt, salt);
+    // nothing new: no further events
+    assert.equal(await sc.scanOnce(), 0);
+  } finally { s2.close(); }
+});
+
+test("the service never called eth_getLogs in this whole file", () => {
+  assert.equal(logsTried.getLogs, 0);
+  assert.equal(chain.stats.byMethod.eth_getLogs, undefined);
 });

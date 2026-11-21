@@ -137,4 +137,8 @@ test("npm run demo shows the launch shape end to end (scripted models, no AI)", 
   assert.match(out, /round 2\s+demo\/top\s+live/);
   assert.match(out, /\/rounds\/live lists 1 round\(s\): #2/);
   assert.equal((out.match(/decision: reject/g) ?? []).length, 3);
+  // the service's RPC refuses eth_getLogs, and the API still shows open tx, settle tx, payout and reveal
+  assert.match(out, /its RPC refuses eth_getLogs/);
+  assert.match(out, /round 1 on the API: openTx 0x[0-9a-f]{4}…[0-9a-f]{4}  settleTx 0x[0-9a-f]{4}…[0-9a-f]{4}  payout 100 USDT  reveal chain 0x[0-9a-f]{4}…[0-9a-f]{4}/);
+  assert.match(out, /eth_getLogs calls the service made: 0/);
 });

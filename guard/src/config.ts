@@ -51,7 +51,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     /** How long round and attacker views are cached in memory (ms). 0 = off. */
     readCacheMs: int(env.READ_CACHE_MS, 3000),
     corsOrigins: (env.CORS_ORIGINS || "").split(",").map((x) => x.trim()).filter(Boolean),
+    /** Optional: read events with eth_getLogs (needs an RPC that serves it; public BSC endpoints do not). */
+    useLogs: env.USE_LOGS === "1" || env.USE_LOGS === "true",
+    /** First block the log scanner reads (the deploy block). */
     logsFromBlock: BigInt(env.LOGS_FROM_BLOCK || 0),
+    logChunkBlocks: int(env.LOG_CHUNK_BLOCKS, 5000),
+    logScanIntervalMs: int(env.LOG_SCAN_INTERVAL_MS, 15000),
     trustProxy: trust === undefined || trust === "" ? undefined : /^\d+$/.test(trust) ? Number(trust) : trust === "true" ? true : trust === "false" ? false : trust,
   };
 }
