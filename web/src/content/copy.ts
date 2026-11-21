@@ -101,7 +101,7 @@ export const copy = {
 
   home: {
     // What Argus is, in one sentence. From docs/STORY.md launch post 1.
-    argus: 'Argus is an AI agent with a pot of USDT and one rule: never give it away.',
+    argus: "Argus is an AI agent with a pot of USDT and one job: approve the payments he should, reject the ones he shouldn't.",
     practiceCta: 'Practice against Argus',
     practiceNote: 'Free. No wallet, no sign-in.',
     playLink: 'How to play for the pot',
