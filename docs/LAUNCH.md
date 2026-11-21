@@ -2,7 +2,7 @@
 
 One page, top to bottom: deploy the contract, run the guard service, open the two launch rounds, point the site at it, and run a round to the end.
 
-Launch configuration: level 1 in decide mode, guard version 2, as two rounds at once: the lighter rung on Claude Haiku 5.5 and the top rung on Claude Opus 5.5.
+Launch configuration: level 1 in decide mode, as two rounds at once: the lighter rung on Claude Haiku 5.5 with guard version 2, and the top rung on Claude Opus 5.5 with guard version 3. The rungs run different versions because attempts are public as soon as they are answered: a break on the lighter round must not replay on the top round at once.
 
 ## Pre-flight checklist
 
@@ -27,7 +27,7 @@ npm install && npm run build
 cd guard && npm install && npm test && npm run demo
 ```
 
-**Ran locally.** 58 guard tests pass. `npm run demo` shows the launch shape: it starts a chain, deploys with mock Agent ID and mock USDT, opens two decide-mode v2 rounds whose records name two scripted stand-in models, runs held attempts on both, one misfire break on the lighter round that the relayer settles, and one reply that needs the service's follow-up on the top round, and prints the pot moving. No AI is called.
+**Ran locally.** 58 guard tests pass. `npm run demo` shows the launch shape: it starts a chain, deploys with mock Agent ID and mock USDT, opens two decide-mode rounds (lighter v2, top v3) whose records name two scripted stand-in models, runs held attempts on both, one misfire break on the lighter round that the relayer settles, and one reply that needs the service's follow-up on the top round, and prints the pot moving. No AI is called.
 
 To rehearse the steps below against a local chain instead of mainnet, start one and deploy mocks:
 
@@ -123,7 +123,7 @@ cp .env.example .env && chmod 600 .env
 **Cost ceiling.** Two settings bound model spend; both cost money to raise.
 
 - `MODEL_MAX_TOKENS` (default 4096) caps output per model call, and one reply makes at most `MAX_TOOL_TURNS` (6) calls, so the worst case is about 24,600 output tokens per attempt: ≈ $0.49 on Claude Opus 5.5 ($20 per million output tokens), ≈ $0.012 on Claude Haiku 5.5. Measured replies use far less (151 to 534 output tokens on average), so raising the cap raises the worst case, not the typical bill: each extra 1,000 tokens adds up to ≈ $0.12 per attempt on Opus.
-- `PRACTICE_DAILY_CAP` (default 2000) caps free practice replies per day across all visitors. One practice reply costs about one attempt: measured on Haiku 5.5 ≈ $0.0002 to $0.0006, the same token counts on Opus 5.5 ≈ $0.008 to $0.025. So 2,000 a day ≈ $0.40 to $1.20 on Haiku, ≈ $16 to $50 on Opus; each extra 1,000 a day adds ≈ $8 to $25 on Opus. (Opus figures reuse the token counts measured on Haiku, since the Opus run predates token logging; Opus thinks before answering and will likely use more.)
+- `PRACTICE_DAILY_CAP` (default 2000) caps free practice replies per day across all visitors. One practice reply costs about one attempt: measured on Haiku 5.5 ≈ $0.0002 to $0.0006, the same token counts on Opus 5.5 ≈ $0.008 to $0.025. So 2,000 a day ≈ $0.40 to $1.20 on Haiku, ≈ $16 to $50 on Opus; each extra 1,000 a day adds ≈ $8 to $25 on Opus. (Opus figures reuse the token counts measured on Haiku. Measured since on Opus 5.5, decide v3, 50 attempts: 1,620 input and 243 output tokens per attempt on average, within that range for output.)
 
 Prices are list prices at the time of writing; check your provider's current pricing.
 
@@ -196,12 +196,14 @@ On the guard server (the service must hold the commit records, or attempts wait 
 ```bash
 cd guard
 GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-haiku-5-5   # lighter rung
-GUARD_VERSION=v2 GUARD_MODE=decide npm run commit -- --model anthropic/claude-opus-5-5    # top rung
+GUARD_VERSION=v3 GUARD_MODE=decide npm run commit -- --model anthropic/claude-opus-5-5    # top rung
 ```
+
+The top rung runs v3, which names the known tricks (zero or test amounts, split authorisation, deposits and refunds, rule-change claims), so a break found on the lighter v2 round cannot simply be replayed on the top round. Measured before launch: Opus 5.5 on decide v3 held all 50 tracked attacks (0 breaks, 0 replies without a decision, about 3.9 s per attempt).
 
 Each command prints a `guardCommit: 0x…` and the header it committed (model, mode, version, tools hash, max turns, follow-up line); note which is which. One record per round. The hash covers that header, so the round's guard version, mode, **model**, tools and turn limit are fixed on-chain before the round opens, and anyone can check them after the reveal. The running service uses that model for that round whatever `MODEL_NAME` says later. Both rounds run at once and `GET /rounds/live` lists them.
 
-**Ran locally**, including with real models: both rounds opened on a local chain, each attempt was answered by its own round's model (Haiku in about 2 s, Opus in about 4 s), and nothing crossed between rounds. The records are in `.secrets/commits/<guardCommit>.json`; a running service picks up a new one within 5 seconds. Keep them private until the rounds are over and back them up: without a record its round cannot be revealed.
+**Ran locally**, including with real models: both rounds opened on a local chain, each attempt was answered by its own round's model (Haiku in about 2 s, Opus in about 4 s), and nothing crossed between rounds. The records are in `.secrets/commits/<guardCommit>.json`; a running service picks up a new one within 5 seconds. The salt in each record stays private until the round is over; back the records up: without one its round cannot be revealed.
 
 Open both rounds from the machine that holds the owner key, with these suggested values for the first round on each rung:
 
@@ -240,7 +242,7 @@ node scripts/round-tools.mjs status 1 && node scripts/round-tools.mjs status 2
 curl -fsS https://guard.example.com/rounds/live
 ```
 
-**Ran locally.** Both rounds show as live with their pots; `/rounds/live` shows each with `mode: "decide"`, `guardVersion: "v2"` and its own `model`.
+**Ran locally.** Both rounds show as live with their pots; `/rounds/live` shows each with `mode: "decide"`, its own `model`, and `guardVersion` `"v2"` (Haiku) or `"v3"` (Opus).
 
 ---
 

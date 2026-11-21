@@ -127,7 +127,8 @@ test("npm run demo shows the launch shape end to end (scripted models, no AI)", 
   assert.equal(r.status, 0, r.stderr);
   const out = r.stdout;
   assert.match(out, /No AI model is called/);
-  assert.match(out, /lighter rung .* model demo\/lighter \(scripted stand-in\)/);
+  assert.match(out, /lighter rung .* model demo\/lighter \(scripted stand-in\), guard v2/);
+  assert.match(out, /top rung .* model demo\/top \(scripted stand-in\), guard v3/);
   assert.match(out, /Argus \(demo\/lighter\) calls approve_payment/);
   assert.match(out, /BROKEN \(misfire\)/);
   assert.match(out, /relayer settles: .*\(success\)/);

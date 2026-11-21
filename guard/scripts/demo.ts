@@ -1,5 +1,5 @@
 // One-command local demo of the launch shape: `npm run demo` (from guard/). Options: --keep, --port N
-// Starts a local chain, deploys Turncoat with mock Agent ID and mock USDT, commits decide-mode guard v2
+// Starts a local chain, deploys Turncoat with mock Agent ID and mock USDT, commits decide-mode guard (v2 on the lighter rung, v3 on the top)
 // twice (one record per rung, models "demo/lighter" and "demo/top": scripted stand-ins), opens both
 // rounds, starts the guard service, and sends:
 //   lighter round: one request rejected, one approved as a misfire (broken) → relayer settles;
@@ -31,7 +31,7 @@ import type { ChatMessage, ModelResult } from "../src/model/index.ts";
 
 const args = process.argv.slice(2);
 const flag = (n: string) => { const i = args.indexOf(n); return i < 0 ? undefined : args[i + 1]; };
-const version = resolveVersion("v2");
+const [vLighter, vTop] = [resolveVersion("v2"), resolveVersion("v3")];
 const keep = args.includes("--keep");
 const port = Number(flag("--port") ?? (keep ? 8787 : 0));
 
@@ -54,7 +54,7 @@ const art = (n: string) => JSON.parse(fs.readFileSync(new URL(`../../build/${n}.
 const USDT = (n: bigint) => `${formatUnits(n, 18)} USDT`;
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-say("TURNCOAT · local demo of the launch: two rounds, one guard (decide mode, version 2), two models");
+say("TURNCOAT · local demo of the launch: two rounds in decide mode, lighter on guard v2, top on guard v3, two models");
 say("Everything here runs on this machine: a throwaway chain, mock tokens, and two scripted stand-ins");
 say("for the guard models (demo/lighter, demo/top). No AI model is called and no real money is involved.");
 
@@ -93,16 +93,15 @@ say(`   Turncoat   ${turncoat}`);
 say(`   guard key  ${who(guardK)}  (signs verdicts)`);
 say(`   attackers  alice, bob, carol, dave  (each holds a mock Agent ID)`);
 
-step(3, "Commit the guard twice, one record per rung (decide mode, version 2)");
+step(3, "Commit the guard twice, one record per rung (decide mode: v2 lighter, v3 top)");
 const commitsDir = fs.mkdtempSync(path.join(os.tmpdir(), "turncoat-demo-"));
-const bytes = levelBytes(1, version, undefined, "decide");
-const rung = (model: string) => makeHeaderedRecord(bytesToHex(randomBytes(32)), bytes, { level: 1, mode: "decide", version, model, maxTurns: 6, sourceFile: "levels/level1-decide/v2.md" });
-const recLighter = rung("demo/lighter");
-const recTop = rung("demo/top");
+const rung = (model: string, version: string) => makeHeaderedRecord(bytesToHex(randomBytes(32)), levelBytes(1, version as "v2", undefined, "decide"), { level: 1, mode: "decide", version, model, maxTurns: 6, sourceFile: `levels/level1-decide/${version}.md` });
+const recLighter = rung("demo/lighter", vLighter);
+const recTop = rung("demo/top", vTop);
 saveRecord(commitsDir, recLighter);
 saveRecord(commitsDir, recTop);
-say(`   lighter rung  ${recLighter.commit}  model demo/lighter (scripted stand-in)`);
-say(`   top rung      ${recTop.commit}  model demo/top (scripted stand-in)`);
+say(`   lighter rung  ${recLighter.commit}  model demo/lighter (scripted stand-in), guard ${vLighter}`);
+say(`   top rung      ${recTop.commit}  model demo/top (scripted stand-in), guard ${vTop}`);
 say(`   each hash covers a header naming the model, mode, version, tools, max turns and follow-up line, then the instructions`);
 say(`   (the salt stays in a temp folder until the reveal; only the hashes go on-chain)`);
 
