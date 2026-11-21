@@ -79,8 +79,24 @@ export class TurncoatChain {
     return this.relayer?.account.address;
   }
 
+  /** RPC health: time of the last successful chain read, and how many reads have failed since start. */
+  readonly stats = { lastOkAt: null as number | null, errors: 0, lastError: null as string | null };
+
+  /** Every chain read goes through here, so failures are counted and never silently swallowed. */
+  private async track<T>(p: Promise<T>): Promise<T> {
+    try {
+      const v = await p;
+      this.stats.lastOkAt = Date.now();
+      return v;
+    } catch (e) {
+      this.stats.errors += 1;
+      this.stats.lastError = String((e as { shortMessage?: string })?.shortMessage ?? (e as Error)?.message ?? e).slice(0, 200);
+      throw e;
+    }
+  }
+
   private read<T>(functionName: string, args: unknown[] = []): Promise<T> {
-    return this.pub.readContract({ address: this.address, abi: this.abi, functionName, args }) as Promise<T>;
+    return this.track(this.pub.readContract({ address: this.address, abi: this.abi, functionName, args }) as Promise<T>);
   }
 
   async roundCount(): Promise<number> {
@@ -136,7 +152,7 @@ export class TurncoatChain {
 
   /** Chain time (latest block timestamp), used for every time rule so it matches the contract. */
   async now(): Promise<number> {
-    return Number((await this.pub.getBlock({ blockTag: "latest" })).timestamp);
+    return Number((await this.track(this.pub.getBlock({ blockTag: "latest" }))).timestamp);
   }
 
   /** GuardRevealed events for a round (salt + exact instruction bytes). */

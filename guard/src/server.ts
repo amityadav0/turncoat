@@ -66,7 +66,10 @@ export function createApp(d: AppDeps) {
     }
   };
 
-  app.get("/health", (_req, res) => { res.json({ ok: true, model: d.model.id }); });
+  app.get("/health", async (req, res) => {
+    if (typeof d.service.health !== "function") { res.json({ ok: true, model: d.model.id }); return; }
+    return handle(() => d.service.health(d.model.id))(req, res);
+  });
   app.post("/attempts", limit(d.attemptLimiter, "attempt"), handle((req) => d.service.submit(req.body)));
   app.get("/attempts/:roundId/:attemptId", handle((req) => d.service.getAttempt(String(req.params.roundId), String(req.params.attemptId))));
   app.get("/rounds", handle(() => d.service.listRounds()));

@@ -74,7 +74,7 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 | GET | `/rounds/:id/attempts?after=N` | `{ attempts }`, oldest first: attacker, time, `outcome`, `broken`, `status`, and the message, reply and tool calls as soon as the guard has replied. |
 | GET | `/attackers/:address` | On-chain attempt and break counts plus per-attempt history. |
 | POST | `/practice` | body `{ level, message }`. The same guard and break rule with no chain, no signature, nothing stored. Rate limited per IP, with a global daily cap. Returns `reply`, `broken`, `action`, `toolCalls`, `conversation`. |
-| GET | `/health` | `{ ok, model }` |
+| GET | `/health` | `{ ok, problems, queue, lastModelSuccessAt, lastChainReadAt, rpcErrors, … }`; 503 when stuck (below) |
 
 **Limits and caching.** Every route except `/health` is rate limited per client IP, IPv6 counted per /64: GETs `READ_RATE_LIMIT` per `READ_RATE_WINDOW_SECONDS` (300/60 s), `POST /attempts` `ATTEMPT_RATE_LIMIT` per `ATTEMPT_RATE_WINDOW_SECONDS` (20/600 s), practice as above. A `429` carries `Retry-After` and `retryAfterSeconds`. Behind a reverse proxy set `TRUST_PROXY` (1 for one proxy), or every visitor shares the proxy's bucket; the service warns once if it sees `X-Forwarded-For` without it. `/rounds`, `/rounds/live`, `/rounds/current`, `/rounds/:id` and `/attackers/:address` are cached in memory for `READ_CACHE_MS` (3 s); concurrent requests share one computation.
 
@@ -82,7 +82,9 @@ Every attempt carries its `Attempted` transaction as `tx`. Attackers carry `name
 
 Attempt `status` is `awaiting_message`, `queued`, `done`, `expired` or `rejected`. An attempt with no message is reported `expired` as soon as `MESSAGE_WINDOW_SECONDS` (default 180, three minutes) have passed since its on-chain time. `outcome` is `pending` for everything except `done`.
 
-If the model call fails or times out (`MODEL_TIMEOUT_MS`, default 60 s; the SDK also retries twice), the attempt stays `queued` and is never judged; the queue retries it after 5 s, 10 s, 20 s … up to 320 s (`MODEL_RETRY_BASE_MS` × 2ⁿ), indefinitely, and later attempts in the round wait behind it. The attacker sees `status: "queued"`, `outcome: "pending"` until it is answered.
+If the model call fails or times out (`MODEL_TIMEOUT_MS`, default 60 s; the SDK also retries twice), the attempt stays `queued` and is never judged on an error; the queue retries it after 5 s, 10 s, 20 s … up to 320 s (`MODEL_RETRY_BASE_MS` × 2ⁿ), and later attempts in the round wait behind it. After `MODEL_MAX_FAILURES` (8) failures in a row, about 10 minutes, the attempt is marked `failed` with a public `note` ("Argus could not answer…"), is not judged, and the queue moves on. A break answered after the round's settle deadline (`endTime` + `SETTLE_GRACE`) gets no verdict, because the contract could not use it; its `note` says so.
+
+`GET /health` reports queue size and age, last model success and error, failed attempts, last chain read and the count of failed chain reads, and returns 503 when the oldest queued attempt has waited more than `HEALTH_MAX_QUEUE_AGE_SECONDS` (300) or the chain has not been read in 120 s (it probes the chain itself at most every 15 s). Shape in [`web/API.md`](../web/API.md).
 
 The queue survives restarts: the per-round cursor, the queued messages and each result are in SQLite. A result and a round's first win are written in one transaction, and each attempt has one row, so an attempt can be neither stored twice nor skipped.
 

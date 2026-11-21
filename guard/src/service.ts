@@ -17,6 +17,8 @@ export interface ServiceConfig {
   tokenDecimals: number;
   /** Cache /rounds, /rounds/live, /rounds/current, /rounds/:id and /attackers/:address for this long (ms). Default 0 = off. */
   readCacheMs?: number;
+  /** /health returns 503 when the oldest queued attempt has waited longer than this (s). Default 300. */
+  maxQueueAgeSec?: number;
 }
 
 export interface Reply { code: number; body: unknown }
@@ -75,6 +77,43 @@ export class GuardService {
   private attacker(address: string) {
     const name = this.nameMap.get(address.toLowerCase());
     return name ? { address: getAddress(address), name } : { address: getAddress(address) };
+  }
+
+  // ------------------------------------------------------------------ GET /health
+  private lastProbe = 0;
+
+  /**
+   * Queue age, last model success, last chain read and RPC error count. 503 when the queue is stuck
+   * (oldest queued attempt older than maxQueueAgeSec) or the chain cannot be read. Probes the chain
+   * itself at most every 15 s when nothing else has read it recently.
+   */
+  async health(modelId: string): Promise<Reply> {
+    const st = this.chain.stats;
+    const t = Date.now();
+    if ((st.lastOkAt === null || t - st.lastOkAt > 30_000) && t - this.lastProbe > 15_000) {
+      this.lastProbe = t;
+      await this.chain.now().catch(() => undefined); // counted in stats.errors on failure
+    }
+    const q = this.store.oldestQueued();
+    const queueAge = q ? Math.max(0, Math.round((Date.now() - Date.parse(q.received_at)) / 1000)) : 0;
+    const maxAge = this.cfg.maxQueueAgeSec ?? 300;
+    const chainOk = st.lastOkAt !== null && Date.now() - st.lastOkAt <= 120_000;
+    const queueOk = queueAge <= maxAge;
+    const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
+    const ps = this.proc.stats;
+    const body = {
+      ok: chainOk && queueOk,
+      model: modelId,
+      problems: [...(queueOk ? [] : [`oldest queued attempt has waited ${queueAge}s (limit ${maxAge}s)`]), ...(chainOk ? [] : ["chain not read successfully in the last 120s"])],
+      queue: { queued: q?.n ?? 0, oldestAgeSeconds: queueAge, oldest: q ? { roundId: q.round_id, attemptId: q.attempt_id } : null },
+      lastModelSuccessAt: iso(ps?.lastModelOkAt ?? null),
+      lastModelErrorAt: iso(ps?.lastModelErrorAt ?? null),
+      modelErrors: ps?.modelErrors ?? 0,
+      failedAttempts: ps?.failedAttempts ?? 0,
+      lastChainReadAt: iso(st.lastOkAt),
+      rpcErrors: st.errors,
+    };
+    return { code: body.ok ? 200 : 503, body };
   }
 
   // ------------------------------------------------------------------ POST /attempts

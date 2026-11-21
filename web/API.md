@@ -52,7 +52,7 @@ interface Attempt {
   outcome: 'held' | 'broken' | 'pending';
   breakKind?: 'misfire' | 'persuaded'; // when broken: misfire = Argus refused in words but called the forbidden tool anyway; persuaded otherwise. A label only, never affects payout.
   decision?: 'approve' | 'reject'; // decide-mode rounds only: the decision recorded for this reply (approve = broken). If Argus ended without a decision tool, the service asked once more (a `system` line with followUp: true in the attempt's conversation); still none counts as reject.
-  status?: string;       // awaiting_message | queued | done | expired | rejected
+  status?: string;       // awaiting_message | queued | done | expired | rejected | failed (the model failed too many times in a row; not judged)
   note?: string;         // why an attempt was expired or rejected
   messageHash: Hex;      // as stored on-chain
   hidden?: boolean;      // true when the operator hid this attempt: message and reply are omitted; the site shows "Hidden by the operator" and messageHash, and ignores any text sent anyway
@@ -120,7 +120,24 @@ On a broken practice run the site shows `action`, or else the first `approve_pay
 
 Every route except `/health` is rate limited per visitor IP (IPv6 per /64): GETs generously (300 a minute by default), `POST /attempts` strictly (20 per 10 minutes), `POST /practice` as above. Any `429` carries `retryAfterSeconds` and a `Retry-After` header. `/rounds`, `/rounds/live`, `/rounds/current`, `/rounds/:id` and `/attackers/:address` may be up to 3 seconds old (`now` is the time the reply was built); `/rounds/:id/attempts` and `/attempts/:roundId/:attemptId` are not cached.
 
-An attempt that is `pending` with `status` `expired` or `rejected` will never be answered; the site shows it as "Not answered" with the `note`.
+An attempt that is `pending` with `status` `expired`, `rejected` or `failed` will never be answered; the site shows it as "Not answered" with the `note`. `failed` means the model errored `MODEL_MAX_FAILURES` times in a row on it (8 by default, about 10 minutes of retries); the service then moves on so one outage cannot hold a round forever.
+
+`GET /health` returns 200 when healthy and **503** when the queue is stuck (the oldest queued attempt has waited longer than `HEALTH_MAX_QUEUE_AGE_SECONDS`, 300 by default) or the chain has not been read successfully in 120 s. Body, both cases:
+
+```ts
+{
+  ok: boolean;
+  model: string;                    // the service's default model
+  problems: string[];               // why ok is false; empty when ok
+  queue: { queued: number; oldestAgeSeconds: number; oldest: { roundId: number; attemptId: number } | null };
+  lastModelSuccessAt: string | null; // ISO time of the last model reply since start
+  lastModelErrorAt: string | null;
+  modelErrors: number;              // model call failures since start
+  failedAttempts: number;           // attempts marked failed since start
+  lastChainReadAt: string | null;   // ISO time of the last successful chain read
+  rpcErrors: number;                // failed chain reads since start (none are swallowed silently)
+}
+```
 
 Service down: the site polls `GET /health` every 30 s while the tab is visible and shows "Argus is not answering right now…" at the top of every page while it does not return 200 with `{ ok: true }`, or while API calls fail with a network error or a 5xx. A 4xx (bad id, rate limit) never shows the banner.
 

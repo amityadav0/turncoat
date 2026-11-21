@@ -21,6 +21,8 @@ export interface ProcessorConfig {
   retryBaseMs: number;
   maxTurns: number;
   tokenDecimals: number;
+  /** After this many model failures in a row on one attempt, it is marked `failed` and the queue moves on. Default 8. */
+  maxModelFailures?: number;
 }
 
 export interface ProcessorDeps {
@@ -63,6 +65,9 @@ export class RoundProcessor {
   }
 
   constructor(private d: ProcessorDeps) {}
+
+  /** For /health. Times are unix ms; null until the first event since start. */
+  readonly stats = { lastModelOkAt: null as number | null, lastModelErrorAt: null as number | null, modelErrors: 0, failedAttempts: 0 };
 
   private skippedLogged = new Set<number>();
 
@@ -220,10 +225,25 @@ export class RoundProcessor {
       });
     } catch (e) {
       const msg = redact(String((e as Error)?.message ?? e));
-      store.updateAttempt(roundId, id, { last_error: msg, retries: row.retries + 1 });
-      log("warn", "model call failed; will retry", { roundId, attemptId: id, error: msg });
+      const failures = row.retries + 1;
+      this.stats.modelErrors += 1;
+      this.stats.lastModelErrorAt = Date.now();
+      const max = cfg.maxModelFailures ?? 8;
+      if (failures >= max) {
+        // Do not hold the round forever: record a public reason and move on. Not judged, no verdict.
+        store.updateAttempt(roundId, id, {
+          status: "failed", finished_at: new Date().toISOString(), guard_commit: round.guardCommit, last_error: msg, retries: failures,
+          note: `Argus could not answer: the model failed ${failures} times in a row. This attempt was not judged.`,
+        });
+        this.stats.failedAttempts += 1;
+        log("error", "model failed too many times; attempt marked failed, queue moves on", { roundId, attemptId: id, failures, error: msg });
+        return true;
+      }
+      store.updateAttempt(roundId, id, { last_error: msg, retries: failures });
+      log("warn", "model call failed; will retry", { roundId, attemptId: id, failures, error: msg });
       return false;
     }
+    this.stats.lastModelOkAt = Date.now();
 
     let sig: Hex | null = null;
     let note: string | null = null;
@@ -233,6 +253,7 @@ export class RoundProcessor {
       if (st.won_attempt !== null && st.won_attempt !== id) note = `guard broken, but attempt ${st.won_attempt} already won this round; no verdict signed`;
       else if (fresh?.closed && st.won_attempt !== id) note = "guard broken, but the round is already closed on-chain; no verdict signed";
       else if (!(await this.serves(roundId))) note = "guard broken, but this round's signer is not this service's key; no verdict signed";
+      else if (fresh && (await chain.now()) > fresh.endTime + (await chain.getSettleGrace())) note = "guard broken, but the round's settle deadline has passed, so a verdict could not be used; no verdict signed";
       else {
         const attempt = await chain.getAttempt(roundId, id);
         sig = await chain.signVerdict(signer, roundId, id, attempt!.attacker);

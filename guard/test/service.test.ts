@@ -635,3 +635,83 @@ test("headered commit: the round runs on the committed model and max turns; a bu
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("after MODEL_MAX_FAILURES model errors in a row the attempt is marked failed with a public reason, and the queue moves on", async () => {
+  await L.toNextDay();
+  const R = await L.openRound(commit, { duration: 30 * 86400 });
+  const m = new FakeAdapter((msgs) => {
+    if (msgs.find((x) => x.role === "user")?.content === "boom") throw new Error("provider 529 overloaded");
+    return { text: "Still holding.", toolCalls: [], stopReason: "end" };
+  });
+  const p = new RoundProcessor({ store, chain, model: m, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger, cfg: { messageWindowSec: WINDOW, pollMs: 20, retryBaseMs: 10, maxTurns: 6, tokenDecimals: 18, maxModelFailures: 3 } });
+  const svc = new GuardService(store, chain, p, { messageWindowSec: WINDOW, attemptWaitMs: 3000, tokenDecimals: 18 }, loadRecords(tmp));
+  try {
+    await L.attempt(aliceK, R, "boom");
+    await L.attempt(bobK, R, "hello");
+    const first = await svc.submit({ roundId: R, attemptId: 0, message: "boom" });
+    assert.equal(first.code, 200);
+    assert.equal((first.body as any).status, "failed");
+    assert.equal((first.body as any).outcome, "pending");
+    assert.match((first.body as any).note, /model failed 3 times in a row\. This attempt was not judged/);
+    assert.equal((first.body as any).verdict, null);
+    assert.equal(m.calls.length, 3);
+    assert.equal(p.stats.failedAttempts, 1);
+    // the next attempt is answered
+    const second = await svc.submit({ roundId: R, attemptId: 1, message: "hello" });
+    assert.equal(second.code, 200);
+    assert.equal((second.body as any).outcome, "held");
+    assert.ok(p.stats.lastModelOkAt);
+  } finally { p.stop(); }
+});
+
+test("a break answered after the round's settle deadline gets no verdict (it could not be used)", async () => {
+  await L.toNextDay();
+  const R = await L.openRound(commit, { duration: 3600 });
+  const msg = TRANSFER(addr(carolK));
+  const id = await L.attempt(carolK, R, msg);
+  // the service was down: the message is queued, but the queue only runs after endTime + SETTLE_GRACE
+  store.insertAttempt(R, id, "queued", msg);
+  await L.warp(3600 + 86400 + 60);
+  const p = new RoundProcessor({ store, chain, model, commits: loadRecords(tmp), signer: privateKeyToAccount(guardK), log: silentLogger, cfg: { messageWindowSec: WINDOW, pollMs: 20, retryBaseMs: 10, maxTurns: 6, tokenDecimals: 18 } });
+  p.kick(R);
+  await p.waitFor(R, id, 3000);
+  p.stop();
+  const row = store.getAttempt(R, id)!;
+  assert.equal(row.status, "done", String(row.last_error));
+  assert.equal(row.broken, 1);
+  assert.equal(row.verdict_sig, null);
+  assert.match(row.note!, /settle deadline has passed/);
+  assert.equal(store.roundState(R).won_attempt, null);
+});
+
+test("/health: queue age, last model success, last chain read, RPC error count; 503 when the queue is stuck", async () => {
+  const ok = await api("GET", "/health");
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.ok, true);
+  const baseline = ok.body.queue.queued; // earlier tests leave a few deliberately unrunnable rows queued
+  assert.ok(ok.body.lastChainReadAt);
+  assert.equal(typeof ok.body.rpcErrors, "number");
+  assert.ok(ok.body.lastModelSuccessAt); // the shared processor has answered attempts above
+  assert.ok("failedAttempts" in ok.body && "modelErrors" in ok.body);
+
+  // a failed chain read is counted, not swallowed
+  const dead = new TurncoatChain({ transport: L.transport, chainId: CHAIN_ID, address: "0x000000000000000000000000000000000000dEaD" });
+  await assert.rejects(dead.roundCount());
+  assert.equal(dead.stats.errors, 1);
+
+  // a queued attempt that has waited longer than the limit: stuck
+  await L.toNextDay();
+  const R = await L.openRound(commit, { duration: 30 * 86400 });
+  const id = await L.attempt(daveK, R, "waiting");
+  store.insertAttempt(R, id, "queued", "waiting");
+  store.updateAttempt(R, id, { received_at: new Date(Date.now() - 3600_000).toISOString() });
+  const stuck = await api("GET", "/health");
+  assert.equal(stuck.status, 503);
+  assert.equal(stuck.body.ok, false);
+  assert.equal(stuck.body.queue.queued, baseline + 1);
+  assert.deepEqual(stuck.body.queue.oldest, { roundId: R, attemptId: id });
+  assert.ok(stuck.body.queue.oldestAgeSeconds >= 3599);
+  assert.match(stuck.body.problems[0], /waited/);
+  store.updateAttempt(R, id, { status: "rejected", note: "test cleanup" });
+  assert.equal((await api("GET", "/health")).status, 200);
+});

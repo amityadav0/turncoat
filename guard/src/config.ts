@@ -34,6 +34,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     retryBaseMs: int(env.MODEL_RETRY_BASE_MS, 5000),
     attemptWaitMs: int(env.ATTEMPT_WAIT_MS, 60000),
     maxTurns: int(env.MAX_TOOL_TURNS, 6),
+    /** Model failures in a row on one attempt before it is marked failed (not judged) and the queue moves on. */
+    maxModelFailures: int(env.MODEL_MAX_FAILURES, 8),
+    /** /health returns 503 when the oldest queued attempt has waited longer than this. */
+    healthMaxQueueAgeSec: int(env.HEALTH_MAX_QUEUE_AGE_SECONDS, 300),
     tokenDecimals: int(env.TOKEN_DECIMALS, 18),
     practicePerIp: int(env.PRACTICE_RATE_LIMIT, 10),
     practiceWindowSec: int(env.PRACTICE_RATE_WINDOW_SECONDS, 3600),

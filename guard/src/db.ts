@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AttemptInfo } from "./chain.ts";
 
-export type AttemptStatus = "queued" | "done" | "expired" | "rejected";
+export type AttemptStatus = "queued" | "done" | "expired" | "rejected" | "failed";
 
 export interface AttemptRow {
   round_id: number;
@@ -154,6 +154,13 @@ export class Store {
   }
   roundsWithQueued(): number[] {
     return (this.db.prepare("SELECT DISTINCT round_id FROM attempts WHERE status = 'queued'").all() as { round_id: number }[]).map((r) => r.round_id);
+  }
+  /** The queued attempt that has waited longest, by when its message arrived. */
+  oldestQueued(): { round_id: number; attempt_id: number; received_at: string; n: number } | undefined {
+    const n = (this.db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE status = 'queued'").get() as { n: number }).n;
+    if (!n) return undefined;
+    const r = this.db.prepare("SELECT round_id, attempt_id, received_at FROM attempts WHERE status = 'queued' ORDER BY received_at LIMIT 1").get() as { round_id: number; attempt_id: number; received_at: string };
+    return { ...r, n };
   }
   processedCount(roundId: number): number {
     return (this.db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE round_id = ? AND status != 'queued'").get(roundId) as { n: number }).n;
