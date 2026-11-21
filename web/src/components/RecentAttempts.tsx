@@ -7,6 +7,7 @@ import { useNow } from '../lib/useNow';
 import { BreakKindTag, DecisionTag, Who } from './bits';
 import { RoundTabs } from './RoundTabs';
 import { HostileText } from './HostileText';
+import { HiddenNote } from './AttemptCard';
 
 const t = copy.home;
 const POLL_MS = 10_000;
@@ -77,6 +78,7 @@ export function RecentAttempts({ rounds }: { rounds: Round[] }) {
                     <span className={`tag tag-${a.outcome}`}>{a.outcome === 'broken' ? t.outcomeShort.broken : t.outcomeShort.held}</span>
                   </span>
                 </header>
+                {a.hidden && <HiddenNote hash={a.messageHash} />}
                 {a.message !== undefined && <HostileText label={copy.attempt.message} text={a.message} lines={2} />}
                 {a.reply !== undefined && <HostileText label={copy.attempt.reply} aside={<DecisionTag decision={a.decision} />} text={a.reply} lines={3} />}
               </article>

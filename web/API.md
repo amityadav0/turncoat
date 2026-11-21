@@ -55,6 +55,7 @@ interface Attempt {
   status?: string;       // awaiting_message | queued | done | expired | rejected
   note?: string;         // why an attempt was expired or rejected
   messageHash: Hex;      // as stored on-chain
+  hidden?: boolean;      // true when the operator hid this attempt: message and reply are omitted; the site shows "Hidden by the operator" and messageHash, and ignores any text sent anyway
   tx?: Hex;              // Attempted transaction
   message?: string;      // the attacker's message, once the guard has answered (hostile text)
   reply?: string;        // the guard's full reply, once answered (decide mode: the decision's reason)

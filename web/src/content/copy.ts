@@ -245,6 +245,8 @@ export const copy = {
     decision: { approve: 'Approved', reject: 'Rejected' },
     decisionTitle: 'The decision tool Argus called',
     breakKind: { misfire: 'Misfire', persuaded: 'Persuaded' },
+    hidden: 'Hidden by the operator.',
+    hiddenHash: 'On-chain message hash',
     awaiting: 'Recorded on-chain. Waiting for the message to arrive.',
     reading: 'Argus is reading this one.',
     never: (note?: string) => (note ? `Never answered: ${note}` : 'Never answered.'),

@@ -1165,3 +1165,10 @@ a.round-link-title:hover {
   text-align: center;
   padding: 8px 16px;
 }
+
+.hidden-note {
+  margin: 10px 0 0;
+}
+.hidden-note p {
+  margin: 0 0 6px;
+}

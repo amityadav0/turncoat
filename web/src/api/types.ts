@@ -55,6 +55,8 @@ export interface Attempt {
   tx?: Hex;
   message?: string;
   reply?: string;
+  /** Hidden by the operator: message and reply are never shown, only the on-chain hash. */
+  hidden?: boolean;
   /** Taken from the attempt's tool calls (approve_payment / reject_payment). */
   decision?: Decision;
   breakKind?: BreakKind;

@@ -23,6 +23,7 @@ function downloadJsonl(d: RoundDetail) {
       name: a.attacker.name ?? null,
       time: new Date(a.time * 1000).toISOString(),
       outcome: a.outcome,
+      hidden: a.hidden ?? false,
       breakKind: a.breakKind ?? null,
       decision: a.decision ?? null,
       messageHash: a.messageHash,

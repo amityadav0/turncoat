@@ -3,7 +3,7 @@ import type { Attempt } from '../api/types';
 import { copy } from '../content/copy';
 import { explorer } from '../lib/explorer';
 import { ago, dateTime } from '../lib/format';
-import { BreakKindTag, DecisionTag, Ext, OutcomeTag, Who } from './bits';
+import { BreakKindTag, DecisionTag, Ext, Hash, OutcomeTag, Who } from './bits';
 import { HostileText } from './HostileText';
 import { SharePanel } from './SharePanel';
 
@@ -26,6 +26,7 @@ export function AttemptCard({ attempt: a, now, compact }: { attempt: Attempt; no
         </span>
       </header>
 
+      {a.hidden && <HiddenNote hash={a.messageHash} />}
       {a.message !== undefined && <HostileText label={t.message} text={a.message} limit={compact ? 280 : 1200} />}
       {a.reply !== undefined && <HostileText label={t.reply} aside={<DecisionTag decision={a.decision} />} text={a.reply} limit={compact ? 280 : 1200} />}
       {a.outcome === 'pending' && <p className="muted small">{a.status === 'awaiting_message' ? t.awaiting : t.reading}</p>}
@@ -41,5 +42,15 @@ export function AttemptCard({ attempt: a, now, compact }: { attempt: Attempt; no
       </footer>
       {sharing && answered && <SharePanel roundId={a.roundId} attemptId={a.id} outcome={a.outcome === 'broken' ? 'turned' : 'held'} />}
     </article>
+  );
+}
+
+export function HiddenNote({ hash }: { hash: string }) {
+  return (
+    <div className="hidden-note">
+      <p className="muted">{t.hidden}</p>
+      <div className="hostile-label">{t.hiddenHash}</div>
+      <Hash value={hash} />
+    </div>
   );
 }
