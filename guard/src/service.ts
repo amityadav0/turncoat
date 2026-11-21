@@ -1,5 +1,5 @@
 // Validation of submitted attempts and the read-only views served over HTTP.
-import { formatUnits, getAddress, isAddress, keccak256, stringToHex, zeroAddress, type Hex } from "viem";
+import { formatUnits, getAddress, isAddress, keccak256, stringToHex, zeroAddress, type Address, type Hex } from "viem";
 import type { Store, AttemptRow, ChainAttemptRow } from "./db.ts";
 import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import type { RoundProcessor } from "./processor.ts";
@@ -15,6 +15,8 @@ export interface ServiceConfig {
   messageWindowSec: number;
   attemptWaitMs: number;
   tokenDecimals: number;
+  /** Cache /rounds, /rounds/live, /rounds/current, /rounds/:id and /attackers/:address for this long (ms). Default 0 = off. */
+  readCacheMs?: number;
 }
 
 export interface Reply { code: number; body: unknown }
@@ -48,6 +50,23 @@ export class GuardService {
 
   private names: AttackerNames;
   private nameMap = new Map<string, string>();
+  private cache = new Map<string, { at: number; p: Promise<Reply> }>();
+
+  /**
+   * Short in-memory cache for the read views that cost several chain reads per request. Concurrent
+   * requests for the same key share one computation; only 200 replies are kept.
+   */
+  private cached(key: string, fn: () => Promise<Reply>): Promise<Reply> {
+    const ttl = this.cfg.readCacheMs ?? 0;
+    if (ttl <= 0) return fn();
+    const t = Date.now();
+    const hit = this.cache.get(key);
+    if (hit && t - hit.at < ttl) return hit.p;
+    if (this.cache.size > 2000) for (const [k, v] of this.cache) if (t - v.at >= ttl) this.cache.delete(k);
+    const p = fn().then((r) => { if (r.code !== 200) this.cache.delete(key); return r; }, (e) => { this.cache.delete(key); throw e; });
+    this.cache.set(key, { at: t, p });
+    return p;
+  }
 
   /** Resolve names for these addresses into `nameMap` (used by the synchronous view builders). */
   private async loadNames(addresses: string[]) {
@@ -66,6 +85,17 @@ export class GuardService {
     const message = b.message;
     if (roundId === null || attemptId === null || typeof message !== "string" || message.length === 0) {
       return { code: 400, body: { error: "expected { roundId: integer, attemptId: integer, message: non-empty string }" } };
+    }
+    // Junk is rejected here, before any chain read.
+    if (roundId < 1 || attemptId > 0xffffffff) return { code: 404, body: { error: "no such round or attempt" } };
+    if (messageLength(message) > MAX_MESSAGE_CHARS) {
+      // Not recorded: the sender has not proven this is the committed message. If it is, the attempt
+      // expires after the message window like any undelivered one.
+      return { code: 400, body: { error: `message is longer than ${MAX_MESSAGE_CHARS} characters` } };
+    }
+    if (b.messageHash !== undefined) {
+      if (typeof b.messageHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(b.messageHash)) return { code: 400, body: { error: "messageHash must be 0x followed by 64 hex characters" } };
+      if (!hashMatches(message, b.messageHash as Hex)) return { code: 400, body: { error: "message does not match the messageHash sent with it (keccak256 of the UTF-8 bytes)" } };
     }
 
     const round = await this.chain.getRound(roundId);
@@ -88,12 +118,6 @@ export class GuardService {
       return { code: 409, body: { error: `attempt already ${existing.status === "queued" ? "queued" : "processed"}`, attempt: await this.attemptView(roundId, attemptId) } };
     }
 
-    if (messageLength(message) > MAX_MESSAGE_CHARS) {
-      // The committed message can never be valid, so record that and let the queue move past it.
-      this.store.insertAttempt(roundId, attemptId, "rejected", null, `message longer than ${MAX_MESSAGE_CHARS} characters`);
-      this.proc.kick(roundId);
-      return { code: 400, body: { error: `message is longer than ${MAX_MESSAGE_CHARS} characters` } };
-    }
     const roundRec = this.commits.get(round.guardCommit.toLowerCase());
     const formatError = validateMessage(isMode(roundRec?.mode) ? roundRec.mode : "refuse", message);
     if (formatError) {
@@ -242,7 +266,10 @@ export class GuardService {
     }
   }
 
-  async listRounds(): Promise<Reply> {
+  listRounds(): Promise<Reply> {
+    return this.cached("rounds", () => this.listRoundsNow());
+  }
+  private async listRoundsNow(): Promise<Reply> {
     const [count, now, grace] = await Promise.all([this.chain.roundCount(), this.chain.now(), this.chain.getSettleGrace()]);
     const out = [];
     for (let id = count; id >= 1; id--) {
@@ -253,7 +280,10 @@ export class GuardService {
   }
 
   /** Every round currently accepting attempts (one per rung of the ladder), newest first. */
-  async liveRounds(): Promise<Reply> {
+  liveRounds(): Promise<Reply> {
+    return this.cached("live", () => this.liveRoundsNow());
+  }
+  private async liveRoundsNow(): Promise<Reply> {
     const [count, now, grace] = await Promise.all([this.chain.roundCount(), this.chain.now(), this.chain.getSettleGrace()]);
     const out = [];
     for (let id = count; id >= 1; id--) {
@@ -264,7 +294,10 @@ export class GuardService {
   }
 
   /** The live round, or the most recent one if none is live. */
-  async currentRound(): Promise<Reply> {
+  currentRound(): Promise<Reply> {
+    return this.cached("current", () => this.currentRoundNow());
+  }
+  private async currentRoundNow(): Promise<Reply> {
     const [count, now, grace] = await Promise.all([this.chain.roundCount(), this.chain.now(), this.chain.getSettleGrace()]);
     let latest: { id: number; r: RoundInfo } | null = null;
     for (let id = count; id >= 1; id--) {
@@ -276,9 +309,12 @@ export class GuardService {
     return { code: 200, body: { round: latest ? await this.roundView(latest.id, latest.r, now, grace) : null, now } };
   }
 
-  async getRound(idParam: string): Promise<Reply> {
+  getRound(idParam: string): Promise<Reply> {
     const id = toId(idParam);
-    if (id === null) return { code: 400, body: { error: "bad round id" } };
+    if (id === null) return Promise.resolve({ code: 400, body: { error: "bad round id" } });
+    return this.cached(`round:${id}`, () => this.getRoundNow(id));
+  }
+  private async getRoundNow(id: number): Promise<Reply> {
     const r = await this.chain.getRound(id);
     if (!r) return { code: 404, body: { error: "no such round" } };
     const [now, grace] = await Promise.all([this.chain.now(), this.chain.getSettleGrace()]);
@@ -402,9 +438,12 @@ export class GuardService {
     return { code: 200, body: { roundId: id, attempts } };
   }
 
-  async getAttacker(addrParam: string): Promise<Reply> {
-    if (!isAddress(addrParam, { strict: false })) return { code: 400, body: { error: "bad address" } };
+  getAttacker(addrParam: string): Promise<Reply> {
+    if (!isAddress(addrParam, { strict: false })) return Promise.resolve({ code: 400, body: { error: "bad address" } });
     const addr = getAddress(addrParam);
+    return this.cached(`attacker:${addr}`, () => this.getAttackerNow(addr));
+  }
+  private async getAttackerNow(addr: Address): Promise<Reply> {
     const count = await this.chain.roundCount();
     for (let id = 1; id <= count; id++) {
       const r = await this.chain.getRound(id);

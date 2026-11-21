@@ -38,6 +38,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     practicePerIp: int(env.PRACTICE_RATE_LIMIT, 10),
     practiceWindowSec: int(env.PRACTICE_RATE_WINDOW_SECONDS, 3600),
     practiceDailyCap: int(env.PRACTICE_DAILY_CAP, 2000),
+    /** Every GET except /health, per client IP (IPv6: per /64). */
+    readPerIp: int(env.READ_RATE_LIMIT, 300),
+    readWindowSec: int(env.READ_RATE_WINDOW_SECONDS, 60),
+    /** POST /attempts per client IP. Each Agent ID gets one free attempt a day; this only stops floods. */
+    attemptPerIp: int(env.ATTEMPT_RATE_LIMIT, 20),
+    attemptWindowSec: int(env.ATTEMPT_RATE_WINDOW_SECONDS, 600),
+    /** How long round and attacker views are cached in memory (ms). 0 = off. */
+    readCacheMs: int(env.READ_CACHE_MS, 3000),
     corsOrigins: (env.CORS_ORIGINS || "").split(",").map((x) => x.trim()).filter(Boolean),
     logsFromBlock: BigInt(env.LOGS_FROM_BLOCK || 0),
     trustProxy: trust === undefined || trust === "" ? undefined : /^\d+$/.test(trust) ? Number(trust) : trust === "true" ? true : trust === "false" ? false : trust,

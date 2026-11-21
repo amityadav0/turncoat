@@ -45,13 +45,15 @@ const proc = new RoundProcessor({
   store, chain, model, commits, signer, log,
   cfg: { messageWindowSec: cfg.messageWindowSec, pollMs: cfg.pollMs, retryBaseMs: cfg.retryBaseMs, maxTurns: cfg.maxTurns, tokenDecimals: cfg.tokenDecimals },
 });
-const service = new GuardService(store, chain, proc, { modelId: model.id, messageWindowSec: cfg.messageWindowSec, attemptWaitMs: cfg.attemptWaitMs, tokenDecimals: cfg.tokenDecimals }, commits);
+const service = new GuardService(store, chain, proc, { modelId: model.id, readCacheMs: cfg.readCacheMs, messageWindowSec: cfg.messageWindowSec, attemptWaitMs: cfg.attemptWaitMs, tokenDecimals: cfg.tokenDecimals }, commits);
 const guardVersion = resolveVersion(cfg.guardVersion);
 const guardMode = resolveMode(cfg.guardMode);
 const practiceLevels = new Map([[1, { mode: guardMode, instructions: new TextDecoder().decode(levelBytes(1, guardVersion, undefined, guardMode)) }]]);
 const app = createApp({
   service, model, practiceLevels, maxTurns: cfg.maxTurns, trustProxy: cfg.trustProxy, corsOrigins: cfg.corsOrigins, log,
   practiceLimiter: new RateLimiter(cfg.practicePerIp, cfg.practiceWindowSec * 1000, cfg.practiceDailyCap, 86_400_000),
+  readLimiter: new RateLimiter(cfg.readPerIp, cfg.readWindowSec * 1000, 0, 86_400_000),
+  attemptLimiter: new RateLimiter(cfg.attemptPerIp, cfg.attemptWindowSec * 1000, 0, 86_400_000),
 });
 
 proc.resume();
@@ -59,6 +61,6 @@ app.listen(cfg.port, cfg.host, () => {
   log("info", "guard service listening", {
     url: `http://${cfg.host}:${cfg.port}`, model: model.id, contract: chain.address, chainId: cfg.chainId,
     signer: signer.address, servedRounds: signers.served, skippedRounds: signers.skipped, relayer: chain.relayerAddress ?? null, commitsLoaded: commits.size,
-    commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null, mode: c.mode ?? "refuse", model: c.model ?? null })), practiceVersion: guardVersion, practiceMode: guardMode,
+    commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null, mode: c.mode ?? "refuse", model: c.model ?? null })), trustProxy: cfg.trustProxy ?? null, practiceVersion: guardVersion, practiceMode: guardMode,
   });
 });

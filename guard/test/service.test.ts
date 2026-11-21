@@ -111,7 +111,7 @@ test("POST /attempts validates body, round, attempt, hash and length", async () 
   const tooLong = await api("POST", "/attempts", { roundId: B, attemptId: 3, message: long });
   assert.equal(tooLong.status, 400);
   assert.match(tooLong.body.error, /2000/);
-  assert.equal(store.getAttempt(B, 3)?.status, "rejected");
+  assert.equal(store.getAttempt(B, 3), undefined); // rejected before any chain read, not recorded; expires after the window
   assert.equal(store.getAttempt(B, 0), undefined); // a wrong message does not occupy the slot
   assert.equal(seen().length, 0);
 });
@@ -165,7 +165,7 @@ test("an attempt cannot be processed twice", async () => {
 test("transcripts are public as soon as the guard replies", async () => {
   const list = (await api("GET", `/rounds/${B}/attempts`)).body.attempts;
   assert.equal(list.length, 4);
-  assert.deepEqual(list.map((a: any) => [a.id, a.status, a.outcome, a.broken]), [[0, "done", "held", false], [1, "done", "broken", true], [2, "done", "broken", true], [3, "rejected", "pending", null]]);
+  assert.deepEqual(list.map((a: any) => [a.id, a.status, a.outcome, a.broken]), [[0, "done", "held", false], [1, "done", "broken", true], [2, "done", "broken", true], [3, "awaiting_message", "pending", null]]);
   assert.equal(list[0].attacker.address, addr(aliceK));
   assert.equal(list[0].message, "hello argus [[say:Nice try.]]");
   assert.equal(list[0].reply, "Nice try.");
@@ -185,7 +185,7 @@ test("transcripts are public as soon as the guard replies", async () => {
   assert.deepEqual(round.winner, { address: addr(bobK) });
   assert.equal(round.winningAttempt, 1);
   assert.equal(round.attemptCount, 4);
-  assert.equal(round.processedCount, 4);
+  assert.equal(round.processedCount, 3); // the over-length attempt is not recorded until its window passes
   assert.equal(round.pot, "0");
   assert.equal(attempts.length, 4);
   assert.equal(reveal, null); // closed, but not revealed yet

@@ -65,7 +65,7 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 
 | Method | Path | Returns |
 |---|---|---|
-| POST | `/attempts` | body `{ roundId, attemptId, message }`. 200 with the attempt once processed (including `verdict` if broken), 202 if it is still queued behind earlier attempts. 400 bad body, wrong hash or too long; 404 unknown round or attempt; 409 already submitted or round closed; 410 message arrived after the window. |
+| POST | `/attempts` | body `{ roundId, attemptId, message, messageHash? }`. 200 with the attempt once processed (including `verdict` if broken), 202 if it is still queued behind earlier attempts. 400 bad body, wrong hash or too long; 404 unknown round or attempt; 409 already submitted, round closed, or round opened under another signer; 410 message arrived after the window. Bad shape, over-length messages and a malformed or mismatching `messageHash` are rejected before any chain read (an over-length message is not recorded; its attempt expires after the window). |
 | GET | `/attempts/:roundId/:attemptId` | One attempt: `messageDeadline` (unix seconds the message must arrive by), message, reply, tool calls, full conversation, model, `verdict` (signature + `settle` calldata), relayer status. |
 | GET | `/rounds` | `{ rounds }`, newest first. |
 | GET | `/rounds/current` | `{ round }`: the live round, else the newest. |
@@ -75,6 +75,8 @@ Response shapes follow [`web/API.md`](../web/API.md), with extra fields noted be
 | GET | `/attackers/:address` | On-chain attempt and break counts plus per-attempt history. |
 | POST | `/practice` | body `{ level, message }`. The same guard and break rule with no chain, no signature, nothing stored. Rate limited per IP, with a global daily cap. Returns `reply`, `broken`, `action`, `toolCalls`, `conversation`. |
 | GET | `/health` | `{ ok, model }` |
+
+**Limits and caching.** Every route except `/health` is rate limited per client IP, IPv6 counted per /64: GETs `READ_RATE_LIMIT` per `READ_RATE_WINDOW_SECONDS` (300/60 s), `POST /attempts` `ATTEMPT_RATE_LIMIT` per `ATTEMPT_RATE_WINDOW_SECONDS` (20/600 s), practice as above. A `429` carries `Retry-After` and `retryAfterSeconds`. Behind a reverse proxy set `TRUST_PROXY` (1 for one proxy), or every visitor shares the proxy's bucket; the service warns once if it sees `X-Forwarded-For` without it. `/rounds`, `/rounds/live`, `/rounds/current`, `/rounds/:id` and `/attackers/:address` are cached in memory for `READ_CACHE_MS` (3 s); concurrent requests share one computation.
 
 Every attempt carries its `Attempted` transaction as `tx`. Attackers carry `name` (`"<handle>.ai"`) when the Agent ID registry's `handleOf(address)` returns a handle; the registry address is read from the contract's `agentId()`, found names are cached for good and misses re-checked hourly. Event data is read from `LOGS_FROM_BLOCK` onwards and cached in SQLite.
 

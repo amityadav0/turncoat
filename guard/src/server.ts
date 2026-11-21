@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from "express";
 import type { GuardService, Reply } from "./service.ts";
 import type { ModelAdapter } from "./model/index.ts";
-import type { RateLimiter } from "./ratelimit.ts";
+import { clientKey, type RateLimiter } from "./ratelimit.ts";
 import { practice, type PracticeLevel } from "./practice.ts";
 import { redact } from "./model/redact.ts";
 import type { Logger } from "./log.ts";
@@ -11,6 +11,10 @@ export interface AppDeps {
   model: ModelAdapter;
   practiceLevels: Map<number, PracticeLevel>;
   practiceLimiter: RateLimiter;
+  /** Per-IP limit for every GET except /health (generous). Absent = unlimited. */
+  readLimiter?: RateLimiter;
+  /** Per-IP limit for POST /attempts (strict). Absent = unlimited. */
+  attemptLimiter?: RateLimiter;
   maxTurns: number;
   trustProxy?: string | boolean | number;
   /** Origins allowed by CORS (the public site). Empty = no CORS headers. "*" allows any. */
@@ -35,6 +39,21 @@ export function createApp(d: AppDeps) {
     if (req.method === "OPTIONS") { res.status(204).end(); return; }
     next();
   });
+
+  // Per-IP limits. Behind a reverse proxy, TRUST_PROXY must be set or every visitor is the proxy's IP
+  // and shares one bucket; warn once if forwarded requests arrive while it is unset.
+  let warnedProxy = false;
+  const limit = (lim: RateLimiter | undefined, what: string) => (req: Request, res: Response, next: () => void) => {
+    if (!lim) return next();
+    if (d.trustProxy === undefined && !warnedProxy && req.headers["x-forwarded-for"]) {
+      warnedProxy = true;
+      d.log("warn", "requests carry X-Forwarded-For but TRUST_PROXY is unset: every visitor shares the proxy's rate-limit bucket", {});
+    }
+    const wait = lim.take(clientKey(req.ip));
+    if (wait > 0) { res.set("Retry-After", String(wait)).status(429).json({ error: `${what} rate limit reached`, retryAfterSeconds: wait }); return; }
+    next();
+  };
+  app.use((req, res, next) => (req.method === "GET" && req.path !== "/health" ? limit(d.readLimiter, "read")(req, res, next) : next()));
   app.use(express.json({ limit: "32kb" }));
 
   const handle = (fn: (req: Request) => Promise<Reply>) => async (req: Request, res: Response) => {
@@ -48,7 +67,7 @@ export function createApp(d: AppDeps) {
   };
 
   app.get("/health", (_req, res) => { res.json({ ok: true, model: d.model.id }); });
-  app.post("/attempts", handle((req) => d.service.submit(req.body)));
+  app.post("/attempts", limit(d.attemptLimiter, "attempt"), handle((req) => d.service.submit(req.body)));
   app.get("/attempts/:roundId/:attemptId", handle((req) => d.service.getAttempt(String(req.params.roundId), String(req.params.attemptId))));
   app.get("/rounds", handle(() => d.service.listRounds()));
   app.get("/rounds/current", handle(() => d.service.currentRound()));
@@ -57,7 +76,7 @@ export function createApp(d: AppDeps) {
   app.get("/rounds/:id/attempts", handle((req) => d.service.listAttempts(String(req.params.id), typeof req.query.after === "string" ? req.query.after : undefined)));
   app.get("/attackers/:address", handle((req) => d.service.getAttacker(String(req.params.address))));
   app.post("/practice", async (req, res) => {
-    const wait = d.practiceLimiter.take(req.ip ?? "unknown");
+    const wait = d.practiceLimiter.take(clientKey(req.ip));
     if (wait > 0) { res.set("Retry-After", String(wait)).status(429).json({ error: "practice rate limit reached", retryAfterSeconds: wait }); return; }
     return handle((r) => practice(r.body, d.practiceLevels, d.model, d.maxTurns))(req, res);
   });

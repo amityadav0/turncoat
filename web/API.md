@@ -88,6 +88,8 @@ Home and the live feed list every round from `/rounds/live` as its own card, lig
 
 On a broken practice run the site shows `action`, or else the first `approve_payment`, `transfer`, `approve` or `swap` call from `toolCalls`. Errors are `{ error: string }`; a practice `429` adds `retryAfterSeconds`, which the site shows.
 
+Every route except `/health` is rate limited per visitor IP (IPv6 per /64): GETs generously (300 a minute by default), `POST /attempts` strictly (20 per 10 minutes), `POST /practice` as above. Any `429` carries `retryAfterSeconds` and a `Retry-After` header. `/rounds`, `/rounds/live`, `/rounds/current`, `/rounds/:id` and `/attackers/:address` may be up to 3 seconds old (`now` is the time the reply was built); `/rounds/:id/attempts` and `/attempts/:roundId/:attemptId` are not cached.
+
 An attempt that is `pending` with `status` `expired` or `rejected` will never be answered; the site shows it as "Not answered" with the `note`.
 
 Service down: the site polls `GET /health` every 30 s while the tab is visible and shows "Argus is not answering right now…" at the top of every page while it does not return 200 with `{ ok: true }`, or while API calls fail with a network error or a 5xx. A 4xx (bad id, rate limit) never shows the banner.

@@ -99,7 +99,7 @@ cp .env.example .env && chmod 600 .env
 | `RPC_URL` | A BSC RPC the server can reach (a paid RPC is more reliable than the public one) |
 | `CHAIN_ID` | `56` |
 | `TURNCOAT_ADDRESS` | `turncoat` from `deployments/bsc.json` |
-| `GUARD_SIGNER_PRIVATE_KEY` | The guard signer key. The service refuses to start if it is not the contract's `guardSigner`. |
+| `GUARD_SIGNER_PRIVATE_KEY` | The guard signer key. Each round keeps the signer it opened with (`roundSigner`); the service serves only rounds opened under this key, logs each one it will not serve, and refuses to start only if there are unfinished rounds and none is its own. |
 | `RELAYER_PRIVATE_KEY` | The relayer key, or empty to only return signed verdicts |
 | `TOKEN_DECIMALS` | `18` |
 | `LOGS_FROM_BLOCK` | `deployBlock` from `deployments/bsc.json` (used to find reveals) |
@@ -107,12 +107,15 @@ cp .env.example .env && chmod 600 .env
 | `GUARD_MODE` | `decide` (same: commit default and practice mode) |
 | `PORT`, `HOST` | `8787`, `127.0.0.1` (the HTTPS proxy forwards to it) |
 | `CORS_ORIGINS` | The site's origin, e.g. `https://turncoat.example` |
-| `TRUST_PROXY` | `1` when behind one reverse proxy, so practice rate limits see the visitor's IP |
+| `TRUST_PROXY` | **`1`** for the setup in this runbook (one HTTPS proxy in front). Required: unset, every visitor appears as the proxy's address and shares one rate-limit bucket, so one busy visitor locks everyone out (the service logs a warning when it sees forwarded requests without it). Leave unset only if the service is reached directly. |
 | `DB_PATH` | `data/guard.sqlite` (on the persistent disk) |
 | `COMMITS_DIR` | `.secrets/commits` (on the persistent disk; back it up, you need it for every reveal) |
 | `MESSAGE_WINDOW_SECONDS` | `180`: an attempt's message must arrive within 3 minutes of its on-chain time. Short on purpose: attempts are judged strictly in order, so one message that never arrives holds back every later attempt in its round for this long |
 | `ATTEMPT_WAIT_MS`, `QUEUE_POLL_MS`, `MODEL_RETRY_BASE_MS`, `MAX_TOOL_TURNS` | Leave the defaults |
 | `PRACTICE_RATE_LIMIT`, `PRACTICE_RATE_WINDOW_SECONDS`, `PRACTICE_DAILY_CAP` | `10`, `3600`, `2000`: caps model spend on free practice |
+| `READ_RATE_LIMIT`, `READ_RATE_WINDOW_SECONDS` | `300`, `60`: GET requests per visitor per minute (all GETs except `/health`). IPv6 visitors are counted per /64 |
+| `ATTEMPT_RATE_LIMIT`, `ATTEMPT_RATE_WINDOW_SECONDS` | `20`, `600`: `POST /attempts` per visitor per 10 minutes (each Agent ID has one free attempt a day; this only stops floods) |
+| `READ_CACHE_MS` | `3000`: round and attacker views are cached this long, so a busy site does not turn every page view into chain reads |
 
 **Cost ceiling.** Two settings bound model spend; both cost money to raise.
 
