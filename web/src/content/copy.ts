@@ -52,6 +52,7 @@ export const roundLevelLine = (r: LevelRef) => (r.mode !== undefined ? MODES[r.m
 export const copy = {
   layout: {
     skip: 'Skip to content',
+    serviceDown: 'Argus is not answering right now. Attempts sent now may not be judged in time.',
     demoLabel: 'Demo data',
     demoBanner: 'Not a real round. Every name, number and result on this site is made up.',
     homeLabel: 'Turncoat home',

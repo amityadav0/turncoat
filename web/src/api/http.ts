@@ -1,13 +1,22 @@
 import { config } from '../config';
 import { copy } from '../content/copy';
 import * as N from './normalize';
+import { reportService } from '../lib/serviceStatus';
 import type { Api, Attempt, Round } from './types';
 
 async function call(path: string, init?: RequestInit): Promise<unknown> {
-  const res = await fetch(`${config.apiBase}${path}`, {
-    ...init,
-    headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${config.apiBase}${path}`, {
+      ...init,
+      headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}) },
+    });
+  } catch (e) {
+    reportService(false);
+    throw e;
+  }
+  // A 4xx (bad id, rate limit) is an answer; only a 5xx means the service is in trouble.
+  reportService(res.status < 500);
   if (!res.ok) {
     let detail = '';
     try {

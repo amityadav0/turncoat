@@ -4,6 +4,7 @@ import logo from '../../../assets/logo.svg';
 import { config } from '../config';
 import { copy, NOT_AFFILIATED, RISK_LABEL, RISK_NOTICE } from '../content/copy';
 import { explorer } from '../lib/explorer';
+import { useServiceDown } from '../lib/serviceStatus';
 import { Ext } from './bits';
 
 const t = copy.layout;
@@ -17,6 +18,7 @@ const NAV = [
 
 export function Layout() {
   const { pathname } = useLocation();
+  const serviceDown = useServiceDown();
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
@@ -30,6 +32,11 @@ export function Layout() {
         {config.mock && (
           <div className="demo-banner" role="note">
             <strong className="demo-label">{t.demoLabel}</strong> {t.demoBanner}
+          </div>
+        )}
+        {serviceDown && (
+          <div className="down-banner" role="alert">
+            {t.serviceDown}
           </div>
         )}
         <div className="wrap header-row">

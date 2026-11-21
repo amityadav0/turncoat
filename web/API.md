@@ -89,4 +89,6 @@ On a broken practice run the site shows `action`, or else the first `approve_pay
 
 An attempt that is `pending` with `status` `expired` or `rejected` will never be answered; the site shows it as "Not answered" with the `note`.
 
+Service down: the site polls `GET /health` every 30 s while the tab is visible and shows "Argus is not answering right now…" at the top of every page while it does not return 200 with `{ ok: true }`, or while API calls fail with a network error or a 5xx. A 4xx (bad id, rate limit) never shows the banner.
+
 CORS: set `CORS_ORIGINS` in guard/.env to the site's origin.
