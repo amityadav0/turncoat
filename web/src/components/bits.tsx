@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Attacker, BreakKind, Decision, Outcome, RoundStatus } from '../api/types';
 import { copy, FREE_ROUND, RISK_LABEL, RISK_NOTICE } from '../content/copy';
+import { explorer } from '../lib/explorer';
 import { attackerLabel } from '../lib/format';
 
 export function Who({ a }: { a: Attacker }) {
@@ -25,6 +26,17 @@ export function Ext({ href, children, missing }: { href: string | null; children
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="ext">
       {children} <span aria-hidden="true">↗</span>
+    </a>
+  );
+}
+
+/** The round's signer: a link to the explorer when there is one, plain text on a local chain. */
+export function Signer({ address }: { address: string }) {
+  const href = explorer.address(address);
+  if (!href) return <code className="hash">{address}</code>;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="hash">
+      {address}
     </a>
   );
 }

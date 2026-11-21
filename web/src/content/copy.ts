@@ -59,6 +59,8 @@ export const copy = {
     nav: { play: 'How to play', live: 'Live', practice: 'Practice', library: 'Library', fairness: 'Fairness' },
     contractLink: 'Contract on BscScan',
     contractMissing: 'Contract address: added at deployment.',
+    contractLocal: 'Contract (local chain, no explorer):',
+    testBanner: 'Test network. Nothing here has real value.',
   },
 
   common: {

@@ -29,6 +29,12 @@ export function Layout() {
         {t.skip}
       </a>
       <header className="site-header">
+        {/* Inside the sticky header, so it stays on screen while scrolling. */}
+        {config.testNetwork && (
+          <div className="test-banner" role="note">
+            {t.testBanner}
+          </div>
+        )}
         {config.mock && (
           <div className="demo-banner" role="note">
             <strong className="demo-label">{t.demoLabel}</strong> {t.demoBanner}
@@ -63,9 +69,15 @@ export function Layout() {
           </p>
           <p>{NOT_AFFILIATED}</p>
           <p className="footer-links">
-            <Ext href={explorer.contract()} missing={t.contractMissing}>
-              {t.contractLink}
-            </Ext>
+            {config.contract && !explorer.contract() ? (
+              <span className="muted">
+                {t.contractLocal} <code className="hash">{config.contract}</code>
+              </span>
+            ) : (
+              <Ext href={explorer.contract()} missing={t.contractMissing}>
+                {t.contractLink}
+              </Ext>
+            )}
           </p>
         </div>
       </footer>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Hex } from 'viem';
 import { api, isClosed, type Round } from '../api';
-import { Ext, Failed, Hash, Loading, StatusTag } from '../components/bits';
+import { Ext, Failed, Hash, Loading, Signer, StatusTag } from '../components/bits';
 import { config } from '../config';
 import { explorer } from '../lib/explorer';
 import { canReadChain, commitOf, onChainCommit, parseCommitted, type Committed } from '../lib/fairness';
@@ -135,9 +135,7 @@ function FairRound({ round: r }: { round: Round }) {
           <>
             <dt>{t.signer}</dt>
             <dd>
-              <a href={explorer.address(r.signer)} target="_blank" rel="noopener noreferrer" className="hash">
-                {r.signer}
-              </a>
+              <Signer address={r.signer} />
               <div className="muted small">{t.signerNote}</div>
             </dd>
           </>

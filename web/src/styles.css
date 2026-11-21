@@ -1156,6 +1156,17 @@ a.round-link-title:hover {
   }
 }
 
+/* ---------- test network: on every page on anything but mainnet; stays put with the sticky header ---------- */
+.test-banner {
+  background: var(--bone);
+  color: var(--ink);
+  border-bottom: 3px solid var(--signal);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-align: center;
+  padding: 6px var(--gutter);
+}
+
 /* ---------- service down ---------- */
 .down-banner {
   background: var(--signal);

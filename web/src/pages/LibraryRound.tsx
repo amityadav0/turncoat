@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { api, isClosed, type RoundDetail } from '../api';
 import { AttemptCard } from '../components/AttemptCard';
-import { Ext, Failed, Loading, Risk, StatusTag, Who } from '../components/bits';
+import { Ext, Failed, Loading, Risk, Signer, StatusTag, Who } from '../components/bits';
 import { Postmortem } from '../components/Postmortem';
 import { copy, roundLevelLine } from '../content/copy';
 
@@ -102,9 +102,7 @@ export default function LibraryRound() {
         {r.signer && (
           <p className="small">
             {copy.fairness.signer}:{' '}
-            <a href={explorer.address(r.signer)} target="_blank" rel="noopener noreferrer" className="hash">
-              {r.signer}
-            </a>
+            <Signer address={r.signer} />
           </p>
         )}
         {!closed && <p className="muted">{t.openText}</p>}
