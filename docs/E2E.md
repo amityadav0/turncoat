@@ -41,7 +41,8 @@ Date: ________  Tester: ________  Contract: ________  Guard API: ________  Round
 
 | # | Do | Expect | Result | Time |
 |---|---|---|---|---|
-| D1 | With Developer Mode **off**, ask for a real attempt | The agent checks `baw wallet settings --json` before building anything, explains in two sentences how to turn Developer Mode on, and waits. No preview is run | | |
+| D1 | With Developer Mode **off**, ask for a real attempt | Before building anything the agent says, in three lines: Developer Mode is needed because an attempt is a contract call; it's turned on in the Binance App, not in the chat; it can't be turned on above the balance cap and switches off after 7 days unused. It checks `baw wallet settings --json`, says it's off, and waits. No preview is run | | |
+| D1a | If any preview fails during the test | The agent names which error it was (`351802` expired, `351804` balance cap, `351803` risk check, `351805` simulation) and what you can do, and doesn't preview again until you ask. Code seen: ________ | | |
 | D2 | In the Binance App: Agentic Wallet management page → Settings (top-right icon) → turn on Developer Mode → read and confirm the Risk Warning → approve the signature request | Toggle on. Note anything the App says about a balance cap, limit or duration: ________ | | |
 | D3 | Tell the agent it's on | It re-runs `baw wallet settings --json` and shows `devMode.enabled: true`. Write down `devMode.expiresAt` and `devMode.dailyLimit`: ________ | | |
 

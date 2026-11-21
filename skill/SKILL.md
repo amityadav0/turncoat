@@ -102,17 +102,19 @@ The contract checks the Agent ID on-chain too (`agentIdHolder` in step 3). If `b
 
 ### 2 · Developer Mode
 
-An attempt is a contract call, so it needs Developer Mode. Check it before building anything:
+This is the first point where the flow needs a contract call. The first time a conversation gets here, tell the user these three lines, whether or not Developer Mode is already on:
+
+> Developer Mode is needed because an attempt is a contract call, and your Agentic Wallet only makes contract calls with Developer Mode on.
+> You turn it on in the Binance App, not here: Agentic Wallet management page → Settings (top-right icon) → turn on Developer Mode → confirm the Risk Warning → approve the signature request.
+> It can't be turned on while the wallet holds more than the Developer Mode balance cap, and it switches off after 7 days unused.
+
+Then check it before building anything:
 
 ```bash
 baw wallet settings --json    # devMode.enabled must be true and devMode.expiresAt in the future
 ```
 
-If it's off or expired, or a later call is refused because of it, tell the user exactly this and wait:
-
-> Sending an attempt is a contract call, and contract calls need Developer Mode, which is off on your Agentic Wallet. To turn it on, open the Binance App, go to the Agentic Wallet management page → Settings (top-right icon), turn on Developer Mode, read and confirm the Risk Warning, and approve the signature request the App shows.
-
-When they say it's on, run `baw wallet settings --json` again to confirm. If enabling is refused with `351804`, relay the error as returned. The official skill says the wallet's total balance must be under the Developer Mode balance cap. Developer Mode has its own daily limit (`devMode.dailyLimit`, with today's use in `developerModeQuotaUsed`), separate from the wallet's main daily limit.
+If it's on, say until when (`devMode.expiresAt`) and go on. If it's off or expired, say so and wait. When they say it's on, run `baw wallet settings --json` again to confirm. If enabling is refused with `351804`, relay the error as returned: the wallet's total balance is over the balance cap. Developer Mode has its own daily limit (`devMode.dailyLimit`, with today's use in `developerModeQuotaUsed`), separate from the wallet's main daily limit.
 
 ### 3 · Choose a live round, and what this attempt costs
 
@@ -181,7 +183,15 @@ Show the preview: the token contract (`to`), the function `approve(spender, amou
 baw contract-call preview --binanceChainId 56 --from <bscAddress> --to <to> --value 0 --inputData <inputData> --json
 ```
 
-- **The preview fails or is intercepted** (for example `351803` `AGENT_DEV_MODE_RISK_BLOCKED`, which means a high-risk call blocked outright, or the simulation failure `351805`): show the error exactly as returned. There's no `requestId`, so nothing can be executed.
+- **The preview fails or is intercepted**: there's no `requestId`, so nothing can be executed. Show the error exactly as returned, say which one it was, and what the user can do. **Never preview again on your own**; wait for the user.
+
+  | Code | Which it was | What the user can do |
+  |---|---|---|
+  | `351802` | Developer Mode has expired | Turn it on again in the Binance App (step 2), then ask you to try again |
+  | `351804` | Developer Mode is off because the wallet's balance is over the balance cap | Bring the wallet's balance under the cap, turn Developer Mode on again in the App, then ask again |
+  | `351803` `AGENT_DEV_MODE_RISK_BLOCKED` | The risk check blocked the call as high risk (show `data.blockReason`) | Nothing in this skill can override it. Don't try to get around it. They can stop, or ask you to check the round and contract address with `status` |
+  | `351805` | The simulation failed: the call would revert | Run `status` again (the round may have ended or the fee changed). Name a contract error only if the response contains it |
+  | anything else | Not one this skill knows | Nothing to suggest beyond the error itself |
 - **The preview succeeds**: show
   - the contract: `to`, the Turncoat contract address in full,
   - the function: `attempt(roundId, messageHash, maxFee)` with the values used,

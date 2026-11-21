@@ -70,3 +70,17 @@ test("several live rounds: all shown, free-attempt rule said first, unknown mode
   assert.match(step3, /doesn't support yet[^\n]*\n*Then stop\. Build no transaction/);
   assert.match(skill, /attempt-calldata --round <id> --mode/);
 });
+
+test("Developer Mode is explained in three plain lines at the first contract call; preview errors are named, never retried", () => {
+  const step2 = skill.slice(skill.indexOf("### 2 · Developer Mode"), skill.indexOf("### 3 "));
+  const lines = step2.split("\n").filter((l) => l.startsWith("> "));
+  assert.equal(lines.length, 3);
+  assert.match(lines[0], /because an attempt is a contract call/);
+  assert.match(lines[1], /Binance App, not here/);
+  assert.match(lines[2], /balance cap/);
+  assert.match(lines[2], /7 days unused/);
+  const step5 = skill.slice(skill.indexOf("### 5 "), skill.indexOf("### 6 "));
+  for (const code of ["351802", "351803", "351804", "351805"]) assert.match(step5, new RegExp("`" + code + "`"));
+  assert.match(step5, /risk check blocked/i);
+  assert.match(step5, /Never preview again on your own/);
+});
