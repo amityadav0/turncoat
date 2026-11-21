@@ -174,8 +174,19 @@ code,
 }
 nav {
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 0 4px;
   margin-left: -10px;
+}
+@media (max-width: 639px) {
+  nav {
+    gap: 0;
+    margin-left: -8px;
+  }
+  nav a {
+    padding: 8px;
+    font-size: 0.9rem;
+  }
 }
 nav a {
   text-decoration: none;
@@ -1078,4 +1089,69 @@ a.round-link-title:hover {
 }
 .round-list-pre + .round-list {
   border-top: 0;
+}
+
+/* ---------- how to play ---------- */
+.play-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.play-step {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.play-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 1.25rem;
+  margin: 0 0 12px;
+}
+.play-num {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--signal);
+  min-width: 1.5em;
+}
+.play-part {
+  margin: 0 0 10px;
+  padding-left: calc(1.5em + 12px);
+}
+.play-part p {
+  margin: 0 0 6px;
+  max-width: 40em;
+}
+.play-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+  margin-bottom: 2px;
+}
+.play-fail p {
+  color: var(--bone-dim);
+}
+.cmd {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 8px 10px;
+  margin: 4px 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hero-play {
+  display: inline-block;
+  margin-top: 4px;
+}
+@media (max-width: 420px) {
+  .play-part {
+    padding-left: 0;
+  }
 }

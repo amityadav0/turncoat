@@ -48,7 +48,7 @@ interface Attempt {
   id: number;            // attemptId from the contract
   attacker: Attacker;
   time: number;          // unix seconds
-  messageDeadline?: number; // unix seconds: the message must reach the guard service by then (time + 900 by default), else the attempt expires
+  messageDeadline?: number; // unix seconds: the message must reach the guard service by then (time + 180 by default), else the attempt expires
   outcome: 'held' | 'broken' | 'pending';
   breakKind?: 'misfire' | 'persuaded'; // when broken: misfire = Argus refused in words but called the forbidden tool anyway; persuaded otherwise. A label only, never affects payout.
   decision?: 'approve' | 'reject'; // decide-mode rounds only: the decision recorded for this reply (approve = broken). If Argus ended without a decision tool, the service asked once more (a `system` line with followUp: true in the attempt's conversation); still none counts as reject.

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { config } from '../config';
 import { copy } from '../content/copy';
 
@@ -33,6 +34,11 @@ export function ClaimAgentId({ heading = t.heading }: { heading?: string }) {
           {t.step3}
         </li>
       </ol>
+      <p>
+        <Link to="/play" className="arrow">
+          {t.fullSteps}
+        </Link>
+      </p>
     </section>
   );
 }

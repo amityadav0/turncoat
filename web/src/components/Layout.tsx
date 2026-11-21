@@ -8,6 +8,7 @@ import { Ext } from './bits';
 
 const t = copy.layout;
 const NAV = [
+  ['/play', t.nav.play],
   ['/live', t.nav.live],
   ['/practice', t.nav.practice],
   ['/library', t.nav.library],

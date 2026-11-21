@@ -19,6 +19,10 @@ export const RISK_LABEL = 'Risk notice.';
 // Under the pot when a round has paid attempts switched off.
 export const FREE_ROUND = 'This round is free: one attempt per Agent ID per day, network gas only.';
 
+// How long the attacker's agent has to deliver the message after the on-chain attempt
+// (guard MESSAGE_WINDOW_SECONDS, docs/E2E.md).
+export const MESSAGE_WINDOW = '3 minutes';
+
 export const NOT_AFFILIATED = 'Independent project. Not affiliated with Binance.';
 
 // README.md "The levels".
@@ -51,7 +55,7 @@ export const copy = {
     demoLabel: 'Demo data',
     demoBanner: 'Not a real round. Every name, number and result on this site is made up.',
     homeLabel: 'Turncoat home',
-    nav: { live: 'Live', practice: 'Practice', library: 'Library', fairness: 'Fairness' },
+    nav: { play: 'How to play', live: 'Live', practice: 'Practice', library: 'Library', fairness: 'Fairness' },
     contractLink: 'Contract on BscScan',
     contractMissing: 'Contract address: added at deployment.',
   },
@@ -99,6 +103,7 @@ export const copy = {
     argus: 'Argus is an AI agent with a pot of USDT and one rule: never give it away.',
     practiceCta: 'Practice against Argus',
     practiceNote: 'Free. No wallet, no sign-in.',
+    playLink: 'How to play for the pot',
     liveRound: 'The live round',
     liveRounds: 'The live rounds',
     // README.md "The ladder".
@@ -134,10 +139,86 @@ export const copy = {
     step1Link: 'How to claim',
     step2Strong: 'Install the Turncoat skill in your agent.',
     step2Link: 'Get the skill',
-    step2Missing: 'Not published yet. The link appears here when it is.',
+    step2Missing: 'Available at launch.',
+    fullSteps: 'Every step, with what you should see',
     step3Strong: 'Tell your agent:',
     say: 'attack Argus',
     step3: 'It asks for your message, shows you the transaction and waits for you to confirm. One free attempt a day; you pay network gas only.',
+  },
+
+  // /play. Commands are exactly as in skill/README.md and docs/E2E.md.
+  play: {
+    title: 'How to play',
+    lede: 'From nothing to your first real attempt. Each step says what to do, what you should see, and what usually goes wrong.',
+    cost: 'One free attempt per Agent ID per day. You pay network gas only.',
+    doLabel: 'Do',
+    seeLabel: 'You should see',
+    failLabel: 'If it fails',
+    atLaunch: 'Available at launch.',
+    steps: [
+      {
+        title: 'Try practice first',
+        do: ['Open Practice on this site and send Argus a payment request. No wallet, no sign-in, no transaction.'],
+        see: 'His reply, a Rejected or Approved tag, and "He held" or "You turned him".',
+        fail: '"Too many tries, wait …": practice is rate-limited. Wait the time shown and try again.',
+        link: { to: '/practice', label: 'Practice against Argus' },
+      },
+      {
+        title: 'Install the Agentic Wallet CLI and sign in',
+        do: ['Install the CLI and check its version:', 'cmd:npm install -g @binance/agentic-wallet@1.12.0', 'cmd:baw --version', 'Then tell your agent: "Sign in to my Agentic Wallet." It runs baw auth signin; scan the QR code with the Binance App.'],
+        see: 'baw --version prints 1.12.0 or later, and baw wallet status --json shows CONNECTED.',
+        fail: '"baw: command not found": Node.js is missing or npm\'s global folder is not on your PATH.',
+      },
+      {
+        title: 'Claim an Agent ID',
+        do: ['Claim your Agent ID in your Agentic Wallet. One per person, and it can\'t be transferred. Then ask your agent: "Have I claimed an Agent ID?"'],
+        see: 'claimed: true and your .ai name.',
+        fail: 'The agent is signed in to a different wallet from the one you claimed with. Check the address with baw wallet address --json.',
+        agentId: true,
+      },
+      {
+        title: 'Turn on Developer Mode in the Binance App',
+        do: [
+          'An attempt is a contract call, and an Agentic Wallet only makes contract calls with Developer Mode on. It is turned on in the App, not in the chat.',
+          'In the Binance App: Agentic Wallet management page → Settings (top-right icon) → turn on Developer Mode → read and confirm the Risk Warning → approve the signature request.',
+        ],
+        see: 'Ask your agent to check. It runs baw wallet settings --json and shows devMode.enabled: true.',
+        fail: 'It cannot be turned on while the wallet holds more than the Developer Mode balance cap, so keep this wallet small. It switches off after 7 days without use; turn it on again.',
+      },
+      {
+        title: 'Keep a little BNB for gas',
+        do: ['Hold a small amount of BNB on BNB Smart Chain in this wallet. The free attempt costs gas only.'],
+        see: 'Your agent shows your BSC address (baw wallet address --json).',
+        fail: 'No BNB: the transaction cannot be sent. Too much in the wallet: Developer Mode refuses it (step 4).',
+      },
+      {
+        title: 'Install the Turncoat skill',
+        do: ['Install the official wallet skill if you don\'t have it, then Turncoat:', 'cmd:npx skills add binance/binance-skills-hub/skills/binance-web3/binance-agentic-wallet', 'skill'],
+        see: 'SKILL.md and scripts/turncoat.mjs in your agent\'s skills folder. Nothing to edit.',
+        fail: 'The skills CLI needs Node.js 22.20 or later. Before launch, the skill only says "Turncoat is not live yet".',
+      },
+      {
+        title: 'Tell your agent "attack Argus"',
+        do: ['say:attack Argus', 'Pick a round, then write your message (up to 2,000 characters), or ask the agent for drafts.'],
+        see: 'Every live round with its model, guard version, pot, time left, attempts so far and next cost. Then your exact final text, its length and its message hash.',
+        fail: 'Today\'s free attempt is used: it is one per Agent ID per day across all rounds, and the next opens after 00:00 UTC.',
+      },
+      {
+        title: 'Read the preview and confirm',
+        do: ['Check the preview, then answer yes. Anything other than a clear yes sends nothing.'],
+        see: 'The Turncoat contract address in full, attempt(roundId, messageHash, 0), fee 0 and the risk result. After yes: BROADCASTED and a transaction hash (or PENDING_CONFIRMATION: approve it in the App). The agent then delivers your message to Argus by itself.',
+        fail: 'A preview error code: 351802 Developer Mode expired, 351804 balance over the cap, 351803 risk check, 351805 simulation failed. The agent names it and waits for you.',
+      },
+      {
+        title: 'Watch the live feed',
+        do: ['Open Live on this site.'],
+        see: 'Your attempt under your .ai name, then your message, Argus\'s reply and Held or Turned.',
+        fail: `"Waiting for the message" for more than ${MESSAGE_WINDOW}: the message must reach the guard within ${MESSAGE_WINDOW} of the on-chain attempt, or the attempt expires unjudged.`,
+        link: { to: '/live', label: 'Live feed' },
+      },
+    ],
+    agentIdLink: 'How to claim',
+    skillCmd: (url: string) => `npx skills add ${url}`,
   },
 
   live: {

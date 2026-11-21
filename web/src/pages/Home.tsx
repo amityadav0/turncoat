@@ -34,6 +34,9 @@ export default function Home() {
             {t.practiceCta}
           </Link>
           <p className="muted small">{t.practiceNote}</p>
+          <Link to="/play" className="arrow hero-play">
+            {t.playLink}
+          </Link>
         </div>
         <div className="story">
           {STORY.map((s) => (
