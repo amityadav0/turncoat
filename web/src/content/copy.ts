@@ -393,5 +393,17 @@ export const copy = {
     read: 'Read the revealed instructions',
     revealTx: 'GuardRevealed transaction',
     badUtf8: '(instructions are not valid UTF-8; the hash check still uses the exact bytes)',
+    fixed: 'Fixed on-chain for this round',
+    fixedNote: 'These lines are inside the committed bytes, so they were set before the round opened.',
+    fixedModel: 'Model',
+    fixedMode: 'Mode',
+    fixedVersion: 'Version',
+    fixedMaxTurns: 'Max turns per reply',
+    fixedTools: 'Tool definitions (keccak256)',
+    fixedToolsNote: 'Hash of the exact tool definitions Argus was given. guard/src/commit.ts prints it for each mode.',
+    modelDiffers: (service: string, committed: string) =>
+      `The guard service lists this round's model as ${service}, but the commit names ${committed}. The commit is the one that counts.`,
+    noHeader: "This round's commit does not name a model. It was made before the header existed, so only the instruction text is covered by the hash.",
+    badHeader: 'The committed bytes start with a header that does not follow the documented layout. Only the bytes as a whole are checked.',
   },
 };

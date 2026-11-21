@@ -1172,3 +1172,8 @@ a.round-link-title:hover {
 .hidden-note p {
   margin: 0 0 6px;
 }
+
+/* Fairness: what the commit header pins down */
+.fixed { margin: 1rem 0; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+.fixed .h-small { margin: 0 0 0.5rem; }
+.fixed code { overflow-wrap: anywhere; }

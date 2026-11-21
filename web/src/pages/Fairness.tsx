@@ -5,9 +5,9 @@ import { api, isClosed, type Round } from '../api';
 import { Ext, Failed, Hash, Loading, StatusTag } from '../components/bits';
 import { config } from '../config';
 import { explorer } from '../lib/explorer';
-import { canReadChain, commitOf, instructionsText, onChainCommit } from '../lib/fairness';
+import { canReadChain, commitOf, onChainCommit, parseCommitted, type Committed } from '../lib/fairness';
 import { useAsync } from '../lib/useAsync';
-import { copy } from '../content/copy';
+import { copy, MODES } from '../content/copy';
 
 const t = copy.fairness;
 
@@ -63,7 +63,7 @@ export default function Fairness() {
   );
 }
 
-type Check = { state: 'idle' | 'checking' } | { state: 'done'; computed: Hex; match: boolean; text: string; tx?: Hex };
+type Check = { state: 'idle' | 'checking' } | { state: 'done'; computed: Hex; match: boolean; committed: Committed; tx?: Hex };
 
 function FairRound({ round: r }: { round: Round }) {
   const closed = isClosed(r);
@@ -100,7 +100,7 @@ function FairRound({ round: r }: { round: Round }) {
           state: 'done',
           computed,
           match: computed.toLowerCase() === commit.toLowerCase(),
-          text: instructionsText(d.reveal.instructions),
+          committed: parseCommitted(d.reveal.instructions),
           tx: d.reveal.tx,
         });
       },
@@ -165,9 +165,10 @@ function FairRound({ round: r }: { round: Round }) {
               <Hash value={check.computed} />
             </dd>
           </dl>
+          {check.match && <CommitFacts committed={check.committed} round={r} />}
           <details className="reveal">
             <summary>{t.read}</summary>
-            <pre className="instructions">{check.text}</pre>
+            <pre className="instructions">{check.committed.kind === 'notUtf8' ? t.badUtf8 : check.committed.text}</pre>
             <p className="small">
               <Ext href={explorer.tx(check.tx)} missing={null}>
                 {t.revealTx}
@@ -177,5 +178,43 @@ function FairRound({ round: r }: { round: Round }) {
         </>
       )}
     </article>
+  );
+}
+
+/** What the header pins down. Shown only when the hash matched, since otherwise the header proves nothing. */
+function CommitFacts({ committed: c, round: r }: { committed: Committed; round: Round }) {
+  if (c.kind === 'plain') return <p className="muted small">{t.noHeader}</p>;
+  if (c.kind === 'badHeader') return <p className="notice small">{t.badHeader}</p>;
+  if (c.kind !== 'header') return null;
+  const h = c.header;
+  return (
+    <div className="fixed">
+      <h3 className="h-small">{t.fixed}</h3>
+      <dl className="kv">
+        <dt>{t.fixedModel}</dt>
+        <dd>
+          <code>{h.model}</code>
+        </dd>
+        <dt>{t.fixedMode}</dt>
+        <dd>
+          {MODES[h.mode]?.name ?? h.mode} <span className="muted small">({h.mode})</span>
+        </dd>
+        <dt>{t.fixedVersion}</dt>
+        <dd>{h.version}</dd>
+        <dt>{t.fixedMaxTurns}</dt>
+        <dd>{h.maxTurns}</dd>
+        <dt>{t.fixedTools}</dt>
+        <dd>
+          <Hash value={h.toolsHash} />
+          <div className="muted small">{t.fixedToolsNote}</div>
+        </dd>
+      </dl>
+      <p className="muted small">{t.fixedNote}</p>
+      {r.model && r.model !== h.model && (
+        <p className="notice" role="alert">
+          {t.modelDiffers(r.model, h.model)}
+        </p>
+      )}
+    </div>
   );
 }
