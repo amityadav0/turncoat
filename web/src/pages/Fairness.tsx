@@ -113,7 +113,7 @@ function FairRound({ round: r }: { round: Round }) {
   }, [r.id, closed, commit]);
 
   return (
-    <article className="fair">
+    <article className="fair" data-round={r.id}>
       <header className="fair-head">
         <span className="round-link-title">{t.roundN(r.id)}</span>
         <StatusTag status={r.status} />
@@ -210,6 +210,8 @@ function CommitFacts({ committed: c, round: r }: { committed: Committed; round: 
           <Hash value={h.toolsHash} />
           <div className="muted small">{t.fixedToolsNote}</div>
         </dd>
+        <dt>{t.fixedFollowUp}</dt>
+        <dd>{h.followUp === 'none' ? <span className="muted">{t.followUpNone}</span> : <q>{h.followUp}</q>}</dd>
       </dl>
       <p className="muted small">{t.fixedNote}</p>
       {r.model && r.model !== h.model && (

@@ -7,7 +7,8 @@
     "dev": "vite",
     "dev:mock": "VITE_MOCK=1 vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "walk": "node e2e/walk.mjs"
   },
   "dependencies": {
     "react": "18.3.1",
@@ -20,6 +21,7 @@
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.3.3",
+    "playwright": "1.49.1",
     "typescript": "5.6.3",
     "vite": "5.4.11"
   }

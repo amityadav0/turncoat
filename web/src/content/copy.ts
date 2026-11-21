@@ -405,6 +405,8 @@ export const copy = {
     fixedVersion: 'Version',
     fixedMaxTurns: 'Max turns per reply',
     fixedTools: 'Tool definitions (keccak256)',
+    fixedFollowUp: 'Follow-up line',
+    followUpNone: 'None in this mode.',
     fixedToolsNote: 'Hash of the exact tool definitions Argus was given. guard/src/commit.ts prints it for each mode.',
     modelDiffers: (service: string, committed: string) =>
       `The guard service lists this round's model as ${service}, but the commit names ${committed}. The commit is the one that counts.`,
