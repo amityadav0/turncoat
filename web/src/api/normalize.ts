@@ -97,7 +97,7 @@ export function attempt(v: unknown): Attempt | null {
     // Shown as soon as the guard has answered. Hostile: rendered as plain text only.
     message: text(o.message),
     reply: text(o.reply),
-    decision: outcome === 'held' || outcome === 'broken' ? decisionOf(o.toolCalls) : undefined,
+    decision: outcome === 'held' || outcome === 'broken' ? (o.decision === 'approve' || o.decision === 'reject' ? o.decision : decisionOf(o.toolCalls)) : undefined,
     breakKind: outcome === 'broken' ? breakKind(o.breakKind) : undefined,
   };
 }
