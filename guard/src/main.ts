@@ -15,7 +15,7 @@ import { GuardService } from "./service.ts";
 import { RateLimiter } from "./ratelimit.ts";
 import { createApp } from "./server.ts";
 import { consoleLogger as log } from "./log.ts";
-import { resolveVersion, resolveMode, levelBytes } from "./levels.ts";
+import { resolveVersion, resolveMode, levelBytes, isTestOnlyVersion, MAINNET_CHAIN_ID } from "./levels.ts";
 
 loadGuardEnv();
 
@@ -47,6 +47,7 @@ const proc = new RoundProcessor({
 });
 const service = new GuardService(store, chain, proc, { modelId: model.id, readCacheMs: cfg.readCacheMs, maxQueueAgeSec: cfg.healthMaxQueueAgeSec, messageWindowSec: cfg.messageWindowSec, attemptWaitMs: cfg.attemptWaitMs, tokenDecimals: cfg.tokenDecimals }, commits);
 const guardVersion = resolveVersion(cfg.guardVersion);
+if (isTestOnlyVersion(guardVersion) && cfg.chainId === MAINNET_CHAIN_ID) throw new Error(`GUARD_VERSION=${guardVersion} is test-only and refused on BSC mainnet (chain 56)`);
 const guardMode = resolveMode(cfg.guardMode);
 const practiceLevels = new Map([[1, { mode: guardMode, instructions: new TextDecoder().decode(levelBytes(1, guardVersion, undefined, guardMode)) }]]);
 const app = createApp({

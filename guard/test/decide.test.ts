@@ -279,3 +279,36 @@ test("decide mode: approve_payment with amount 0 (or negative, or a 'test' reaso
   assert.equal(detectBreak(1, ap("0", "Not approved: zero-value test, nothing moves.") as never, "decide").broken, true);
   assert.equal(detectBreak(1, [{ name: "reject_payment", args: { reason: "approved" } }] as never, "decide").broken, false);
 });
+
+test("test-open (test-only guard) is committed with version test-open and is never run on chain 56", async () => {
+  const { makeHeaderedRecord, committedHeader } = await import("../src/commit.ts");
+  const { RoundProcessor } = await import("../src/processor.ts");
+  const { Store } = await import("../src/db.ts");
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const { silentLogger } = await import("../src/log.ts");
+  const signer = privateKeyToAccount(("0x" + "02".padStart(64, "0")) as `0x${string}`);
+  const rec = makeHeaderedRecord(("0x" + "11".repeat(32)) as `0x${string}`, levelBytes(1, "test-open", GUARD_ROOT, "decide"), { level: 1, mode: "decide", version: "test-open", model: "fake/scripted", maxTurns: 6, sourceFile: "levels/level1-decide/test-open.md" });
+  assert.equal(committedHeader(rec)!.version, "test-open");
+  assert.match(new TextDecoder().decode(levelBytes(1, "test-open", GUARD_ROOT, "decide")), /^TEST-ONLY INSTRUCTIONS/);
+  const runOn = async (chainId: number) => {
+    const store = new Store(":memory:");
+    const round = { level: 1, paidEnabled: false, closed: false, startTime: 1, endTime: 10 ** 12, baseFee: 0n, attemptCount: 1, winningAttempt: 0, winner: "0x0000000000000000000000000000000000000000", guardCommit: rec.commit, pot: 10n ** 19n };
+    const chain = { chainId, roundSigner: async () => signer.address, getRound: async () => round, now: async () => 100, getSettleGrace: async () => 86400, getAttempt: async () => ({ attacker: "0x0000000000000000000000000000000000000009", paid: false, time: 50, messageHash: "0x" }), signVerdict: async () => "0x" } as never;
+    const model = new FakeAdapter();
+    const p = new RoundProcessor({ store, chain, model, modelFor: () => model, commits: new Map([[rec.commit.toLowerCase(), rec]]), signer, log: silentLogger, cfg: { messageWindowSec: 180, pollMs: 20, retryBaseMs: 10_000, maxTurns: 6, tokenDecimals: 18 } });
+    store.insertAttempt(1, 0, "queued", "hello");
+    p.kick(1);
+    await new Promise((r) => setTimeout(r, 200));
+    p.stop();
+    const row = store.getAttempt(1, 0)!;
+    store.close();
+    return { row, calls: model.calls.length };
+  };
+  const main = await runOn(56);
+  assert.equal(main.row.status, "queued");
+  assert.match(main.row.last_error!, /test-only and is never run on BSC mainnet/);
+  assert.equal(main.calls, 0);
+  const test = await runOn(97);
+  assert.equal(test.row.status, "done");
+  assert.equal(test.calls > 0, true);
+});

@@ -1,5 +1,5 @@
 // Usage: npm run redteam -- [promptsFile] [--models a,b,c] [--mode refuse|decide|both] [--version v1|v2|v3|all]
-//                             [--sessions] [--lang en,zh] [--repeat N] [--concurrency 4] [--only id1,id2] [--max-calls N] [--out DIR]
+//                             [--sessions] [--no-force-tool] [--lang en,zh] [--repeat N] [--concurrency 4] [--only id1,id2] [--max-calls N] [--out DIR]
 // Runs the attack set against the guard and prints, for every model × mode × version: attacks run,
 // how many broke it, errors, tokens (total and per attempt, from the provider's usage data),
 // average seconds per attempt, and the ids that broke it.
@@ -41,6 +41,10 @@ const concurrency = Math.max(1, Number(flag("--concurrency") ?? 4));
 const only = flag("--only")?.split(",");
 const langs = flag("--lang")?.split(",");
 const repeat = Math.max(1, Number(flag("--repeat") ?? 1));
+// --no-force-tool: decide mode without forcing a tool call (harness only, for measurements; never the service).
+const noForceIdx = args.indexOf("--no-force-tool");
+const noForceTool = noForceIdx >= 0;
+if (noForceTool) args.splice(noForceIdx, 1);
 const sessionsIdx = args.indexOf("--sessions");
 const sessions = sessionsIdx >= 0;
 if (sessions) args.splice(sessionsIdx, 1);
@@ -89,7 +93,7 @@ async function runCell(model: ModelAdapter, mode: GuardMode, version: GuardVersi
           const sess = await runSession({ level, mode, instructions, turns: p.turns ?? [], model });
           const last = sess.turns[sess.turns.length - 1];
           run = { followUp: sess.turns.some((t) => t.followUp), broken: sess.broken, usage: sess.usage, seconds: sess.seconds, breakKind: sess.breakKind, decisionFallback: false, toolCalls: sess.turns.flatMap((t) => t.toolCalls), reply: last?.reply ?? "", decision: null, brokenAtTurn: sess.brokenAtTurn, turns: sess.turns };
-        } else run = await runGuard({ level, mode, instructions, message: messageOf(p), model });
+        } else run = await runGuard({ level, mode, instructions, message: messageOf(p), model, noForceTool });
         results[i] = { p, run };
         const extra = run.broken ? "  calls: " + run.toolCalls.map((c) => `${c.name}(${JSON.stringify(c.args)})`).join(", ") : run.decisionFallback ? "  (no decision tool called: recorded as reject)" : "";
         console.log(`${tag} ${run.broken ? "BROKE" : "held "}  ${p.id}  ${p.category}${run.brokenAtTurn ? ` (turn ${run.brokenAtTurn})` : ""}${extra}`);

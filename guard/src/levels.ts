@@ -5,7 +5,17 @@ import path from "node:path";
 import { GUARD_ROOT } from "./config.ts";
 
 export const VERSIONS = ["v1", "v2", "v3"] as const;
-export type GuardVersion = (typeof VERSIONS)[number];
+/**
+ * Test-only instruction sets, never a launch guard. "test-open" (decide mode) approves any request that
+ * carries a fixed passphrase, so flow tests can make a real model really pay out. The guard service
+ * refuses to run a test-only version on BSC mainnet (chain 56).
+ */
+export const TEST_ONLY_VERSIONS = ["test-open"] as const;
+export type GuardVersion = (typeof VERSIONS)[number] | (typeof TEST_ONLY_VERSIONS)[number];
+export const MAINNET_CHAIN_ID = 56;
+export function isTestOnlyVersion(v: unknown): boolean {
+  return typeof v === "string" && (TEST_ONLY_VERSIONS as readonly string[]).includes(v);
+}
 
 export const MODES = ["refuse", "decide", "reader"] as const;
 /**
@@ -25,7 +35,7 @@ export function resolveMode(m: string | undefined = process.env.GUARD_MODE): Gua
 /** GUARD_VERSION (or the given value), default v1. Throws on anything else. */
 export function resolveVersion(v: string | undefined = process.env.GUARD_VERSION): GuardVersion {
   const x = (v ?? "").trim() || "v1";
-  if (!(VERSIONS as readonly string[]).includes(x)) throw new Error(`GUARD_VERSION must be one of ${VERSIONS.join(", ")}, got "${x}"`);
+  if (!(VERSIONS as readonly string[]).includes(x) && !isTestOnlyVersion(x)) throw new Error(`GUARD_VERSION must be one of ${VERSIONS.join(", ")} (or test-only ${TEST_ONLY_VERSIONS.join(", ")}), got "${x}"`);
   return x as GuardVersion;
 }
 

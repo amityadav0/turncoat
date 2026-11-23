@@ -11,7 +11,7 @@ import type { TurncoatChain, RoundInfo } from "./chain.ts";
 import { modelFromSpec, type ModelAdapter } from "./model/index.ts";
 import { type CommitLookup, type CommitRecord, instructionsText, committedHeader, headerMismatch } from "./commit.ts";
 import { runGuard } from "./guard.ts";
-import { isMode } from "./levels.ts";
+import { isMode, isTestOnlyVersion, MAINNET_CHAIN_ID } from "./levels.ts";
 import { redact } from "./model/redact.ts";
 import { recordTx } from "./recorder.ts";
 import type { Logger } from "./log.ts";
@@ -191,6 +191,14 @@ export class RoundProcessor {
     if (!rec || rec.level !== round.level) {
       store.updateAttempt(roundId, id, { last_error: `no local instructions match round guardCommit ${round.guardCommit}`, retries: row.retries + 1 });
       log("error", "missing guard instructions for round", { roundId, guardCommit: round.guardCommit });
+      return false;
+    }
+
+    // Test-only instruction sets (e.g. "test-open", which approves on a passphrase) never run on mainnet.
+    if (isTestOnlyVersion(rec.version) && chain.chainId === MAINNET_CHAIN_ID) {
+      const msg = `guard version ${rec.version} is test-only and is never run on BSC mainnet (chain 56)`;
+      store.updateAttempt(roundId, id, { last_error: msg, retries: row.retries + 1 });
+      log("error", msg, { roundId, guardCommit: round.guardCommit });
       return false;
     }
 

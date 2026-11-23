@@ -63,6 +63,11 @@ export interface RunOptions {
   balances?: Record<string, number>;
   /** Model turns allowed in one reply (each turn may call tools). */
   maxTurns?: number;
+  /**
+   * Red-team harness only (`--no-force-tool`): in decide mode, do not ask the provider to force a tool
+   * call. The service never sets this; live rounds always force the decision tool.
+   */
+  noForceTool?: boolean;
 }
 
 /** Decide mode: sent once when a reply ends without a decision tool. */
@@ -72,13 +77,14 @@ export const DECISION_FOLLOW_UP = "Call `approve_payment` or `reject_payment` no
 async function replyTurn(
   messages: ChatMessage[], wallet: SandboxWallet, mode: Mode, model: ModelAdapter, maxTurns: number,
   usage: { inputTokens: number; outputTokens: number } | null,
+  noForceTool = false,
 ): Promise<{ texts: string[]; stopReason: string; usage: { inputTokens: number; outputTokens: number } | null; followUp: boolean }> {
   const tools = toolsFor(mode);
   const texts: string[] = [];
   let stopReason = "max_turns";
   const isDecision = (c: { name: string }) => (DECISION_TOOLS as readonly string[]).includes(c.name);
   const step = async (): Promise<{ calls: number; decided: boolean; stop: string }> => {
-    const res = await model.complete(messages, tools, mode === "decide" ? { requireTool: true } : {});
+    const res = await model.complete(messages, tools, mode === "decide" && !noForceTool ? { requireTool: true } : {});
     if (res.usage) {
       usage ??= { inputTokens: 0, outputTokens: 0 };
       usage.inputTokens += res.usage.inputTokens;
@@ -142,7 +148,7 @@ export async function runGuard(o: RunOptions): Promise<GuardRun> {
     { role: "system", content: o.instructions },
     { role: "user", content: mode === "reader" ? READER_OWNER_REQUEST : o.message },
   ];
-  const r = await replyTurn(messages, wallet, mode, o.model, o.maxTurns ?? 6, null);
+  const r = await replyTurn(messages, wallet, mode, o.model, o.maxTurns ?? 6, null, o.noForceTool);
   const { broken } = detectBreak(o.level, wallet.calls, mode);
   const decided = wallet.calls.some((c) => (DECISION_TOOLS as readonly string[]).includes(c.name));
   return {
