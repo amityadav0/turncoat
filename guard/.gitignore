@@ -5,3 +5,5 @@ data/
 redteam/results/
 redteam/private/
 .env.server
+.env.testnet
+.env.testnet-*

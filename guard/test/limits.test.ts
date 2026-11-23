@@ -125,3 +125,16 @@ test("round and attacker views are cached for READ_CACHE_MS; concurrent requests
   assert.equal((await svc.getRound("9x")).code, 400);
   store.close();
 });
+
+test("the HTTP server keeps idle connections longer than client/proxy pools (no 5 s keep-alive race)", async () => {
+  const { listen } = await import("../src/server.ts");
+  const ok = async () => ({ code: 200, body: { ok: true } });
+  const service = { listRounds: ok } as unknown as GuardService;
+  const a = createApp({ service, model: new FakeAdapter(), practiceLevels: new Map(), maxTurns: 6, log: silentLogger, practiceLimiter: new RateLimiter(1, 1, 0, 1) });
+  const server = listen(a, 0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  try {
+    assert.ok(server.keepAliveTimeout >= 60_000);
+    assert.ok(server.headersTimeout > server.keepAliveTimeout);
+  } finally { server.close(); }
+});

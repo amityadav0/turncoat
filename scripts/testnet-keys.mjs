@@ -6,7 +6,7 @@ import fs from "node:fs";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 const FILE = new URL("../.env.deploy", import.meta.url);
-const ROLES = ["DEPLOYER", "SIGNER", "RELAYER", "ATTACKER1", "ATTACKER2", "ATTACKER3", "NONHOLDER"];
+const ROLES = ["DEPLOYER", "SIGNER", "RELAYER", ...Array.from({ length: 12 }, (_, i) => `ATTACKER${i + 1}`), "NONHOLDER", "SIGNER2", "NEWOWNER"];
 const have = new Map();
 if (fs.existsSync(FILE)) {
   for (const line of fs.readFileSync(FILE, "utf8").split("\n")) {

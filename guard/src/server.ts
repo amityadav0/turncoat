@@ -90,3 +90,15 @@ export function createApp(d: AppDeps) {
   });
   return app;
 }
+
+/**
+ * Starts the HTTP server with keep-alive longer than common client and proxy idle timeouts. Node's
+ * default (5 s) races clients that reuse a pooled connection just as the server closes it ("other side
+ * closed" / ECONNRESET): seen on the testnet pass with Node fetch polling every 5 s.
+ */
+export function listen(app: ReturnType<typeof createApp>, port: number, host: string, onListening?: () => void) {
+  const server = app.listen(port, host, onListening);
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
+  return server;
+}

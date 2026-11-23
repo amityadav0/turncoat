@@ -17,9 +17,11 @@ const { flags } = args();
 loadTestnetKeys();
 const key = (r) => process.env[`TESTNET_${r}_PRIVATE_KEY`];
 const roles = ["DEPLOYER", "SIGNER", "RELAYER", "ATTACKER1", "ATTACKER2", "ATTACKER3", "NONHOLDER"];
+// Further attackers (ATTACKER4…ATTACKER12), if present, are set up too: one free attempt per UTC day each.
+const extraAttackers = Array.from({ length: 9 }, (_, i) => `ATTACKER${i + 4}`).filter((r) => key(r));
 const missing = roles.filter((r) => !key(r));
 if (missing.length) { console.error(`missing TESTNET_${missing[0]}_PRIVATE_KEY in .env.deploy: run node scripts/testnet-keys.mjs first`); process.exit(2); }
-const acct = Object.fromEntries(roles.map((r) => [r, privateKeyToAccount(key(r))]));
+const acct = Object.fromEntries([...roles, ...extraAttackers].map((r) => [r, privateKeyToAccount(key(r))]));
 const rpc = process.env.RPC_URL || TESTNET.rpc;
 const probe = createPublicClient({ transport: http(rpc) });
 const chainId = await probe.getChainId();
@@ -52,6 +54,8 @@ if (!flags.setup) {
 } else {
   d = JSON.parse(fs.readFileSync(out, "utf8"));
 }
+for (const r of extraAttackers) if (!d.attackers.includes(acct[r].address)) d.attackers.push(acct[r].address);
+fs.writeFileSync(out, JSON.stringify(d, null, 2) + "\n");
 
 // read back what the contract holds
 const T = { address: d.turncoat, abi: art("Turncoat").abi };

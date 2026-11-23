@@ -13,7 +13,7 @@ import { RoundProcessor, checkRoundSigners } from "./processor.ts";
 import { LogScanner } from "./recorder.ts";
 import { GuardService } from "./service.ts";
 import { RateLimiter } from "./ratelimit.ts";
-import { createApp } from "./server.ts";
+import { createApp, listen } from "./server.ts";
 import { consoleLogger as log } from "./log.ts";
 import { resolveVersion, resolveMode, levelBytes, isTestOnlyVersion, MAINNET_CHAIN_ID } from "./levels.ts";
 
@@ -61,7 +61,7 @@ proc.resume();
 // Optional event scanning; the service works fully without it (receipts + `npm run record`).
 const scanner = cfg.useLogs ? new LogScanner(store, chain, { chunk: cfg.logChunkBlocks, intervalMs: cfg.logScanIntervalMs, log }) : null;
 scanner?.start();
-app.listen(cfg.port, cfg.host, () => {
+listen(app, cfg.port, cfg.host, () => {
   log("info", "guard service listening", {
     url: `http://${cfg.host}:${cfg.port}`, model: model.id, contract: chain.address, chainId: cfg.chainId,
     signer: signer.address, servedRounds: signers.served, skippedRounds: signers.skipped, relayer: chain.relayerAddress ?? null, commitsLoaded: commits.size,
