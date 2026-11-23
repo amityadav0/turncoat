@@ -16,7 +16,7 @@ Launch configuration: level 1 in decide mode, as two rounds at once: the lighter
 
 Each command is marked **Ran locally** (rehearsed by the guard session against a local chain, with the results described) or **Not run locally**, with the reason. Commands are run from the repo root unless a `cd` is shown.
 
-> There is no testnet path in the repo: `scripts/deploy.mjs` deploys to BSC mainnet with the real Agent ID and USDT addresses. Rehearse on a local chain first (section 0).
+> `scripts/deploy.mjs` deploys to BSC mainnet with the real Agent ID and USDT addresses. Rehearse first: on a local chain with `npm run e2e:local` (every flow, automated; section 0), then on BSC testnet with mock Agent ID and mock USDT ([`docs/TESTNET.md`](TESTNET.md); `scripts/deploy-testnet.mjs` and `--network testnet` on the round scripts). [`docs/TESTPLAN.md`](TESTPLAN.md) lists every flow and its result per network.
 
 ---
 
