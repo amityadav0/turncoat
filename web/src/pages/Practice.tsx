@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api, type PracticeResult } from '../api';
+import type { Rung } from '../api/types';
 import { ClaimAgentId } from '../components/ClaimAgentId';
 import { BreakKindTag, DecisionTag } from '../components/bits';
 import { HostileText } from '../components/HostileText';
@@ -23,6 +24,10 @@ export default function Practice() {
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [sharing, setSharing] = useState(false);
+  const [rung, setRung] = useState<Rung>('lighter');
+  // The rung picker appears once the service has shown it reports which guard answered (G-028);
+  // an older service ignores the rung, and a picker it ignores would claim a model that didn't run.
+  const rungs = turns.some((x) => x.result.model && x.result.guardVersion !== undefined);
   const box = useRef<HTMLTextAreaElement>(null);
   const { state } = useLocation();
 
@@ -38,7 +43,7 @@ export default function Practice() {
     setBusy(true);
     setError(null);
     try {
-      const result = await api.practice(level, text);
+      const result = await api.practice(level, text, rung);
       setTurns((prev) => [{ level, message: text, result }, ...prev]);
       setMessage('');
       setSharing(false);
@@ -73,6 +78,16 @@ export default function Practice() {
           autoComplete="off"
           spellCheck
         />
+        {rungs && (
+          <div className="rung-pick" role="radiogroup" aria-label={t.rungLegend}>
+            <span className="muted small">{t.rungLegend}</span>
+            {(['lighter', 'top'] as const).map((r) => (
+              <label key={r}>
+                <input type="radio" name="rung" value={r} checked={rung === r} onChange={() => setRung(r)} /> {t.rungs[r]}
+              </label>
+            ))}
+          </div>
+        )}
         <div className="form-row">
           <span className="muted small">
             {message.length}/{MAX}
@@ -95,6 +110,9 @@ export default function Practice() {
       {last && (
         <section className="block block-tight" aria-live="polite">
           <div className={last.result.broken ? 'verdict verdict-broken' : 'verdict'}>
+            <p className="mono small practice-ran">
+              {last.result.model && last.result.guardVersion !== undefined ? t.ran(last.result.guardVersion, copy.round.tab({ id: 0, model: last.result.model })) : t.ranUnknown}
+            </p>
             <p className="verdict-word">{last.result.broken ? t.turned : t.held}</p>
             {last.result.broken && last.result.action && (
               <p className="small">

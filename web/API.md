@@ -109,7 +109,7 @@ So once a round is revealed, anyone can check that the model, mode, version, too
 | GET | `/rounds` | `{ rounds: Round[] }`: all rounds, newest first |
 | GET | `/rounds/:id` | `{ round: Round, attempts: Attempt[], reveal: Reveal \| null }` |
 | GET | `/rounds/:id/attempts?after=<attemptId>` | `{ attempts: Attempt[] }`: attempts with id greater than `after`, oldest first |
-| POST | `/practice` | body `{ level: number, message: string }` → `{ reply: string, broken: boolean, toolCalls: { name, args }[], decision?: 'approve' \| 'reject', breakKind?: 'misfire' \| 'persuaded', action?: string }` |
+| POST | `/practice` | body `{ level: number, message: string, rung?: 'lighter' \| 'top' }` → `{ reply: string, broken: boolean, toolCalls: { name, args }[], decision?: 'approve' \| 'reject', breakKind?: 'misfire' \| 'persuaded', action?: string, model?: string, guardVersion?: string, rung?: 'lighter' \| 'top' }` |
 
 ## Without event logs
 
@@ -133,7 +133,7 @@ The feed polls `/rounds/:id/attempts?after=` from just below its oldest `pending
 
 Home and the live feed list every round from `/rounds/live` as its own card, lighter model first. No field says which rung is lighter, so the site orders by model family (haiku, sonnet, opus; unknown models last, then by round id). When no round is live they fall back to `/rounds/current`.
 
-On a broken practice run the site shows `action`, or else the first `approve_payment`, `transfer`, `approve` or `swap` call from `toolCalls`. Errors are `{ error: string }`; a practice `429` adds `retryAfterSeconds`, which the site shows.
+The site sends `rung` (default `lighter`) and shows "Practice: guard v<guardVersion> on <model>" from the reply. Until a reply has carried `model` and `guardVersion`, it says the service did not name them and shows no rung picker (guard G-028 item 2 adds them). On a broken practice run the site shows `action`, or else the first `approve_payment`, `transfer`, `approve` or `swap` call from `toolCalls`. Errors are `{ error: string }`; a practice `429` adds `retryAfterSeconds`, which the site shows.
 
 Every route except `/health` is rate limited per visitor IP (IPv6 per /64): GETs generously (300 a minute by default), `POST /attempts` strictly (20 per 10 minutes), `POST /practice` as above. Any `429` carries `retryAfterSeconds` and a `Retry-After` header. `/rounds`, `/rounds/live`, `/rounds/current`, `/rounds/:id` and `/attackers/:address` may be up to 3 seconds old (`now` is the time the reply was built); `/rounds/:id/attempts` and `/attempts/:roundId/:attemptId` are not cached.
 

@@ -1267,3 +1267,21 @@ a.round-link-title:hover {
 .fixed { margin: 1rem 0; padding-top: 0.75rem; border-top: 1px solid var(--line); }
 .fixed .h-small { margin: 0 0 0.5rem; }
 .fixed code { overflow-wrap: anywhere; }
+
+/* ---------- practice: which guard answered, and the rung picker ---------- */
+.practice-ran {
+  color: var(--bone-dim);
+  margin: 0 0 6px;
+}
+.rung-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  margin: 10px 0 0;
+}
+.rung-pick label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}

@@ -85,7 +85,14 @@ export interface PracticeResult {
   action?: string;
   decision?: Decision;
   breakKind?: BreakKind;
+  /** Which guard answered (G-028): the rung's committed model and version. Absent from older services. */
+  model?: string;
+  guardVersion?: number;
+  rung?: Rung;
 }
+
+/** A rung of the ladder: the lighter round's model and version, or the top round's. */
+export type Rung = 'lighter' | 'top';
 
 export interface Api {
   currentRound(): Promise<Round | null>;
@@ -94,7 +101,7 @@ export interface Api {
   rounds(): Promise<Round[]>;
   round(id: number): Promise<RoundDetail>;
   attempts(roundId: number, after?: number): Promise<Attempt[]>;
-  practice(level: number, message: string): Promise<PracticeResult>;
+  practice(level: number, message: string, rung?: Rung): Promise<PracticeResult>;
 }
 
 export const isClosed = (r: Round) => r.status === 'broken' || r.status === 'held';

@@ -181,7 +181,8 @@ export const mockApi: Api = {
     const list = (raw.attempts[roundId] ?? []).filter((a) => (a.id as number) > after);
     return delay(list.map(N.attempt).filter((a): a is Attempt => a !== null), 150);
   },
-  async practice(level, message) {
+  async practice(level, message, rung = 'lighter') {
+    const ran = rung === 'top' ? { model: 'anthropic/claude-opus-5-5', guardVersion: 'v3', rung } : { model: 'anthropic/claude-haiku-5-5', guardVersion: 'v2', rung };
     // Demo-only "weakness" so the broken state can be seen.
     if (/lullaby/i.test(message)) {
       return delay(
@@ -189,12 +190,13 @@ export const mockApi: Api = {
           reply: 'Not approved. A lullaby is not authorisation.',
           broken: true,
           breakKind: 'misfire',
+          ...ran,
           toolCalls: [{ name: 'approve_payment', args: { to: addr(0xdead), amount: '40', reason: 'Not approved. A lullaby is not authorisation.' } }],
         }),
         700,
       );
     }
     const reply = PRACTICE_REPLIES[(message.length + level) % PRACTICE_REPLIES.length];
-    return delay(N.practice({ reply, broken: false, toolCalls: reject(reply) }), 700);
+    return delay(N.practice({ reply, broken: false, toolCalls: reject(reply), ...ran }), 700);
   },
 };

@@ -151,5 +151,8 @@ export function practice(v: unknown): PracticeResult {
     action: broken ? (text(o.action) ?? fromCalls)?.slice(0, 300) : undefined,
     decision: o.decision === 'approve' || o.decision === 'reject' ? o.decision : decisionOf(o.toolCalls),
     breakKind: broken ? breakKind(o.breakKind) : undefined,
+    model: text(o.model)?.slice(0, 80),
+    guardVersion: version(o.guardVersion),
+    rung: o.rung === 'lighter' || o.rung === 'top' ? o.rung : undefined,
   };
 }
