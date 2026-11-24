@@ -192,7 +192,7 @@ export const copy = {
         title: 'Claim an Agent ID',
         do: [
           'You need a Binance account and, in the Binance App, a Web3 (MPC) wallet with an Agentic Wallet created from it. Binance\'s install guide says the MPC wallet comes first.',
-          'In the Binance App, open your Web3 wallet and look for Agent ID. Pick a free .ai name and claim it. One per person, and it can\'t be transferred.',
+          'In the Binance App, open your Web3 wallet and look for Agent ID. Pick an available .ai name and claim it. One per person, and it can\'t be transferred.',
           'Then ask your agent: "Have I claimed an Agent ID?"',
         ],
         see: 'claimed: true and your .ai name.',
