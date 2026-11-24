@@ -87,7 +87,7 @@ On a fresh Debian or Ubuntu server (x86-64), as a normal user with sudo. `deploy
 3. On the server:
 
    ```bash
-   curl -fsSLO https://raw.githubusercontent.com/amityadav0/turncoat/server-setup-v1/deploy/server-setup.sh
+   curl -fsSLO https://raw.githubusercontent.com/amityadav0/turncoat/3c4452dcf4dc3cd0e177a3239aa94d580d4d65aa/deploy/server-setup.sh
    bash server-setup.sh --domain guard-testnet.example.com --env ~/guard.env --commits ~/commits
    ```
 

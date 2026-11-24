@@ -26,9 +26,9 @@ node scripts/launch-mainnet.mjs commit-rounds
 #    TURNCOAT_ADDRESS and LOGS_FROM_BLOCK come from deployments/bsc.json), copy it and the commit records over,
 #    then one command on the server (idempotent: re-run it after changing the env file)
 scp guard/.env.server you@server:~/guard.env && scp -r guard/.secrets/commits you@server:~/turncoat-commits
-ssh you@server 'curl -fsSLO https://raw.githubusercontent.com/amityadav0/turncoat/server-setup-v1/deploy/server-setup.sh && bash server-setup.sh --domain guard.example.com --env ~/guard.env --commits ~/turncoat-commits'
+ssh you@server 'curl -fsSLO https://raw.githubusercontent.com/amityadav0/turncoat/3c4452dcf4dc3cd0e177a3239aa94d580d4d65aa/deploy/server-setup.sh && bash server-setup.sh --domain guard.example.com --env ~/guard.env --commits ~/turncoat-commits'
 #    ends with "PASS" after checking https://guard.example.com/health
-#    (the script is fetched from the server-setup-v1 tag, not from main, so what runs is the version that was rehearsed)
+#    (the script is fetched at a fixed commit, not from main, so what runs is the version that was rehearsed)
 
 # 5. Open both rounds (asks y/N; 4 transactions: two exact approvals, two openRound)
 node scripts/launch-mainnet.mjs open-rounds --seed <USDT per round> --hours 72
