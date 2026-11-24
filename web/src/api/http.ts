@@ -61,6 +61,11 @@ export const httpApi: Api = {
     const raw = list(await call(`/rounds/${encodeURIComponent(roundId)}/attempts${q}`), 'attempts');
     return raw.map(N.attempt).filter((a): a is Attempt => a !== null);
   },
+  async attacker(address) {
+    const r = N.attackerRecord(await call(`/attackers/${encodeURIComponent(address)}`));
+    if (!r) throw new ApiError(404, copy.attacker.notFound);
+    return r;
+  },
   async practice(level, message, rung) {
     return N.practice(await call('/practice', { method: 'POST', body: JSON.stringify(rung ? { level, message, rung } : { level, message }) }));
   },

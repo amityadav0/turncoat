@@ -91,6 +91,14 @@ export interface PracticeResult {
   rung?: Rung;
 }
 
+/** GET /attackers/:address: the on-chain tester record and every attempt this wallet made. */
+export interface AttackerRecord {
+  attacker: Attacker;
+  attempts: number;
+  breaks: number;
+  history: { roundId: number; attemptId: number; time: number; paid: boolean; status: string; broken?: boolean }[];
+}
+
 /** A rung of the ladder: the lighter round's model and version, or the top round's. */
 export type Rung = 'lighter' | 'top';
 
@@ -102,6 +110,7 @@ export interface Api {
   round(id: number): Promise<RoundDetail>;
   attempts(roundId: number, after?: number): Promise<Attempt[]>;
   practice(level: number, message: string, rung?: Rung): Promise<PracticeResult>;
+  attacker(address: string): Promise<AttackerRecord>;
 }
 
 export const isClosed = (r: Round) => r.status === 'broken' || r.status === 'held';

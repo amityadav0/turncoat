@@ -2,6 +2,7 @@
 // and the site shows a "Demo data" banner whenever this module is in use.
 // Raw objects go through the same normalizer as real API responses.
 import { concatHex, keccak256, stringToHex } from 'viem';
+import { copy } from '../content/copy';
 import * as N from './normalize';
 import type { Api, Attempt, Round } from './types';
 
@@ -180,6 +181,18 @@ export const mockApi: Api = {
   async attempts(roundId, after = -1) {
     const list = (raw.attempts[roundId] ?? []).filter((a) => (a.id as number) > after);
     return delay(list.map(N.attempt).filter((a): a is Attempt => a !== null), 150);
+  },
+  async attacker(address) {
+    const mine = Object.values(raw.attempts).flat().filter((a) => String((a.attacker as { address: string }).address).toLowerCase() === address.toLowerCase());
+    const who = (mine[0]?.attacker as { address: string; name?: string } | undefined) ?? { address };
+    const r = N.attackerRecord({
+      ...who,
+      attempts: mine.length,
+      breaks: mine.filter((a) => a.outcome === 'broken').length,
+      history: mine.map((a) => ({ roundId: a.roundId, attemptId: a.id, time: a.time, paid: false, status: a.outcome === 'pending' ? 'judging' : 'done', broken: a.outcome === 'pending' ? null : a.outcome === 'broken' })),
+    });
+    if (!r) throw new Error(copy.attacker.notFound);
+    return delay(r);
   },
   async practice(level, message, rung = 'lighter') {
     const ran = rung === 'top' ? { model: 'anthropic/claude-opus-5-5', guardVersion: 'v3', rung } : { model: 'anthropic/claude-haiku-5-5', guardVersion: 'v2', rung };

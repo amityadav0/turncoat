@@ -1,14 +1,16 @@
+import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import type { Attacker, BreakKind, Decision, Outcome, RoundStatus } from '../api/types';
 import { copy, FREE_ROUND, RISK_LABEL, RISK_NOTICE } from '../content/copy';
 import { explorer } from '../lib/explorer';
 import { attackerLabel } from '../lib/format';
 
+/** An attacker's .ai name (or short address), linking to their tester record. */
 export function Who({ a }: { a: Attacker }) {
   return (
-    <span className={a.name ? 'who' : 'who mono'} title={a.address}>
+    <Link to={`/attacker/${a.address}`} className={a.name ? 'who' : 'who mono'} title={a.address}>
       {attackerLabel(a)}
-    </span>
+    </Link>
   );
 }
 

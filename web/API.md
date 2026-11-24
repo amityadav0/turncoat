@@ -110,6 +110,7 @@ So once a round is revealed, anyone can check that the model, mode, version, too
 | GET | `/rounds/:id` | `{ round: Round, attempts: Attempt[], reveal: Reveal \| null }` |
 | GET | `/rounds/:id/attempts?after=<attemptId>` | `{ attempts: Attempt[] }`: attempts with id greater than `after`, oldest first |
 | POST | `/practice` | body `{ level: number, message: string, rung?: 'lighter' \| 'top' }` → `{ reply: string, broken: boolean, toolCalls: { name, args }[], decision?: 'approve' \| 'reject', breakKind?: 'misfire' \| 'persuaded', action?: string, model?: string, guardVersion?: string, rung?: 'lighter' \| 'top' }` |
+| GET | `/attackers/:address` | `{ address, name?, attempts: number, breaks: number, history: { roundId, attemptId, time, paid: boolean, status, broken: boolean \| null }[] }`. `attempts` and `breaks` are the on-chain tester record. The site shows it at `/attacker/:address`, linked from every attacker name. |
 
 ## Without event logs
 

@@ -25,6 +25,7 @@ const Play = lazy(() => import('./pages/Play'));
 const Fairness = lazy(() => import('./pages/Fairness'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Share = lazy(() => import('./pages/Share'));
+const AttackerPage = lazy(() => import('./pages/Attacker'));
 
 const page = (el: JSX.Element) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
@@ -42,6 +43,7 @@ const router = createBrowserRouter([
       { path: '/library/:id', element: page(<LibraryRound />) },
       { path: '/fairness', element: page(<Fairness />) },
       { path: '/s/:kind', element: page(<Share />) },
+      { path: '/attacker/:address', element: page(<AttackerPage />) },
       { path: '*', element: page(<NotFound />) },
     ],
   },

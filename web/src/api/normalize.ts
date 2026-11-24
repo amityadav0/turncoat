@@ -1,5 +1,5 @@
 // Everything from the API is treated as hostile: validate shape, drop what doesn't fit.
-import type { Attacker, Attempt, BreakKind, Decision, Hex, Outcome, PracticeResult, Reveal, Round, RoundDetail, RoundStatus } from './types';
+import type { Attacker, AttackerRecord, Attempt, BreakKind, Decision, Hex, Outcome, PracticeResult, Reveal, Round, RoundDetail, RoundStatus } from './types';
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const BYTES32 = /^0x[0-9a-fA-F]{64}$/;
@@ -19,6 +19,30 @@ function attacker(v: unknown): Attacker | undefined {
   if (typeof o.address !== 'string' || !ADDRESS.test(o.address)) return undefined;
   const name = typeof o.name === 'string' && AI_NAME.test(o.name) ? o.name : undefined;
   return { address: o.address as Hex, name };
+}
+
+export function attackerRecord(v: unknown): AttackerRecord | null {
+  const o = obj(v);
+  const who = attacker(o);
+  if (!who) return null;
+  const history = (Array.isArray(o.history) ? o.history : [])
+    .slice(0, 5000)
+    .map((h) => {
+      const x = obj(h);
+      const roundId = int(x.roundId, -1);
+      const attemptId = int(x.attemptId, -1);
+      if (roundId < 1 || attemptId < 0) return null;
+      return {
+        roundId,
+        attemptId,
+        time: int(x.time),
+        paid: x.paid === true,
+        status: typeof x.status === 'string' && STATUS.test(x.status) ? x.status : 'unknown',
+        broken: typeof x.broken === 'boolean' ? x.broken : undefined,
+      };
+    })
+    .filter((h): h is NonNullable<typeof h> => h !== null);
+  return { attacker: who, attempts: int(o.attempts), breaks: int(o.breaks), history };
 }
 
 /** The guard service sends "v1", "v2", …; accept a bare number too. */

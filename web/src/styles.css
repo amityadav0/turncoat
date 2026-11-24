@@ -1285,3 +1285,21 @@ a.round-link-title:hover {
   gap: 6px;
   align-items: center;
 }
+
+/* ---------- attacker page ---------- */
+h1.h-addr,
+.page-head h1.h-addr {
+  font-size: clamp(1.2rem, 5vw, 2rem);
+  overflow-wrap: anywhere;
+}
+a.who {
+  color: inherit;
+  text-decoration-color: var(--bone-faint);
+  text-underline-offset: 3px;
+}
+.attacker-history li > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}

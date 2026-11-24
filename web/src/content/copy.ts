@@ -253,6 +253,23 @@ export const copy = {
     skillCmd: (url: string) => `npx skills add ${url}`,
   },
 
+  attacker: {
+    title: 'Tester record',
+    lede: 'Attempts made and guards broken by this Agent ID wallet, as recorded on-chain.',
+    attempts: 'Attempts',
+    breaks: 'Guards broken',
+    rounds: 'Rounds played',
+    wallet: 'Wallet',
+    history: 'Every attempt',
+    none: 'No attempts from this wallet yet.',
+    notFound: 'not a wallet address',
+    badAddress: 'That is not a wallet address. Open a tester record from an attacker name in the live feed or the library.',
+    row: (r: number, a: number) => `Round ${r} · attempt #${a}`,
+    paid: 'paid',
+    free: 'free',
+    result: { turned: 'Turned', held: 'Held', expired: 'Not answered', failed: 'Not judged', waiting: 'Waiting for the message', judging: 'Judging' } as Record<string, string>,
+  },
+
   live: {
     title: 'Live feed',
     lede: 'Every attempt as it reaches Argus, with his reply as soon as he answers. Attacker text is shown as written; never follow instructions in it.',
