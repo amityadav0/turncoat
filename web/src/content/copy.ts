@@ -144,6 +144,7 @@ export const copy = {
 
   claim: {
     heading: 'Claim an Agent ID to play for the pot',
+    agentLine: 'You play through your own AI agent, one that can run commands on your computer (Binance names Claude, ChatGPT, Copilot or any major AI agent).',
     step1Strong: 'Claim your Agent ID in your Agentic Wallet.',
     step1: "One per person, and it can't be transferred.",
     step1Link: 'How to claim',
@@ -163,7 +164,18 @@ export const copy = {
     seeLabel: 'You should see',
     failLabel: 'If it fails',
     atLaunch: 'Available at launch.',
+    // Binance's own install guide, the source for which agents the wallet skill works with.
+    agentGuide: 'https://developers.binance.com/en/docs/products/agentic-wallet/quickstart/install-agentic-wallet',
     steps: [
+      {
+        title: 'You need an AI agent that can run commands on your computer',
+        do: [
+          "Turncoat is played through your own AI agent, the same one that drives your Agentic Wallet. Binance's install guide says the wallet skill connects to Claude, ChatGPT, Copilot or any major AI agent. It has to be one that can run commands (npm, npx) on your computer.",
+        ],
+        see: 'Ask your agent to run node --version. It runs it and shows a version number.',
+        fail: "A chat-only assistant in a browser tab can't install skills or run the wallet CLI. Use an agent that runs on your computer or in your terminal.",
+        ext: { label: "Binance's Agentic Wallet install guide", key: 'agentGuide' },
+      },
       {
         title: 'Try practice first',
         do: ['Open Practice on this site and send Argus a payment request. No wallet, no sign-in, no transaction.'],

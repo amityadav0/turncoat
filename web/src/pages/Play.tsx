@@ -26,7 +26,7 @@ export default function Play() {
         {t.steps.map((s, i) => (
           <li key={s.title} className="play-step">
             <h2 className="play-title">
-              <span className="play-num">{i + 1}</span>
+              <span className="play-num">{i}</span>
               {s.title}
             </h2>
             <div className="play-part">
@@ -45,6 +45,13 @@ export default function Play() {
                       {t.agentIdLink}: {t.atLaunch}
                     </span>
                   )}
+                </p>
+              )}
+              {'ext' in s && s.ext && (
+                <p>
+                  <a href={t[s.ext.key as 'agentGuide']} target="_blank" rel="noopener noreferrer" className="ext">
+                    {s.ext.label} <span aria-hidden="true">↗</span>
+                  </a>
                 </p>
               )}
               {'link' in s && s.link && (

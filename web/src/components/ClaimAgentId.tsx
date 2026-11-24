@@ -9,6 +9,7 @@ export function ClaimAgentId({ heading = t.heading }: { heading?: string }) {
   return (
     <section className="claim" aria-label={heading}>
       <h2 className="claim-title">{heading}</h2>
+      <p className="muted">{t.agentLine}</p>
       <ol className="steps">
         <li>
           <strong>{t.step1Strong}</strong> {t.step1}{' '}
