@@ -35,10 +35,10 @@ node scripts/round-tools.mjs status 1 --network testnet
 
 ## 3. The guard service in Docker
 
-The setup is the same as [LAUNCH.md](LAUNCH.md) section 3, but with a testnet env file, a separate compose project and a separate commits folder, so nothing mixes with a mainnet setup.
+The setup is the same as [LAUNCH.md](LAUNCH.md) section B, but with a testnet env file, a separate compose project and a separate commits folder, so nothing mixes with a mainnet setup.
 
 `guard/.env.testnet` (gitignored, `600`) holds:
-- the testnet signer and relayer keys, plus `ANTHROPIC_API_KEY`;
+- the testnet signer and relayer keys, copied from `TESTNET_SIGNER_PRIVATE_KEY` and `TESTNET_RELAYER_PRIVATE_KEY` in `.env.deploy` (where `scripts/testnet-keys.mjs` wrote them) into `GUARD_SIGNER_PRIVATE_KEY` and `RELAYER_PRIVATE_KEY`, plus `ANTHROPIC_API_KEY`;
 - `RPC_URL=https://bsc-testnet.bnbchain.org`, `CHAIN_ID=97`, `TURNCOAT_ADDRESS`, `LOGS_FROM_BLOCK` (the deploy block);
 - `GUARD_VERSION=v2`, `GUARD_MODE=decide`, `MODEL_PROVIDER=anthropic`, `MODEL_NAME=claude-haiku-5-5`, `USE_LOGS=0`.
 
@@ -87,7 +87,7 @@ On a fresh Debian or Ubuntu server (x86-64), as a normal user with sudo. `deploy
 3. On the server:
 
    ```bash
-   curl -fsSLO https://raw.githubusercontent.com/amityadav0/turncoat/main/deploy/server-setup.sh
+   curl -fsSLO https://raw.githubusercontent.com/amityadav0/turncoat/server-setup-v1/deploy/server-setup.sh
    bash server-setup.sh --domain guard-testnet.example.com --env ~/guard.env --commits ~/commits
    ```
 

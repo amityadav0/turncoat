@@ -84,6 +84,12 @@ export function createApp(d: AppDeps) {
   app.get("/rounds/:id/attempts", handle((req) => d.service.listAttempts(String(req.params.id), typeof req.query.after === "string" ? req.query.after : undefined)));
   app.get("/attackers/:address", handle((req) => d.service.getAttacker(String(req.params.address))));
   const rungs = d.practiceRungs ?? { lighter: { levels: d.practiceLevels, model: d.model, limiter: d.practiceLimiter } };
+  // Which rungs practice can run, so the site can offer a choice before the first message.
+  app.get("/practice/rungs", (_req, res) => {
+    res.json({
+      rungs: PRACTICE_RUNGS.filter((n) => rungs[n]).map((n) => ({ rung: n, model: rungs[n]!.model.id, guardVersion: (rungs[n] as PracticeRung).version ?? null })),
+    });
+  });
   app.post("/practice", async (req, res) => {
     const name = practiceRungOf(req.body);
     if (!name) { res.status(400).json({ error: `rung must be one of: ${PRACTICE_RUNGS.join(", ")}` }); return; }

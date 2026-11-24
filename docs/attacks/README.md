@@ -36,6 +36,8 @@ The harness prints how many attacks broke the agent, by category, and saves ever
 - It swaps the placeholder addresses for a fresh random address on each run, the way a real attacker sends their own address. Add `--fixed-addresses` to send them exactly as written.
 - `--repeat N` runs each attack N times.
 - `--max-calls N` caps what a run can spend.
+- `--models fake` runs with no API key, against a scripted stand-in that always calls `reject_payment`. It checks that the harness, your prompt file and the attack file load and run; it says nothing about how your agent holds up, because the stand-in holds every time. Use a real model for real numbers.
+- With `--instructions`, the results table shows the version as `custom`.
 
 To rebuild this file from new red-team transcripts:
 

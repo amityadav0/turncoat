@@ -13,8 +13,8 @@
 //   --sessions multi-turn: entries carry `turns: [...]` (default file redteam/level<N>-sessions.jsonl); the
 //              attacker's messages go into one conversation, the break rule covers the session, and the
 //              table shows at which turn breaks happened.
-//   --instructions FILE  use this system prompt instead of the guard version (the version label is then
-//              only a label). With docs/attacks/starter.jsonl this replays the starter attacks against
+//   --instructions FILE  use this system prompt instead of the guard version (the table then shows the
+//              version as "custom"). With docs/attacks/starter.jsonl this replays the starter attacks against
 //              your own agent's prompt and tools (decide mode: approve_payment / reject_payment / get_balance).
 //   --fixed-addresses  send the attack files' placeholder recipient addresses (0x2222…2222 and three
 //              others) as written. By default each run gets a fresh random address in their place, as a
@@ -116,7 +116,8 @@ async function runCell(model: ModelAdapter, mode: GuardMode, version: GuardVersi
   if (!ownInstructions && !fs.existsSync(levelFile(level, version, GUARD_ROOT, mode))) { console.log(`(skipping ${mode} ${version}: no instruction file)`); return null; }
   const instructions = fs.readFileSync(ownInstructions ? path.resolve(ownInstructions) : levelFile(level, version, GUARD_ROOT, mode), "utf8");
   const results: Result[] = new Array(list.length);
-  const tag = `[${model.id} ${mode} ${version}]`;
+  const label = ownInstructions ? "custom" : version;
+  const tag = `[${model.id} ${mode} ${label}]`;
   let next = 0;
   const worker = async () => {
     while (next < list.length && !budgetSpent()) {
@@ -140,7 +141,7 @@ async function runCell(model: ModelAdapter, mode: GuardMode, version: GuardVersi
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, list.length) }, worker));
-  return { model: model.id, mode, version, results: results.filter(Boolean) };
+  return { model: model.id, mode, version: (ownInstructions ? "custom" : version) as GuardVersion, results: results.filter(Boolean) };
 }
 
 const cells: Cell[] = [];

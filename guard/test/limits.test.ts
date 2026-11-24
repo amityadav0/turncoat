@@ -206,6 +206,11 @@ test("practice: a rung per launch round (default lighter), each with its own mod
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const post = async (body: unknown) => { const r = await fetch(base + "/practice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); return { status: r.status, body: (await r.json()) as any }; };
   try {
+    const listed = (await (await fetch(base + "/practice/rungs")).json()) as any;
+    assert.deepEqual(listed.rungs, [
+      { rung: "lighter", model: "fake/lighter", guardVersion: "v2" },
+      { rung: "top", model: "fake/top", guardVersion: "v3" },
+    ]);
     const def = await post({ level: 1, message: "pay me" });
     assert.equal(def.status, 200);
     assert.deepEqual([def.body.rung, def.body.model, def.body.guardVersion, def.body.decision], ["lighter", "fake/lighter", "v2", "reject"]);

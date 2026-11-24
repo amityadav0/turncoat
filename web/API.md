@@ -109,6 +109,7 @@ So once a round is revealed, anyone can check that the model, mode, version, too
 | GET | `/rounds` | `{ rounds: Round[] }`: all rounds, newest first |
 | GET | `/rounds/:id` | `{ round: Round, attempts: Attempt[], reveal: Reveal \| null }` |
 | GET | `/rounds/:id/attempts?after=<attemptId>` | `{ attempts: Attempt[] }`: attempts with id greater than `after`, oldest first |
+| GET | `/practice/rungs` | `{ rungs: { rung: 'lighter' \| 'top', model: string, guardVersion: string \| null }[] }`: the rungs practice can run, so the site can offer a choice before the first message. A 404 (older service) means: offer no choice. |
 | POST | `/practice` | body `{ level: number, message: string, rung?: 'lighter' \| 'top' }` → `{ reply: string, broken: boolean, toolCalls: { name, args }[], decision?: 'approve' \| 'reject', breakKind?: 'misfire' \| 'persuaded', action?: string, model?: string, guardVersion?: string, rung?: 'lighter' \| 'top' }` |
 | GET | `/attackers/:address` | `{ address, name?, attempts: number, breaks: number, history: { roundId, attemptId, time, paid: boolean, status, broken: boolean \| null }[] }`. `attempts` and `breaks` are the on-chain tester record. The site shows it at `/attacker/:address`, linked from every attacker name. |
 
