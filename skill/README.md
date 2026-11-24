@@ -20,7 +20,7 @@ What the install needs, and where it stands:
 - `SKILL.md` has YAML frontmatter with `name` and `description`, without which the CLI rejects a skill ("Skills require a SKILL.md with name and description", `docs/creating-skills.md`).
 - The CLI copies every file in the skill folder, `scripts/` and `deployment.json` included.
 
-What works today: the helper and the skill's wording pass 31 local tests (below), including free and paid attempts against the real contract on a local chain. Until deployment fills in `deployment.json`, an installed copy only says "Turncoat is not live yet".
+What works today: the helper and the skill's wording pass 32 local tests (below), including free and paid attempts against the real contract on a local chain. Until deployment fills in `deployment.json`, an installed copy only says "Turncoat is not live yet".
 
 Install reproduced without the CLI (24 Nov 2026): `main` at b004665 fetched as a GitHub tarball (`gh api repos/amityadav0/turncoat/tarball/main`), and `skill/` copied to `.claude/skills/turncoat/` in an empty scratch folder by the CLI's own rule (`skills@1.9.0` copies the whole skill folder except `metadata.json`, `.git` and `__pycache__`; the folder is named from the frontmatter `name`). What landed: `SKILL.md`, `README.md`, `deployment.json`, `scripts/turncoat.mjs`, `scripts/testsend.mjs`, `test/helper.test.mjs`, `test/skilltext.test.mjs`. With no `TURNCOAT_*` variables set, `node .claude/skills/turncoat/scripts/turncoat.mjs config` (Node 22.22) answered `live: false` with "Turncoat is not live yet: …", and `live` stopped with the same sentence (exit 1). The `test/` files come along but are only run from this repo.
 

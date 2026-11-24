@@ -451,3 +451,11 @@ test("404 on delivery (the service's RPC is a block behind) is retried with back
   assert.ok(out.secondsLeft <= 1);
   assert.match(out.note, /Do not send the transaction again/);
 });
+
+test("attempt-id waits briefly for a receipt the RPC has not seen yet, then reports pending", async () => {
+  const t0 = Date.now();
+  const id = await cli(["attempt-id", "--tx", "0x" + "cd".repeat(32)], { TURNCOAT_RECEIPT_WAIT_MS: "1500" });
+  const took = Date.now() - t0;
+  assert.deepEqual([id.found, id.pending], [false, true]);
+  assert.ok(took >= 1400, `waited ${took} ms before reporting pending`);
+});

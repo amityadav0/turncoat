@@ -209,7 +209,7 @@ baw contract-call preview --binanceChainId 56 --from <bscAddress> --to <to> --va
 Argus answers only once he has the text, and it must reach the guard service within **3 minutes** of the on-chain attempt, or the attempt expires unanswered. Deliver it immediately, without waiting for the user, and tell them you're doing it: "Your attempt is on-chain. Sending your message to Argus now; it has to arrive within 3 minutes."
 
 ```bash
-node scripts/turncoat.mjs attempt-id --tx <txHash>     # repeat every few seconds until found: true
+node scripts/turncoat.mjs attempt-id --tx <txHash>     # waits up to 20 s for the receipt; if pending, run it again
 node scripts/turncoat.mjs submit --round <id> --attempt <attemptId> --tx <txHash> --deliver-by <deliverBy> --message-file <same file as step 4>
 ```
 

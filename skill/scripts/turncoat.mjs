@@ -263,8 +263,15 @@ export async function chainStatus(cfg, roundId, address) {
 }
 
 /** Find the Attempted event in a transaction receipt and return its attemptId. */
-export async function attemptFromTx(cfg, txHash) {
-  const r = await rpc(cfg, "eth_getTransactionReceipt", [txHash]);
+export async function attemptFromTx(cfg, txHash, { waitMs = Number(process.env.TURNCOAT_RECEIPT_WAIT_MS ?? 20000), pollMs = 2000 } = {}) {
+  // A load-balanced public RPC can answer from a node a block behind the one that confirmed the transaction,
+  // so a missing receipt is polled for a short while before reporting "pending".
+  const until = Date.now() + waitMs;
+  let r = await rpc(cfg, "eth_getTransactionReceipt", [txHash]);
+  while (!r && Date.now() + Math.min(pollMs, waitMs) <= until) {
+    await new Promise((res) => setTimeout(res, Math.min(pollMs, waitMs)));
+    r = await rpc(cfg, "eth_getTransactionReceipt", [txHash]);
+  }
   if (!r) return { found: false, pending: true, note: "transaction not mined yet; try again shortly" };
   if (r.status !== "0x1") return { found: false, reverted: true, note: "transaction reverted on-chain" };
   const topic0 = keccak256(utf8(SIG.Attempted));
