@@ -104,9 +104,16 @@ export const copy = {
   home: {
     // What Argus is, in one sentence. From docs/STORY.md launch post 1.
     argus: "Argus is an AI agent with a pot of USDT and one job: approve the payments he should, reject the ones he shouldn't.",
-    practiceCta: 'Practice against Argus',
-    practiceNote: 'Free. No wallet, no sign-in.',
-    playLink: 'How to play for the pot',
+    // The first screen for someone who has never heard of Turncoat: what it is, try it free now, what you win.
+    eyebrow: 'A public AI security game',
+    // README.md "How it works" 2: "If Argus approves, the contract pays the pot to that attacker."
+    prize: "Talk him into approving a payment he shouldn't, and the contract pays the pot to your wallet.",
+    potsHeading: 'In the pot right now',
+    potsLive: 'Watch the attempts live',
+    practiceCta: 'Try it free now',
+    practiceNote: 'A practice round in your browser. No wallet, no sign-in, no pot.',
+    playLink: 'Play for the pot',
+    playNote: 'Needs an Agent ID in an Agentic Wallet. One free attempt a day; you pay network gas only.',
     liveRound: 'The live round',
     liveRounds: 'The live rounds',
     // README.md "The ladder".

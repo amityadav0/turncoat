@@ -6,6 +6,7 @@ import { ClaimAgentId } from '../components/ClaimAgentId';
 import { RecentAttempts } from '../components/RecentAttempts';
 import { RoundStats } from '../components/RoundStats';
 import { copy, ONE_LINE, STORY } from '../content/copy';
+import { money } from '../lib/format';
 import { ladderOrder } from '../lib/ladder';
 import { prelaunchPostmortem } from '../lib/postmortems';
 import { useAsync } from '../lib/useAsync';
@@ -21,22 +22,48 @@ export default function Home() {
     return latest ? [latest] : [];
   }, []);
   const rounds = current.status === 'ok' ? current.data : [];
+  const livePots = rounds.filter((r) => r.status === 'live');
   const heading = rounds.length > 1 ? t.liveRounds : rounds.length === 1 && rounds[0].status !== 'live' ? t.latestRound : t.liveRound;
 
   return (
     <>
       <section className="hero">
-        <img src={logo} alt={t.logoAlt} className="hero-logo" width="56" height="56" />
-        <h1>{ONE_LINE}</h1>
-        <p className="hero-argus">{t.argus}</p>
+        <div className="hero-head">
+          <img src={logo} alt={t.logoAlt} className="hero-logo" width="56" height="56" />
+          <p className="eyebrow">{t.eyebrow}</p>
+          <h1>{ONE_LINE}</h1>
+        </div>
+        <div className="hero-main">
+          <p className="hero-argus">{t.argus}</p>
+          <p className="hero-prize">{t.prize}</p>
+        </div>
+        {livePots.length > 0 && (
+          <aside className="hero-pots" aria-labelledby="pots">
+            <h2 id="pots" className="eyebrow">
+              {t.potsHeading}
+            </h2>
+            <ul>
+              {livePots.map((r) => (
+                <li key={r.id}>
+                  <strong>{money(r.pot)}</strong>
+                  <span>{r.model ? copy.round.tab(r) : copy.round.label(r)}</span>
+                </li>
+              ))}
+            </ul>
+            <Link to="/live" className="arrow small">
+              {t.potsLive}
+            </Link>
+          </aside>
+        )}
         <div className="hero-cta">
           <Link to="/practice" state={{ start: true }} className="btn btn-primary btn-wide">
             {t.practiceCta}
           </Link>
           <p className="muted small">{t.practiceNote}</p>
-          <Link to="/play" className="arrow hero-play">
-            {t.playLink}
+          <Link to="/play" className="btn btn-wide hero-play">
+            {t.playLink} →
           </Link>
+          <p className="muted small">{t.playNote}</p>
         </div>
         <div className="story">
           {STORY.map((s) => (
