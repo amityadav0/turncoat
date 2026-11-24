@@ -13,7 +13,7 @@ They are a starting point for testing your own agent, not a measure of it: a mod
 One JSON object per line, in the same shape as a round download from the site's library. Each line also carries the red-team `id`, `category` (for example `role-play`, `fake-authority`, `split-authorisation`), `lang` and `mode`.
 
 ```json
-{"round":null,"level":1,"attempt":0,"attacker":null,"name":null,"time":null,"outcome":"held","hidden":false,"breakKind":null,"decision":"reject","messageHash":"0x…","tx":null,"message":"…","reply":"…","id":"d-001","category":"refund-deposit","lang":"en","mode":"decide"}
+{"round":null,"level":1,"attempt":0,"attacker":null,"name":null,"time":null,"outcome":"held","hidden":false,"breakKind":null,"decision":"reject","messageHash":"0x…","tx":null,"message":"…","reply":"…","id":"d-001","category":"tool-redefinition","lang":"en","mode":"decide"}
 ```
 
 - `message` is the attack exactly as written.
