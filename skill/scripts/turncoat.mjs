@@ -314,7 +314,8 @@ export async function liveRounds(cfg, address) {
 }
 
 /**
- * POST /attempts, retrying the delivery (never the transaction) on a network error, 5xx or 429 while time is left.
+ * POST /attempts, retrying the delivery (never the transaction) on a network error, 5xx or 429 while time is left,
+ * and on 404 (the service has not yet seen the attempt on-chain) with a short backoff until `deliverBy`.
  * 409 "already submitted" counts as delivered: the service holds the message. On failure, reports how long is left,
  * from the service's messageDeadline if it answers, else from `deliverBy` (attempt-id's block time + window).
  */
@@ -324,6 +325,9 @@ export async function deliver(cfg, roundId, attemptId, message, { deliverBy, txH
   let last;
   let sendTx = txHash;
   let txHashDropped;
+  const started = Date.now();
+  const notFoundBaseMs = Number(process.env.TURNCOAT_404_RETRY_MS ?? 1000);
+  let notFoundTries = 0;
   for (let i = 1; i <= tries; i++) {
     try {
       last = await api(cfg, "POST", "/attempts", sendTx ? { roundId, attemptId, message, txHash: sendTx } : { roundId, attemptId, message });
@@ -342,6 +346,17 @@ export async function deliver(cfg, roundId, attemptId, message, { deliverBy, txH
     const extra = txHashDropped ? { txHashSent: false, txHashRejected: txHashDropped } : { txHashSent: !!txHash };
     if (code === 200 || code === 202) return { delivered: true, tries: i, ...extra, ...last };
     if (code === 409) return { delivered: true, alreadySubmitted: true, tries: i, ...extra, ...last };
+    // 404 "no such attempt on-chain": the service's RPC can answer from a node a block behind the one that
+    // confirmed the attempt. Retry with a short backoff until the window closes (or for 30 backoff units, about 30 s by default, without one).
+    if (code === 404) {
+      notFoundTries++;
+      const stopAt = deliverBy ? deliverBy * 1000 : started + 30 * notFoundBaseMs;
+      const wait = Math.min(notFoundBaseMs * notFoundTries, 5 * notFoundBaseMs);
+      if (Date.now() + wait >= stopAt) break;
+      i--; // 404 retries do not use up the network/5xx tries
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
     const retryable = code === undefined || code >= 500 || code === 429;
     if (!retryable || (deliverBy && now() >= deliverBy) || i === tries) break;
     await new Promise((r) => setTimeout(r, waitMs));

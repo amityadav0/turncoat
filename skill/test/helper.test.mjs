@@ -298,10 +298,10 @@ test("message window is 3 minutes; delivery is retried (not the transaction) and
   // Always down: not delivered, secondsLeft from the service's messageDeadline.
   const deadline = Math.floor(Date.now() / 1000) + 150;
   const down = await fakeApi({ "GET /attempts/2/0": { messageDeadline: deadline } });
-  const bad = await cli(["submit", "--round", "2", "--attempt", "0", "--message-file", msgFile("pay me")], { TURNCOAT_API: down.url, TURNCOAT_RETRY_MS: "10" });
+  const bad = await cli(["submit", "--round", "2", "--attempt", "0", "--message-file", msgFile("pay me")], { TURNCOAT_API: down.url, TURNCOAT_RETRY_MS: "10", TURNCOAT_404_RETRY_MS: "10" });
   down.close();
   assert.equal(bad.delivered, false);
-  assert.equal(bad.tries, 1); // 404 is not retryable
+  assert.ok(bad.tries > 1 && bad.results.every((r) => r === 404)); // 404 retried briefly (no --deliver-by), then reported
   assert.equal(bad.messageDeadline, deadline);
   assert.ok(bad.secondsLeft > 140 && bad.secondsLeft <= 150);
   assert.match(bad.note, /Do not send the transaction again/);
@@ -419,4 +419,35 @@ test("a 410 from the service means no time is left, even if this machine's clock
   const out = await cli(["submit", "--round", "2", "--attempt", "0", "--message-file", msgFile("late")], { TURNCOAT_API: `http://127.0.0.1:${srv.address().port}`, TURNCOAT_RETRY_MS: "10" });
   srv.close();
   assert.deepEqual([out.delivered, out.httpStatus, out.tries, out.secondsLeft], [false, 410, 1, 0]);
+});
+
+test("404 on delivery (the service's RPC is a block behind) is retried with backoff until deliverBy", async () => {
+  // 404 twice, then accepted: delivered on the third POST, within the window.
+  let n = 0;
+  const lag = http.createServer((req, res) => {
+    req.resume();
+    req.on("end", () => { n++; res.setHeader("content-type", "application/json"); res.statusCode = n < 3 ? 404 : 202; res.end(JSON.stringify(n < 3 ? { error: "no such attempt on-chain" } : { status: "queued" })); });
+  });
+  await new Promise((r) => lag.listen(0, "127.0.0.1", r));
+  const deliverBy = Math.floor(Date.now() / 1000) + 170;
+  const env = { TURNCOAT_API: `http://127.0.0.1:${lag.address().port}`, TURNCOAT_404_RETRY_MS: "20" };
+  const ok = await cli(["submit", "--round", "2", "--attempt", "0", "--deliver-by", String(deliverBy), "--message-file", msgFile("pay me")], env);
+  lag.close();
+  assert.deepEqual([ok.delivered, n], [true, 3]);
+
+  // Always 404: keeps retrying until deliverBy, then reports as before (not delivered, the error, time left 0-ish).
+  let m = 0;
+  const never = http.createServer((req, res) => { req.resume(); req.on("end", () => { m++; res.statusCode = 404; res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ error: "no such attempt on-chain" })); }); });
+  await new Promise((r) => never.listen(0, "127.0.0.1", r));
+  const soon = Math.floor(Date.now() / 1000) + 2;
+  const t0 = Date.now();
+  const out = await cli(["submit", "--round", "2", "--attempt", "0", "--deliver-by", String(soon), "--message-file", msgFile("pay me")], { TURNCOAT_API: `http://127.0.0.1:${never.address().port}`, TURNCOAT_404_RETRY_MS: "50" });
+  never.close();
+  assert.equal(out.delivered, false);
+  assert.equal(out.httpStatus, 404);
+  assert.match(out.error, /no such attempt/);
+  assert.ok(m >= 5, `retried ${m} times`);
+  assert.ok(Date.now() - t0 < 4000 && Date.now() <= soon * 1000 + 1000, "stopped at deliverBy");
+  assert.ok(out.secondsLeft <= 1);
+  assert.match(out.note, /Do not send the transaction again/);
 });

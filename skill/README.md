@@ -20,7 +20,7 @@ What the install needs, and where it stands:
 - `SKILL.md` has YAML frontmatter with `name` and `description`, without which the CLI rejects a skill ("Skills require a SKILL.md with name and description", `docs/creating-skills.md`).
 - The CLI copies every file in the skill folder, `scripts/` and `deployment.json` included.
 
-What works today: the helper and the skill's wording pass 26 local tests (below), including free and paid attempts against the real contract on a local chain. Until deployment fills in `deployment.json`, an installed copy only says "Turncoat is not live yet".
+What works today: the helper and the skill's wording pass 31 local tests (below), including free and paid attempts against the real contract on a local chain. Until deployment fills in `deployment.json`, an installed copy only says "Turncoat is not live yet".
 
 Not yet run: `npx skills add` itself has not been run against this repository, and no part of the skill has been run with a real Agentic Wallet. The mainnet checklist for that is `docs/E2E.md`.
 
