@@ -20,9 +20,9 @@ What the install needs, and where it stands:
 - `SKILL.md` has YAML frontmatter with `name` and `description`, without which the CLI rejects a skill ("Skills require a SKILL.md with name and description", `docs/creating-skills.md`).
 - The CLI copies every file in the skill folder, `scripts/` and `deployment.json` included.
 
-What works today: the helper and the skill's wording pass 32 local tests (below), including free and paid attempts against the real contract on a local chain. Until deployment fills in `deployment.json`, an installed copy only says "Turncoat is not live yet".
+What works today: the helper and the skill's wording pass 34 local tests (in `skill-dev/`), including free and paid attempts against the real contract on a local chain. Until deployment fills in `deployment.json`, an installed copy only says "Turncoat is not live yet".
 
-Install reproduced without the CLI (24 Nov 2026): `main` at b004665 fetched as a GitHub tarball (`gh api repos/amityadav0/turncoat/tarball/main`), and `skill/` copied to `.claude/skills/turncoat/` in an empty scratch folder by the CLI's own rule (`skills@1.9.0` copies the whole skill folder except `metadata.json`, `.git` and `__pycache__`; the folder is named from the frontmatter `name`). What landed: `SKILL.md`, `README.md`, `deployment.json`, `scripts/turncoat.mjs`, `scripts/testsend.mjs`, `test/helper.test.mjs`, `test/skilltext.test.mjs`. With no `TURNCOAT_*` variables set, `node .claude/skills/turncoat/scripts/turncoat.mjs config` (Node 22.22) answered `live: false` with "Turncoat is not live yet: …", and `live` stopped with the same sentence (exit 1). The `test/` files come along but are only run from this repo.
+Install reproduced without the CLI (24 Nov 2026): `main` at b004665 fetched as a GitHub tarball (`gh api repos/amityadav0/turncoat/tarball/main`), and `skill/` copied to `.claude/skills/turncoat/` in an empty scratch folder by the CLI's own rule (`skills@1.9.0` copies the whole skill folder except `metadata.json`, `.git` and `__pycache__`; the folder is named from the frontmatter `name`). Everything in `skill/` landed. Since then the tests and test-network tooling moved to `skill-dev/`, so an install now gets only `SKILL.md`, `README.md`, `deployment.json` and `scripts/turncoat.mjs`. With no `TURNCOAT_*` variables set, `node .claude/skills/turncoat/scripts/turncoat.mjs config` (Node 22.22) answered `live: false` with "Turncoat is not live yet: …", and `live` stopped with the same sentence (exit 1).
 
 Not yet run: `npx skills add` itself (this session's permission check refuses it), and no part of the skill with a real Agentic Wallet. The mainnet checklist for that is `docs/E2E.md`.
 
@@ -33,49 +33,14 @@ npx skills add https://github.com/amityadav0/turncoat/tree/main/skill -a claude-
 node .claude/skills/turncoat/scripts/turncoat.mjs config
 ```
 
-Expect the folder `.claude/skills/turncoat/` with the files above, and `config` answering `"live": false` with "Turncoat is not live yet" until `deployment.json` is filled in.
+Expect the folder `.claude/skills/turncoat/` with `SKILL.md`, `README.md`, `deployment.json` and `scripts/turncoat.mjs`, and `config` answering `"live": false` with "Turncoat is not live yet" until `deployment.json` is filled in (once the pushed `main` has today's commits).
 
 To install by hand instead, copy this folder into your agent's skills directory.
 
-Nothing to edit after installing. The guard service URL and contract address ship in `deployment.json`, which is filled in once at deployment and committed. Until then both are empty, and the helper stops with "Turncoat is not live yet" before building anything. `TURNCOAT_API`, `TURNCOAT_CONTRACT` and `TURNCOAT_RPC` override the shipped values, for testing only.
+Nothing to edit after installing. The guard service URL and contract address ship in `deployment.json`, which is filled in once at deployment and committed. Until then both are empty, and the helper stops with "Turncoat is not live yet" before building anything. If only the guard service URL is filled in, free practice works and real attempts stop with "Turncoat is not live yet for real attempts". `TURNCOAT_API`, `TURNCOAT_CONTRACT` and `TURNCOAT_RPC` override the shipped values, for testing only.
 
 Real attempts need an Agent ID and Developer Mode on the Agentic Wallet. Practice needs neither.
 
-## Test
+## Tests and test networks
 
-From the repo root, after `npm install && npm run build`:
-
-```bash
-node --test skill/test/*.test.mjs
-```
-
-Checks keccak256 and ABI encoding against viem, then runs free and paid attempts with the helper's calldata against the real contract on a local ganache chain. It also checks that the exact message bytes reach a stand-in guard API, that delivery retries without resending the transaction, the round modes and the live-round list, and the "not live yet" stop. `skilltext.test.mjs` checks the wording of `SKILL.md` and `docs/E2E.md` against README.md: the risk notice and the misfire/persuaded sentence word for word, the owner and fairness claims, the Developer Mode lines and the 3-minute window.
-
-## Testing on a local chain or BSC testnet
-
-`deployment.json` stays mainnet. To point the helper at a local chain or BSC testnet, set the overrides:
-
-```bash
-export TURNCOAT_API=http://127.0.0.1:8787            # the guard service under test
-export TURNCOAT_CONTRACT=0x...                        # Turncoat on that chain
-export TURNCOAT_RPC=https://data-seed-prebsc-1-s1.bnbchain.org:8545   # or http://127.0.0.1:8545
-export TURNCOAT_CHAIN_ID=97                           # 97 = BSC testnet; a local chain's own id otherwise
-```
-
-Reads, calldata and `attempt-id` work the same on any chain. `explorerUrl` links to bscscan.com for 56, testnet.bscscan.com for 97, and is `null` for any other chain.
-
-`baw` supports mainnet only, so off mainnet the transaction step uses a **test-only sender** instead of `baw contract-call preview` / `execute`. Real players never use it, and `SKILL.md` does not mention it.
-
-```bash
-export TURNCOAT_TEST_KEY_FILE=/path/to/test-key      # a file holding a 0x… test private key
-node scripts/turncoat.mjs test-send --to <to> --data <inputData> [--value <wei>]
-```
-
-- It takes `to` and `inputData` straight from `attempt-calldata`, `approve-calldata` or `settle-calldata`, and sends only to the Turncoat contract or its token.
-- Before sending, it runs an `eth_call` of the exact transaction as a stand-in for the preview. If that reverts, it returns `PREVIEW_FAILED` and sends nothing.
-- It refuses chain id 56, both as configured and as reported by the RPC. It also refuses if the two chain ids differ.
-- The key is read only from the file named in `TURNCOAT_TEST_KEY_FILE`, never from an argument, and is never printed.
-- Every use writes a "TEST PATH" warning to stderr and adds `warning` to the JSON.
-- It needs `viem`, so run it from this repo after `npm install`. The rest of the helper stays dependency-free.
-
-Everything after the transaction uses the normal commands: `attempt-id`, then `submit --tx`, then `result`. A third party settles with `settle-calldata`, sent by `test-send` from another test key.
+The tests and the local-chain / BSC testnet tooling are not part of the installed skill. They live in the repository's `skill-dev/` folder (see `skill-dev/README.md`).

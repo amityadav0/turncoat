@@ -1,4 +1,6 @@
-// TEST PATH ONLY. Real players never use this: on mainnet every transaction goes through
+// TEST PATH ONLY, development only. Lives outside skill/ so it never ships with the installed skill.
+// skill/scripts/turncoat.mjs loads it for its `test-send` command only when this repo checkout is present.
+// Real players never use this: on mainnet every transaction goes through
 // `baw contract-call preview` -> the user's explicit yes -> `baw contract-call execute`.
 // `baw` supports BNB Smart Chain mainnet only, so on a local chain or BSC testnet (97) this sends
 // the same transaction (same `to`, same calldata, same pre-checks) with a plain test key.
@@ -66,4 +68,14 @@ export async function testSend(cfg, { to, data, value = "0", allowedTo }, env = 
   const txHash = await wallet.sendTransaction({ to, data, value: BigInt(value), gas: (gas * 12n) / 10n });
   const r = await pub.waitForTransactionReceipt({ hash: txHash });
   return { warning: TEST_PATH_WARNING, status: r.status === "success" ? "CONFIRMED" : "REVERTED", from: account.address, txHash, blockNumber: Number(r.blockNumber) };
+}
+
+/** The helper's `test-send` command. `h` carries the helper's own functions so the checks are the same code. */
+export async function runCli(cfg, opts, h) {
+  process.stderr.write(TEST_PATH_WARNING + "\n");
+  refuseMainnet(cfg.chainId, "configured chain id");
+  h.need(cfg, "contract", "rpc");
+  const token = await h.tokenOf(cfg);
+  const out = await testSend(cfg, { to: h.req(opts, "to"), data: h.req(opts, "data"), value: opts.value ?? "0", allowedTo: [cfg.contract, token] });
+  return out.txHash ? { ...out, explorerUrl: h.explorerTx(cfg.chainId, out.txHash) } : out;
 }

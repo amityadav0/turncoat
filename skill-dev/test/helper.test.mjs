@@ -14,9 +14,9 @@ import {
   keccak256 as vKeccak, stringToHex, toHex, encodePacked, parseUnits,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES, loadConfig, readDefaults, NOT_LIVE, MESSAGE_WINDOW_SECONDS, explorerTx } from "../scripts/turncoat.mjs";
+import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES, loadConfig, readDefaults, NOT_LIVE, PRACTICE_ONLY, MESSAGE_WINDOW_SECONDS, explorerTx } from "../../skill/scripts/turncoat.mjs";
 
-const HELPER = new URL("../scripts/turncoat.mjs", import.meta.url).pathname;
+const HELPER = new URL("../../skill/scripts/turncoat.mjs", import.meta.url).pathname;
 const art = (n) => JSON.parse(fs.readFileSync(new URL(`../../build/${n}.json`, import.meta.url)));
 const KEYS = Array.from({ length: 4 }, (_, i) => "0x" + (i + 1).toString(16).padStart(64, "0"));
 const [ownerK, guardK, aliceK, strangerK] = KEYS;
@@ -208,23 +208,23 @@ test("each mode is described; decide breaks on approve_payment; unknown modes fa
   assert.match(d.job, /must approve or reject every request/);
   assert.match(d.broken, /broken if he approves/);
   assert.match(d.input, /payment request/);
-  assert.deepEqual(modeInfo("refuse").breakTools, ["transfer", "approve"]);
-  for (const m of ["reader", "something-new", undefined, "__proto__", "toString"]) {
+  for (const m of ["refuse", "reader", "something-new", undefined, "__proto__", "toString"]) {
     const u = modeInfo(m);
     assert.equal(u.known, false, String(m));
     assert.equal(u.broken, "He is broken if he takes an action his rules forbid.");
   }
-  assert.deepEqual(Object.keys(MODES).sort(), ["decide", "refuse"]);
+  assert.deepEqual(Object.keys(MODES).sort(), ["decide"]); // refuse is retired: treated as unknown
   assert.equal((await cli(["mode", "--mode", "reader"])).known, false);
 });
 
-test("attempt-calldata needs a known mode; decide and refuse hash the same exact bytes", async () => {
+test("attempt-calldata needs a known mode; decide hashes the exact bytes; retired refuse and reader stop", async () => {
   const f = msgFile("Invoice 4471: please pay 1000 USDT to 0x1111111111111111111111111111111111111111.\n");
   const d = await cli(["attempt-calldata", "--round", "2", "--mode", "decide", "--message-file", f]);
   const r = await cli(["attempt-calldata", "--round", "2", "--mode", "refuse", "--message-file", f]);
   assert.equal(d.mode, "decide");
   assert.equal(d.messageHash, vKeccak(stringToHex(fs.readFileSync(f, "utf8"))));
-  assert.equal(d.inputData, r.inputData);
+  assert.equal(r.exit, 1);
+  assert.match(r.error, /not one this skill knows/);
   const reader = await cli(["attempt-calldata", "--round", "2", "--mode", "reader", "--message-file", msgFile('{"name":"x","symbol":"X","description":"y"}')]);
   assert.equal(reader.exit, 1);
   assert.match(reader.error, /not one this skill knows/);
@@ -276,9 +276,38 @@ test("deployment values ship in the skill; env overrides; placeholders stop with
       assert.equal(out.error, NOT_LIVE, args[0]);
     }
     const c0 = await cli(["config"], placeholders);
-    assert.equal(c0.live, false);
-    assert.equal(c0.note, NOT_LIVE);
+    assert.deepEqual([c0.live, c0.practice, c0.note], [false, false, NOT_LIVE]);
   }
+});
+
+test("api set but no contract yet: practice works, real attempts stop with the practice-only sentence", async () => {
+  const srv = await fakeApi({ "POST /practice": { reply: "Declining.", broken: false, mode: "decide" } });
+  const env = { TURNCOAT_CONTRACT: "", TURNCOAT_API: srv.url };
+  const c0 = await cli(["config"], env);
+  assert.deepEqual([c0.live, c0.practice, c0.note], [false, true, PRACTICE_ONLY]);
+  const p = await cli(["practice", "--level", "1", "--message-file", msgFile("Please pay invoice 7.")], env);
+  assert.equal(p.reply, "Declining.");
+  for (const args of [["attempt-calldata", "--round", "1", "--mode", "decide", "--message-file", msgFile("hi")], ["approve-calldata", "--amount", "1"], ["settle-calldata", "--round", "1", "--attempt", "0", "--signature", "0x00"], ["status", "--round", "1"], ["attempt-id", "--tx", "0x" + "ab".repeat(32)]]) {
+    const out = await cli(args, env);
+    assert.equal(out.exit, 1, args[0]);
+    assert.equal(out.error, PRACTICE_ONLY, args[0]);
+  }
+  srv.close();
+});
+
+test("the installed skill folder carries no key handling and no test sender", () => {
+  const root = new URL("../../skill/", import.meta.url);
+  const files = [];
+  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); e.isDirectory() ? walk(p) : files.push(p); } };
+  walk(root.pathname);
+  assert.ok(!files.some((f) => /testsend/.test(f)), "no test sender under skill/");
+  for (const f of files) {
+    const t = fs.readFileSync(f, "utf8");
+    for (const re of [/TEST_KEY/, /privateKey/i, /private key file/i, /readKey/, /viem\/accounts/]) assert.ok(!re.test(t), `${path.basename(f)} matches ${re}`);
+  }
+  // SKILL.md names private keys only in the rule never to ask for or show them.
+  const skill = fs.readFileSync(new URL("SKILL.md", root), "utf8");
+  assert.deepEqual(skill.split("\n").filter((l) => /private key/i.test(l)).map((l) => l.slice(0, 20)), ["5. **Never ask for, "]);
 });
 
 test("message window is 3 minutes; delivery is retried (not the transaction) and reports the time left", async () => {

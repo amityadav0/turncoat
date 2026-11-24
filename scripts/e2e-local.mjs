@@ -174,7 +174,7 @@ async function until(fn, ms = 15000, what = "condition") {
 
 // ---------------------------------------------------------------- the tester's path: the skill helper
 const SKILL = path.join(ROOT, "skill/scripts/turncoat.mjs");
-const skillHasTestSend = fs.existsSync(path.join(ROOT, "skill/scripts/testsend.mjs"));
+const skillHasTestSend = fs.existsSync(path.join(ROOT, "skill-dev/testsend.mjs"));
 async function skill(args, k, base) {
   const r = await run(process.execPath, [SKILL, ...args], { env: { TURNCOAT_API: base ?? services.A?.base ?? "", TURNCOAT_CONTRACT: T.address, TURNCOAT_RPC: PROXY, TURNCOAT_CHAIN_ID: "1337", TURNCOAT_TEST_KEY_FILE: k ? keyFile(k) : "", TURNCOAT_RETRY_MS: "300" } });
   try { return JSON.parse(r.out); } catch { throw new Error(`skill ${args[0]}: ${r.out}${r.err}`.slice(0, 400)); }
