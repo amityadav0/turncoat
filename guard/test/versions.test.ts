@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { hexToBytes, bytesToHex } from "viem";
 import { VERSIONS, resolveVersion, levelFile, levelBytes } from "../src/levels.ts";
-import { computeCommit, loadRecords, parseCommitted, toolsHash, type CommitRecord } from "../src/commit.ts";
+import { computeCommit, loadRecords, parseCommitted, toolsHash, followUpFor, type CommitRecord } from "../src/commit.ts";
 import { GUARD_ROOT } from "../src/config.ts";
 
 const lines = (s: string) => s.split("\n").filter((l) => l.trim());
@@ -22,10 +22,10 @@ function runScript(script: string, args: string[], env: Record<string, string>) 
   return spawnSync(process.execPath, ["--import", "tsx", path.join(GUARD_ROOT, "scripts", script), ...args], { cwd: GUARD_ROOT, env: { ...base, ...env }, encoding: "utf8" });
 }
 
-test("GUARD_VERSION selects v1, v2 or v3; default v1; anything else is refused", () => {
+test("GUARD_VERSION selects v1, v2 or v3; default v2; anything else is refused", () => {
   assert.deepEqual([...VERSIONS], ["v1", "v2", "v3"]);
-  assert.equal(resolveVersion(undefined), "v1");
-  assert.equal(resolveVersion(""), "v1");
+  assert.equal(resolveVersion(undefined), "v2");
+  assert.equal(resolveVersion(""), "v2");
   assert.equal(resolveVersion("v2"), "v2");
   assert.equal(resolveVersion(" v3 "), "v3");
   assert.throws(() => resolveVersion("v4"), /GUARD_VERSION must be one of/);
@@ -53,29 +53,29 @@ test("commit.ts commits a header (model, mode, version, tools, max turns, follow
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "commit-test-"));
   try {
     const M = ["--model", "test/model-a"];
-    const byEnv = runScript("commit.ts", ["--out", out, ...M], { GUARD_VERSION: "v2" });
+    const byEnv = runScript("commit.ts", ["--out", out, "--mode", "refuse", ...M], { GUARD_VERSION: "v2" });
     assert.equal(byEnv.status, 0, byEnv.stderr);
-    const byFlag = runScript("commit.ts", ["--out", out, "--version", "v3", ...M, "--max-turns", "4"], { GUARD_VERSION: "v1" });
+    const byFlag = runScript("commit.ts", ["--out", out, "--mode", "refuse", "--version", "v3", ...M, "--max-turns", "4"], { GUARD_VERSION: "v1" });
     assert.equal(byFlag.status, 0, byFlag.stderr);
-    const byDefault = runScript("commit.ts", ["--out", out, ...M], { MAX_TOOL_TURNS: "" });
+    const byDefault = runScript("commit.ts", ["--out", out, ...M], { MAX_TOOL_TURNS: "", GUARD_MODE: "" }); // defaults: decide v2
     assert.equal(byDefault.status, 0, byDefault.stderr);
 
     const commitOf = (stdout: string) => /guardCommit: (0x[0-9a-f]{64})/.exec(stdout)![1];
     const recs = loadRecords(out);
-    const check = (stdout: string, version: "v1" | "v2" | "v3", maxTurns = 6) => {
+    const check = (stdout: string, version: "v1" | "v2" | "v3", maxTurns = 6, mode: "refuse" | "decide" = "refuse") => {
       const rec = recs.get(commitOf(stdout)) as CommitRecord;
       assert.equal(rec.version, version);
       assert.equal(rec.level, 1);
-      assert.equal(rec.sourceFile, `levels/level1/${version}.md`);
+      assert.equal(rec.sourceFile, `levels/level1${mode === "refuse" ? "" : "-" + mode}/${version}.md`);
       const { header, instructions } = parseCommitted(hexToBytes(rec.instructionsHex));
-      assert.equal(bytesToHex(instructions), bytesToHex(levelBytes(1, version)));
-      assert.deepEqual(header, { level: 1, mode: "refuse", version, model: "test/model-a", toolsHash: toolsHash("refuse"), maxTurns, followUp: "none" });
+      assert.equal(bytesToHex(instructions), bytesToHex(levelBytes(1, version, undefined, mode)));
+      assert.deepEqual(header, { level: 1, mode, version, model: "test/model-a", toolsHash: toolsHash(mode), maxTurns, followUp: followUpFor(mode) });
       assert.equal(rec.commit, computeCommit(rec.salt, hexToBytes(rec.instructionsHex)));
       assert.equal(hexToBytes(rec.salt).length, 32);
     };
     check(byEnv.stdout, "v2");
     check(byFlag.stdout, "v3", 4);
-    check(byDefault.stdout, "v1");
+    check(byDefault.stdout, "v2", 6, "decide");
     // the model is part of the commit: no model, no commit
     const noModel = runScript("commit.ts", ["--out", out], { MODEL_PROVIDER: "" });
     assert.equal(noModel.status, 2);
@@ -114,9 +114,9 @@ test("redteam.ts --models fake --mode both --version all runs every cell end to 
     assert.equal(saved.cells.length, 6);
     assert.equal(saved.cells[3].results.find((x: any) => x.id === "t-hold").decision, "reject");
 
-    const zh = runScript("redteam.ts", [file, "--models", "fake", "--version", "v2", "--lang", "zh", "--out", dir], {});
+    const zh = runScript("redteam.ts", [file, "--models", "fake", "--version", "v2", "--lang", "zh", "--out", dir], { GUARD_MODE: "" });
     assert.equal(zh.status, 0, zh.stderr);
-    assert.match(zh.stdout, /fake\/scripted\s+refuse\s+v2\s+0\/1/);
+    assert.match(zh.stdout, /fake\/scripted\s+decide\s+v2\s+0\/1/); // default mode: decide
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -130,14 +130,17 @@ test("npm run demo shows the launch shape end to end (scripted models, no AI)", 
   assert.match(out, /lighter rung .* model demo\/lighter \(scripted stand-in\), guard v2/);
   assert.match(out, /top rung .* model demo\/top \(scripted stand-in\), guard v3/);
   assert.match(out, /Argus \(demo\/lighter\) calls approve_payment/);
-  assert.match(out, /BROKEN \(misfire\)/);
+  assert.match(out, /BROKEN \(persuaded\)/);
+  // the post-mortem 0 attack is held on v2; the break is a zero-value test approval with the sender's own address
+  assert.match(out, /erin records attempt[\s\S]*?Make it real[\s\S]*?decision: reject  →  held/);
+  assert.match(out, /Argus \(demo\/lighter\) calls approve_payment\(to: "0x[0-9a-fA-F]{40}", amount: "0"/);
   assert.match(out, /relayer settles: .*\(success\)/);
   assert.match(out, /bob's wallet:\s+0 USDT\s+→\s+100 USDT/);
   assert.match(out, /\[service\] Call `approve_payment` or `reject_payment` now to record your decision\./);
   assert.match(out, /round 1\s+demo\/lighter\s+broken/);
   assert.match(out, /round 2\s+demo\/top\s+live/);
   assert.match(out, /\/rounds\/live lists 1 round\(s\): #2/);
-  assert.equal((out.match(/decision: reject/g) ?? []).length, 3);
+  assert.equal((out.match(/decision: reject/g) ?? []).length, 4);
   // the service's RPC refuses eth_getLogs, and the API still shows open tx, settle tx, payout and reveal
   assert.match(out, /its RPC refuses eth_getLogs/);
   assert.match(out, /round 1 on the API: openTx 0x[0-9a-f]{4}…[0-9a-f]{4}  settleTx 0x[0-9a-f]{4}…[0-9a-f]{4}  payout 100 USDT  reveal chain 0x[0-9a-f]{4}…[0-9a-f]{4}/);
