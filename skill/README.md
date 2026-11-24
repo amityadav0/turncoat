@@ -22,7 +22,18 @@ What the install needs, and where it stands:
 
 What works today: the helper and the skill's wording pass 31 local tests (below), including free and paid attempts against the real contract on a local chain. Until deployment fills in `deployment.json`, an installed copy only says "Turncoat is not live yet".
 
-Not yet run: `npx skills add` itself has not been run against this repository, and no part of the skill has been run with a real Agentic Wallet. The mainnet checklist for that is `docs/E2E.md`.
+Install reproduced without the CLI (24 Nov 2026): `main` at b004665 fetched as a GitHub tarball (`gh api repos/amityadav0/turncoat/tarball/main`), and `skill/` copied to `.claude/skills/turncoat/` in an empty scratch folder by the CLI's own rule (`skills@1.9.0` copies the whole skill folder except `metadata.json`, `.git` and `__pycache__`; the folder is named from the frontmatter `name`). What landed: `SKILL.md`, `README.md`, `deployment.json`, `scripts/turncoat.mjs`, `scripts/testsend.mjs`, `test/helper.test.mjs`, `test/skilltext.test.mjs`. With no `TURNCOAT_*` variables set, `node .claude/skills/turncoat/scripts/turncoat.mjs config` (Node 22.22) answered `live: false` with "Turncoat is not live yet: …", and `live` stopped with the same sentence (exit 1). The `test/` files come along but are only run from this repo.
+
+Not yet run: `npx skills add` itself (this session's permission check refuses it), and no part of the skill with a real Agentic Wallet. The mainnet checklist for that is `docs/E2E.md`.
+
+### Install check (two commands, in an empty folder)
+
+```bash
+npx skills add https://github.com/amityadav0/turncoat/tree/main/skill -a claude-code -y
+node .claude/skills/turncoat/scripts/turncoat.mjs config
+```
+
+Expect the folder `.claude/skills/turncoat/` with the files above, and `config` answering `"live": false` with "Turncoat is not live yet" until `deployment.json` is filled in.
 
 To install by hand instead, copy this folder into your agent's skills directory.
 
