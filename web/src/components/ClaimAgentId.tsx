@@ -13,11 +13,9 @@ export function ClaimAgentId({ heading = t.heading }: { heading?: string }) {
       <ol className="steps">
         <li>
           <strong>{t.step1Strong}</strong> {t.step1}{' '}
-          {config.agentIdUrl && (
-            <a href={config.agentIdUrl} target="_blank" rel="noopener noreferrer" className="ext">
-              {t.step1Link} <span aria-hidden="true">↗</span>
-            </a>
-          )}
+          <a href={config.agentIdUrl || copy.play.agentIdUrl} target="_blank" rel="noopener noreferrer" className="ext">
+            {t.step1Link} <span aria-hidden="true">↗</span>
+          </a>
         </li>
         <li>
           <strong>{t.step2Strong}</strong>

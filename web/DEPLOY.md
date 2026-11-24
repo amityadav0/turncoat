@@ -43,7 +43,7 @@ What you get: "Test network. Nothing here has real value." on every page, explor
 | `VITE_RPC_URL` | `https://bsc-dataseed.bnbchain.org` |
 | `VITE_SKILL_URL` | leave unset: the site already uses `https://github.com/amityadav0/turncoat/tree/main/skill`. Set it only to point somewhere else. |
 | `VITE_TOKEN_DECIMALS` | `18` |
-| `VITE_AGENT_ID_URL` | where to claim an Agent ID, when known. If unset, the site says "Available at launch". |
+| `VITE_AGENT_ID_URL` | optional: an official page on claiming an Agent ID, if Binance publishes one. If unset, the site links Binance's Agentic Wallet skill page. |
 | `VITE_MOCK`, `VITE_SITE_URL` | leave unset |
 
 A build with `VITE_API_BASE_URL` set and no `VITE_CHAIN_ID` stops with an error, so a site can't go out on the wrong chain by accident. The chain id also picks the explorer (56 → bscscan.com, 97 → testnet.bscscan.com, anything else → none). It can't be set separately.

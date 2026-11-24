@@ -36,15 +36,9 @@ export default function Play() {
               ))}
               {'agentId' in s && (
                 <p>
-                  {config.agentIdUrl ? (
-                    <a href={config.agentIdUrl} target="_blank" rel="noopener noreferrer" className="ext">
-                      {t.agentIdLink} <span aria-hidden="true">↗</span>
-                    </a>
-                  ) : (
-                    <span className="muted">
-                      {t.agentIdLink}: {t.atLaunch}
-                    </span>
-                  )}
+                  <a href={config.agentIdUrl || t.agentIdUrl} target="_blank" rel="noopener noreferrer" className="ext">
+                    {t.agentIdLink} <span aria-hidden="true">↗</span>
+                  </a>
                 </p>
               )}
               {'ext' in s && s.ext && (

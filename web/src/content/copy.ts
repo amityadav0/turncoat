@@ -145,9 +145,9 @@ export const copy = {
   claim: {
     heading: 'Claim an Agent ID to play for the pot',
     agentLine: 'You play through your own AI agent, one that can run commands on your computer (Binance names Claude, ChatGPT, Copilot or any major AI agent).',
-    step1Strong: 'Claim your Agent ID in your Agentic Wallet.',
-    step1: "One per person, and it can't be transferred.",
-    step1Link: 'How to claim',
+    step1Strong: 'Claim your Agent ID in the Binance App.',
+    step1: "Open your Web3 wallet and look for Agent ID. One per person, and it can't be transferred.",
+    step1Link: "Agent ID in Binance's wallet skill",
     step2Strong: 'Install the Turncoat skill in your agent.',
     fullSteps: 'Every step, with what you should see',
     step3Strong: 'Tell your agent:',
@@ -163,7 +163,6 @@ export const copy = {
     doLabel: 'Do',
     seeLabel: 'You should see',
     failLabel: 'If it fails',
-    atLaunch: 'Available at launch.',
     // Binance's own install guide, the source for which agents the wallet skill works with.
     agentGuide: 'https://developers.binance.com/en/docs/products/agentic-wallet/quickstart/install-agentic-wallet',
     steps: [
@@ -191,7 +190,11 @@ export const copy = {
       },
       {
         title: 'Claim an Agent ID',
-        do: ['Claim your Agent ID in your Agentic Wallet. One per person, and it can\'t be transferred. Then ask your agent: "Have I claimed an Agent ID?"'],
+        do: [
+          'You need a Binance account and, in the Binance App, a Web3 (MPC) wallet with an Agentic Wallet created from it. Binance\'s install guide says the MPC wallet comes first.',
+          'In the Binance App, open your Web3 wallet and look for Agent ID. Pick a free .ai name and claim it. One per person, and it can\'t be transferred.',
+          'Then ask your agent: "Have I claimed an Agent ID?"',
+        ],
         see: 'claimed: true and your .ai name.',
         fail: 'The agent is signed in to a different wallet from the one you claimed with. Check the address with baw wallet address --json.',
         agentId: true,
@@ -237,7 +240,9 @@ export const copy = {
         link: { to: '/live', label: 'Live feed' },
       },
     ],
-    agentIdLink: 'How to claim',
+    // No official Binance page describes the claim screen; this official page is where the wallet skill documents its Agent ID check.
+    agentIdUrl: 'https://www.binance.com/en/skills/detail/binance-web3/binance-agentic-wallet',
+    agentIdLink: "Agent ID in Binance's Agentic Wallet skill",
     skillCmd: (url: string) => `npx skills add ${url}`,
   },
 
