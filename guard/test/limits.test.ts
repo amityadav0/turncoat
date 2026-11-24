@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import { clientKey, RateLimiter } from "../src/ratelimit.ts";
 import { createApp } from "../src/server.ts";
-import { GuardService } from "../src/service.ts";
+import { GuardService, messageHash } from "../src/service.ts";
 import { FakeAdapter } from "../src/model/fake.ts";
 import { silentLogger } from "../src/log.ts";
 import { Store } from "../src/db.ts";
@@ -99,6 +99,58 @@ test("POST /attempts junk is rejected before any chain read", async () => {
   ];
   for (const [body, code] of cases) assert.equal((await svc.submit(body)).code, code, JSON.stringify(body).slice(0, 80));
   assert.deepEqual(calls, []);
+});
+
+/**
+ * A chain read through a node that lags: the first `staleReads` round reads still show attemptCount 0,
+ * as a load-balanced RPC answering from a node one block behind does right after the attempt confirms.
+ */
+function laggingChain(staleReads: number, attemptExists = true) {
+  const msg = "hello guard";
+  let reads = 0;
+  const calls: string[] = [];
+  const round = (count: number) => ({ level: 1, paidEnabled: false, closed: false, startTime: 1, endTime: 1e9, baseFee: 0n, attemptCount: count, winningAttempt: 0, winner: "0x0000000000000000000000000000000000000000", guardCommit: "0x" + "00".repeat(32), pot: 5n });
+  const getRound = async () => { calls.push("getRound"); reads += 1; return round(attemptExists && reads > staleReads ? 1 : 0); };
+  const chain = {
+    getRound,
+    getAttempt: async (rid: number, aid: number) => {
+      calls.push("getAttempt");
+      const r = await getRound();
+      return aid < r.attemptCount ? { attacker: "0x0000000000000000000000000000000000000009", paid: false, time: 100, messageHash: messageHash(msg) } : null;
+    },
+    now: async () => 100 + 1000, // past the message window, so a found attempt ends as 410 without the processor
+    getSettleGrace: async () => 86400,
+  };
+  return { chain: chain as any, calls, msg };
+}
+
+test("POST /attempts: the next attempt id is re-read (up to 3 times) when the RPC lags a block; other ids fail fast", async () => {
+  const cfg = { messageWindowSec: 180, attemptWaitMs: 10, tokenDecimals: 18, missingAttemptRetryMs: 20 };
+  const svc = (c: any) => new GuardService(new Store(":memory:"), c, proc, cfg, new Map(), { resolve: async () => new Map() } as any);
+
+  // lags two reads: the attempt is found on the second re-read (410 = found, then judged too late)
+  const lag = laggingChain(2);
+  assert.equal((await svc(lag.chain).submit({ roundId: 1, attemptId: 0, message: lag.msg })).code, 410);
+  assert.equal(lag.calls.filter((c) => c === "getAttempt").length, 2);
+
+  // never appears: 404 after three re-reads, about 3 x 20 ms
+  const gone = laggingChain(0, false);
+  const t0 = Date.now();
+  assert.equal((await svc(gone.chain).submit({ roundId: 1, attemptId: 0, message: gone.msg })).code, 404);
+  assert.ok(Date.now() - t0 >= 55);
+  assert.equal(gone.calls.filter((c) => c === "getAttempt").length, 3);
+
+  // an id beyond the next one: 404 at once, one round read, no re-reads
+  const far = laggingChain(0);
+  const t1 = Date.now();
+  assert.equal((await svc(far.chain).submit({ roundId: 1, attemptId: 7, message: far.msg })).code, 404);
+  assert.ok(Date.now() - t1 < 20);
+  assert.deepEqual(far.calls, ["getRound"]);
+
+  // no lag: found on the first read, no waiting
+  const fresh = laggingChain(0);
+  assert.equal((await svc(fresh.chain).submit({ roundId: 1, attemptId: 0, message: fresh.msg })).code, 410);
+  assert.deepEqual(fresh.calls, ["getRound", "getAttempt", "getRound"]);
 });
 
 test("round and attacker views are cached for READ_CACHE_MS; concurrent requests share one computation", async () => {

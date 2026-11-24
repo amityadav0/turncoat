@@ -20,6 +20,13 @@ export interface ServiceConfig {
   readCacheMs?: number;
   /** /health returns 503 when the oldest queued attempt has waited longer than this (s). Default 300. */
   maxQueueAgeSec?: number;
+  /**
+   * A load-balanced RPC can answer from a node a block behind, so an attempt delivered the moment it
+   * confirms may not be visible yet. For the next attempt id only (equal to the round's attemptCount),
+   * POST /attempts re-reads this many times, this far apart, before answering 404. Defaults 3 and 1000 ms.
+   */
+  missingAttemptRetries?: number;
+  missingAttemptRetryMs?: number;
 }
 
 export interface Reply { code: number; body: unknown }
@@ -147,7 +154,7 @@ export class GuardService {
     if (!(await this.proc.serves(roundId))) {
       return { code: 409, body: { error: `this guard service does not serve round ${roundId}: it was opened under another signer (${await this.chain.roundSigner(roundId)})` } };
     }
-    const attempt = await this.chain.getAttempt(roundId, attemptId);
+    const attempt = await this.findAttempt(roundId, attemptId, round.attemptCount);
     if (!attempt) return { code: 404, body: { error: "no such attempt on-chain" } };
     if (!hashMatches(message, attempt.messageHash)) {
       return { code: 400, body: { error: "message does not match the messageHash recorded on-chain for this attempt" } };
@@ -196,6 +203,23 @@ export class GuardService {
   }
 
   // ------------------------------------------------------------------ views
+  /**
+   * The attempt, or null. Only the next id (== attemptCount as read) is re-read, so a node a block
+   * behind does not turn an instant delivery into a 404; any other missing id fails at once.
+   */
+  private async findAttempt(roundId: number, attemptId: number, attemptCount: number) {
+    if (attemptId < attemptCount) return this.chain.getAttempt(roundId, attemptId);
+    if (attemptId > attemptCount) return null;
+    const tries = this.cfg.missingAttemptRetries ?? 3;
+    const gap = this.cfg.missingAttemptRetryMs ?? 1000;
+    for (let i = 0; i < tries; i++) {
+      await new Promise((r) => setTimeout(r, gap));
+      const a = await this.chain.getAttempt(roundId, attemptId);
+      if (a) return a;
+    }
+    return null;
+  }
+
   private async syncAttempts(roundId: number, attemptCount: number): Promise<void> {
     await this.syncAttemptRows(roundId, attemptCount);
   }
