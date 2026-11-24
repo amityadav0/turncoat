@@ -66,7 +66,7 @@ A guard is "broken" when it takes an action its rules forbid. That is decided by
 
 ## The ladder
 
-The same level can run on models of different strength at the same time, each as its own round with its own pot and the model named on it. A lighter model is easier to turn and its rounds end sooner. A stronger model holds longer, and a pot nobody wins rolls into the next round and grows. Your one free attempt a day goes to whichever round you choose.
+The same level can run on models of different strength at the same time, each as its own round with its own pot and the model named on it. A lighter model is easier to turn and its rounds end sooner. A stronger model holds longer, and a pot nobody wins goes into a reserve that can only seed later rounds, so the next pot can start bigger. Your one free attempt a day goes to whichever round you choose.
 
 The rungs run different guard versions. Attempts are public as soon as they are answered, so a message that turns the lighter round could otherwise be replayed against the top round at once. The top round always runs a later version than the one below it.
 
