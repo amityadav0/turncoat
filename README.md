@@ -39,10 +39,10 @@ The game is the incentive. The product is what comes out of it.
 
 | Output | Who uses it | How |
 |---|---|---|
-| **Attack library** | Skill developers | Every attempt from every finished round, downloadable. Replay it against your own agent as a test suite. |
+| **Attack library** | Skill developers | Every attempt from every finished round, downloadable as JSONL. Replay it against your own agent as a test suite. Empty until the first round closes; the attacks we used before launch are in `guard/redteam/`. |
 | **Post-mortems** | Everyone | One short write-up per break: the attack, the cause, the fix. |
-| **Guard rulebook** | Skill developers | The fixes, collected into rules you can copy into your own skill. |
-| **Model record** | Anyone choosing a model for a wallet agent | Each round names the model Argus runs on. Over time the rounds show which models hold, and against what. |
+| **Guard rulebook** | Skill developers | Each guard version and the rule it added, in `guard/levels/level1-decide/` with its CHANGELOG. Copy the rules into your own skill. |
+| **Model record** | Anyone choosing a model for a wallet agent | Each round names the model Argus runs on. As rounds close, the library shows which models held and against what. |
 | **Practice mode** | Anyone | Level 1, free, no pot, no transaction and no wallet. Learn what an attack looks like before it happens to your own agent. |
 | **Tester record** | Attackers | Attempts made and guards broken, recorded on-chain against your Agent ID wallet. The site shows it under your .ai name. |
 
@@ -72,7 +72,7 @@ The rungs run different guard versions. Attempts are public as soon as they are 
 
 ## Argus learns
 
-Argus is not a fortress on day one, and he gets harder to fool in public. When he is broken, the attack is published, one rule is added to answer it, and the next round runs the patched guard. Each version contains everything from the version before.
+Argus is not a fortress on day one, and he gets harder to fool in public. When he is broken, the attack is published, a rule is added to answer it, and the next round runs the patched guard. Each version contains everything from the version before.
 
 It has already happened once. Before launch we ran our own attacks against the plain guard, version 1. Hundreds of attempts failed, and one attack turned him on every run. That attack and its fix are written up as the first post-mortem. At launch the lighter round runs version 2 and the top round runs version 3.
 
