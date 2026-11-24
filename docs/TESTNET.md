@@ -125,7 +125,7 @@ Contract `0x2d1b5588a0a970892bb79a5317b69a71c19c9a94` (testnet). The guard servi
 - **Pass (24 Nov):**
   - **4b.** Attacker 4 had used its free attempt on round 1 on 23 Nov. After 00:00 UTC, `freeAttemptAvailable` was true again, and its attempt 2 on round 1 went through free (tx `0x1992…1173`) and was held by Haiku.
   - **U.** The skill helper refused a mode it does not know, before building any transaction.
-- **Pending:** 12 and 20, scheduled by `scripts/testnet-wait-rows.mjs` for Tue 24 Nov 17:40 UTC (settle deadline + 2 min).
+- **Pass (2026-11-24, after the settle deadline, run by `scripts/testnet-wait-rows.mjs`):** row 12 pass: early rollOver refused (RoundStillLive); after the deadline rollOver(3) `0x40f6…b857`, reserve +10 (= pot); recorded, API `held` with settleTx; round 14 opened from the reserve only (pot 10); row 20 pass: late instance started after the deadline; round 4 blocker attempt 0 expired; attempt 1 `broken` (persuaded), no verdict, note "settle deadline has passed".
 - **Found and fixed:** Node's default 5 s HTTP keep-alive raced pooled clients ("other side closed"). The service now keeps idle connections for 65 s. Afterwards, 151 polls at a 5 s cadence gave 0 errors.
 - **Found and fixed:** the public RPC's load-balanced reads can lag a block behind a confirmed transaction. This was seen in our own checks, not in a delivery. `POST /attempts` now re-reads the next attempt id up to 3 times, about a second apart, before answering 404. Other unknown ids still fail at once.
 - **Not part of the pass:** rounds 12 and 13. A test script was re-run by mistake on 23 Nov. It opened these two rounds and moved `guardSigner` to the second signer, which was then set back (tx `0x3d52…ff80`). Ignore both rounds when reading the results.
