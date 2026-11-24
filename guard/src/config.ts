@@ -40,10 +40,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     relayerKey: (env.RELAYER_PRIVATE_KEY || undefined) as Hex | undefined,
     dbPath: path.resolve(GUARD_ROOT, env.DB_PATH || "data/guard.sqlite"),
     commitsDir: path.resolve(GUARD_ROOT, env.COMMITS_DIR || ".secrets/commits"),
-    /** Instruction version practice mode runs (v1 | v2 | v3). Live rounds run whatever their guardCommit commits to. */
-    guardVersion: env.GUARD_VERSION || "v1",
-    /** Guard mode practice mode runs (refuse | decide). Live rounds run whatever their commit record says. */
-    guardMode: env.GUARD_MODE || "refuse",
+    /**
+     * Default instruction version (v1 | v2 | v3) and mode. Live rounds run whatever their commit record
+     * says; these defaults are decide v2 so a missing variable can never start the retired plain guard.
+     */
+    guardVersion: env.GUARD_VERSION || "v2",
+    guardMode: env.GUARD_MODE || "decide",
+    /** Practice rungs, "<version> <provider/model>": the same guard and model as the lighter and top launch rounds. */
+    practiceLighter: env.PRACTICE_LIGHTER || "v2 anthropic/claude-haiku-5-5",
+    practiceTop: env.PRACTICE_TOP || "v3 anthropic/claude-opus-5-5",
     messageWindowSec: int(env.MESSAGE_WINDOW_SECONDS, 180),
     pollMs: int(env.QUEUE_POLL_MS, 5000),
     retryBaseMs: int(env.MODEL_RETRY_BASE_MS, 5000),
@@ -57,6 +62,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     practicePerIp: int(env.PRACTICE_RATE_LIMIT, 10),
     practiceWindowSec: int(env.PRACTICE_RATE_WINDOW_SECONDS, 3600),
     practiceDailyCap: int(env.PRACTICE_DAILY_CAP, 2000),
+    /** The top rung costs far more per call: 3 per IP per hour and 200 a day across everyone, by default. */
+    practiceTopPerIp: int(env.PRACTICE_TOP_RATE_LIMIT, 3),
+    practiceTopWindowSec: int(env.PRACTICE_TOP_RATE_WINDOW_SECONDS, 3600),
+    practiceTopDailyCap: int(env.PRACTICE_TOP_DAILY_CAP, 200),
     /** Every GET except /health, per client IP (IPv6: per /64). */
     readPerIp: int(env.READ_RATE_LIMIT, 300),
     readWindowSec: int(env.READ_RATE_WINDOW_SECONDS, 60),

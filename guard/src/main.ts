@@ -4,7 +4,8 @@ import path from "node:path";
 import { http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { loadConfig, GUARD_ROOT, loadGuardEnv } from "./config.ts";
-import { modelFromEnv } from "./model/index.ts";
+import { modelFromEnv, modelFromSpec, type ModelAdapter } from "./model/index.ts";
+import { parseRungSpec, type PracticeRung, type PracticeRungName } from "./practice.ts";
 import { registerSecret } from "./model/redact.ts";
 import { Store } from "./db.ts";
 import { TurncoatChain } from "./chain.ts";
@@ -49,10 +50,31 @@ const service = new GuardService(store, chain, proc, { modelId: model.id, readCa
 const guardVersion = resolveVersion(cfg.guardVersion);
 if (isTestOnlyVersion(guardVersion) && cfg.chainId === MAINNET_CHAIN_ID) throw new Error(`GUARD_VERSION=${guardVersion} is test-only and refused on BSC mainnet (chain 56)`);
 const guardMode = resolveMode(cfg.guardMode);
-const practiceLevels = new Map([[1, { mode: guardMode, instructions: new TextDecoder().decode(levelBytes(1, guardVersion, undefined, guardMode)) }]]);
+// Practice: one rung per launch round (same guard version and model), each with its own limits.
+const practiceLimits: Record<PracticeRungName, RateLimiter> = {
+  lighter: new RateLimiter(cfg.practicePerIp, cfg.practiceWindowSec * 1000, cfg.practiceDailyCap, 86_400_000),
+  top: new RateLimiter(cfg.practiceTopPerIp, cfg.practiceTopWindowSec * 1000, cfg.practiceTopDailyCap, 86_400_000),
+};
+const practiceRungs: Partial<Record<PracticeRungName, PracticeRung & { limiter: RateLimiter }>> = {};
+const rungInfo: Record<string, unknown> = {};
+for (const [name, spec] of [["lighter", cfg.practiceLighter], ["top", cfg.practiceTop]] as const) {
+  try {
+    const { version: v, model: m } = parseRungSpec(spec);
+    const version = resolveVersion(v);
+    if (isTestOnlyVersion(version) && cfg.chainId === MAINNET_CHAIN_ID) throw new Error(`${version} is test-only and refused on BSC mainnet (chain 56)`);
+    const adapter: ModelAdapter = m === model.id ? model : modelFromSpec(m);
+    practiceRungs[name] = { levels: new Map([[1, { mode: guardMode, instructions: new TextDecoder().decode(levelBytes(1, version, undefined, guardMode)) }]]), model: adapter, version, limiter: practiceLimits[name] };
+    rungInfo[name] = `${version} ${adapter.id}`;
+    const matches = [...commits.values()].some((c) => c.version === version && c.model === m && (c.mode ?? "refuse") === guardMode);
+    if (commits.size && !matches) log("warn", `practice rung ${name} (${guardMode} ${version} on ${m}) matches no loaded commit record: practice would not be the same guard as a round`, { rung: name });
+  } catch (e) {
+    log("warn", `practice rung ${name} is off`, { spec, error: String((e as Error)?.message ?? e) });
+  }
+}
+const practiceLevels = practiceRungs.lighter?.levels ?? new Map();
 const app = createApp({
-  service, model, practiceLevels, maxTurns: cfg.maxTurns, trustProxy: cfg.trustProxy, corsOrigins: cfg.corsOrigins, log,
-  practiceLimiter: new RateLimiter(cfg.practicePerIp, cfg.practiceWindowSec * 1000, cfg.practiceDailyCap, 86_400_000),
+  service, model, practiceLevels, practiceRungs, maxTurns: cfg.maxTurns, trustProxy: cfg.trustProxy, corsOrigins: cfg.corsOrigins, log,
+  practiceLimiter: practiceLimits.lighter,
   readLimiter: new RateLimiter(cfg.readPerIp, cfg.readWindowSec * 1000, 0, 86_400_000),
   attemptLimiter: new RateLimiter(cfg.attemptPerIp, cfg.attemptWindowSec * 1000, 0, 86_400_000),
 });
@@ -65,6 +87,6 @@ listen(app, cfg.port, cfg.host, () => {
   log("info", "guard service listening", {
     url: `http://${cfg.host}:${cfg.port}`, model: model.id, contract: chain.address, chainId: cfg.chainId,
     signer: signer.address, servedRounds: signers.served, skippedRounds: signers.skipped, relayer: chain.relayerAddress ?? null, commitsLoaded: commits.size,
-    commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null, mode: c.mode ?? "refuse", model: c.model ?? null })), trustProxy: cfg.trustProxy ?? null, useLogs: cfg.useLogs, practiceVersion: guardVersion, practiceMode: guardMode,
+    commits: [...commits.values()].map((c) => ({ commit: c.commit, level: c.level, version: c.version ?? null, mode: c.mode ?? "refuse", model: c.model ?? null })), trustProxy: cfg.trustProxy ?? null, useLogs: cfg.useLogs, practiceRungs: rungInfo, practiceMode: guardMode,
   });
 });

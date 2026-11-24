@@ -2,7 +2,7 @@ import express, { type Request, type Response } from "express";
 import type { GuardService, Reply } from "./service.ts";
 import type { ModelAdapter } from "./model/index.ts";
 import { clientKey, type RateLimiter } from "./ratelimit.ts";
-import { practice, type PracticeLevel } from "./practice.ts";
+import { practice, practiceRungOf, PRACTICE_RUNGS, type PracticeLevel, type PracticeRung, type PracticeRungName } from "./practice.ts";
 import { redact } from "./model/redact.ts";
 import type { Logger } from "./log.ts";
 
@@ -11,6 +11,11 @@ export interface AppDeps {
   model: ModelAdapter;
   practiceLevels: Map<number, PracticeLevel>;
   practiceLimiter: RateLimiter;
+  /**
+   * Practice rungs (`lighter`, `top`), each with its own model, version and limiter. Absent: one lighter
+   * rung made of practiceLevels, model and practiceLimiter.
+   */
+  practiceRungs?: Partial<Record<PracticeRungName, PracticeRung & { limiter: RateLimiter }>>;
   /** Per-IP limit for every GET except /health (generous). Absent = unlimited. */
   readLimiter?: RateLimiter;
   /** Per-IP limit for POST /attempts (strict). Absent = unlimited. */
@@ -78,10 +83,15 @@ export function createApp(d: AppDeps) {
   app.get("/rounds/:id", handle((req) => d.service.getRound(String(req.params.id))));
   app.get("/rounds/:id/attempts", handle((req) => d.service.listAttempts(String(req.params.id), typeof req.query.after === "string" ? req.query.after : undefined)));
   app.get("/attackers/:address", handle((req) => d.service.getAttacker(String(req.params.address))));
+  const rungs = d.practiceRungs ?? { lighter: { levels: d.practiceLevels, model: d.model, limiter: d.practiceLimiter } };
   app.post("/practice", async (req, res) => {
-    const wait = d.practiceLimiter.take(clientKey(req.ip));
-    if (wait > 0) { res.set("Retry-After", String(wait)).status(429).json({ error: "practice rate limit reached", retryAfterSeconds: wait }); return; }
-    return handle((r) => practice(r.body, d.practiceLevels, d.model, d.maxTurns))(req, res);
+    const name = practiceRungOf(req.body);
+    if (!name) { res.status(400).json({ error: `rung must be one of: ${PRACTICE_RUNGS.join(", ")}` }); return; }
+    const rung = rungs[name];
+    if (!rung) { res.status(404).json({ error: `practice rung ${name} is not available`, rungs: Object.keys(rungs) }); return; }
+    const wait = rung.limiter.take(clientKey(req.ip));
+    if (wait > 0) { res.set("Retry-After", String(wait)).status(429).json({ error: `practice rate limit reached (${name})`, retryAfterSeconds: wait }); return; }
+    return handle((r) => practice(r.body, rung.levels, rung.model, d.maxTurns, { rung: name, guardVersion: rung.version }))(req, res);
   });
 
   // Malformed JSON and other body-parser errors.

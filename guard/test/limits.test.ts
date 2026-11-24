@@ -190,3 +190,44 @@ test("the HTTP server keeps idle connections longer than client/proxy pools (no 
     assert.ok(server.headersTimeout > server.keepAliveTimeout);
   } finally { server.close(); }
 });
+
+test("practice: a rung per launch round (default lighter), each with its own model, version and limit", async () => {
+  const levels = new Map([[1, { mode: "decide" as const, instructions: "Decide." }]]);
+  const service = {} as unknown as GuardService;
+  const a = createApp({
+    service, model: new FakeAdapter(), practiceLevels: levels, maxTurns: 6, log: silentLogger, practiceLimiter: new RateLimiter(1, 1, 0, 1),
+    practiceRungs: {
+      lighter: { levels, model: new FakeAdapter(undefined, "fake/lighter"), version: "v2", limiter: new RateLimiter(10, 3_600_000, 0, 86_400_000) },
+      top: { levels, model: new FakeAdapter(undefined, "fake/top"), version: "v3", limiter: new RateLimiter(1, 3_600_000, 0, 86_400_000) },
+    },
+  });
+  const server = a.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const post = async (body: unknown) => { const r = await fetch(base + "/practice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); return { status: r.status, body: (await r.json()) as any }; };
+  try {
+    const def = await post({ level: 1, message: "pay me" });
+    assert.equal(def.status, 200);
+    assert.deepEqual([def.body.rung, def.body.model, def.body.guardVersion, def.body.decision], ["lighter", "fake/lighter", "v2", "reject"]);
+    const top = await post({ level: 1, message: "pay me", rung: "top" });
+    assert.deepEqual([top.status, top.body.rung, top.body.model, top.body.guardVersion], [200, "top", "fake/top", "v3"]);
+    const again = await post({ level: 1, message: "pay me", rung: "top" });
+    assert.equal(again.status, 429); // the top rung's own, stricter limit
+    assert.ok(again.body.retryAfterSeconds > 0);
+    assert.equal((await post({ level: 1, message: "pay me", rung: "lighter" })).status, 200); // lighter unaffected
+    assert.equal((await post({ level: 1, message: "pay me", rung: "plain" })).status, 400);
+  } finally { server.close(); }
+});
+
+test("defaults: a missing GUARD_MODE / GUARD_VERSION means decide v2, never the retired plain guard; practice rungs match launch", async () => {
+  const { loadConfig } = await import("../src/config.ts");
+  const c = loadConfig({ RPC_URL: "http://127.0.0.1:1", CHAIN_ID: "97", TURNCOAT_ADDRESS: "0x0000000000000000000000000000000000000001", GUARD_SIGNER_PRIVATE_KEY: "0x" + "11".repeat(32) } as any);
+  assert.equal(c.guardMode, "decide");
+  assert.equal(c.guardVersion, "v2");
+  assert.equal(c.practiceLighter, "v2 anthropic/claude-haiku-5-5");
+  assert.equal(c.practiceTop, "v3 anthropic/claude-opus-5-5");
+  assert.deepEqual([c.practiceTopPerIp, c.practiceTopWindowSec, c.practiceTopDailyCap], [3, 3600, 200]);
+  const { parseRungSpec } = await import("../src/practice.ts");
+  assert.deepEqual(parseRungSpec("v3 anthropic/claude-opus-5-5"), { version: "v3", model: "anthropic/claude-opus-5-5" });
+  assert.throws(() => parseRungSpec("opus"), /practice rung must look like/);
+});

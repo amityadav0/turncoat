@@ -25,16 +25,16 @@ export const MODES = ["refuse", "decide", "reader"] as const;
  */
 export type GuardMode = (typeof MODES)[number];
 
-/** GUARD_MODE (or the given value), default refuse. Throws on anything else. */
+/** GUARD_MODE (or the given value), default decide (the launch mode; refuse is retired). Throws on anything else. */
 export function resolveMode(m: string | undefined = process.env.GUARD_MODE): GuardMode {
-  const x = (m ?? "").trim() || "refuse";
+  const x = (m ?? "").trim() || "decide";
   if (!(MODES as readonly string[]).includes(x)) throw new Error(`GUARD_MODE must be one of ${MODES.join(", ")}, got "${x}"`);
   return x as GuardMode;
 }
 
-/** GUARD_VERSION (or the given value), default v1. Throws on anything else. */
+/** GUARD_VERSION (or the given value), default v2. Throws on anything else. */
 export function resolveVersion(v: string | undefined = process.env.GUARD_VERSION): GuardVersion {
-  const x = (v ?? "").trim() || "v1";
+  const x = (v ?? "").trim() || "v2";
   if (!(VERSIONS as readonly string[]).includes(x) && !isTestOnlyVersion(x)) throw new Error(`GUARD_VERSION must be one of ${VERSIONS.join(", ")} (or test-only ${TEST_ONLY_VERSIONS.join(", ")}), got "${x}"`);
   return x as GuardVersion;
 }
