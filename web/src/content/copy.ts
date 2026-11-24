@@ -129,7 +129,7 @@ export const copy = {
     learns: [
       'Argus is not a fortress on day one, and he gets harder to fool in public.',
       'When he is broken, the attack is published, one rule is added to answer it, and the next round runs the patched guard.',
-      'Argus v1 said no and pressed yes. Round 1 is v2.',
+      'Argus v1 said no and pressed yes. The lighter round runs v2, the top round v3.',
     ],
     learnsLink: 'Read how we turned him before launch',
     noPhishing: 'This site never asks you to connect a wallet or sign in. The only QR code you ever scan is the official Agentic Wallet sign-in, inside the Binance App.',
@@ -389,7 +389,7 @@ export const copy = {
     closedOn: (r: LevelRef, from: string, to: string) => `${levelText(r)} · opened ${from}, closed ${to}`,
     prelaunchTag: 'Pre-launch testing',
     prelaunchTitle: 'Post-mortem 0',
-    prelaunchText: 'Not a round. We attacked our own guard before launch, and round 1 runs the fix.',
+    prelaunchText: 'Not a round. We attacked our own guard before launch, and the launch rounds run the fix: v2 on the lighter round, v3 on the top round.',
     prelaunchNoPot: 'No pot, no attackers from outside, nothing on-chain.',
     prelaunchMissing: 'This post-mortem is not published yet.',
     nothing: 'Nothing to show.',
