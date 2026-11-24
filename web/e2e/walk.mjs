@@ -262,7 +262,7 @@ await attemptCheck('Hidden attempt', (a) => a.hidden === true, (a, i) => [
     await go(`/library/${r.id}`);
     const head = await text('.page-head');
     await page.screenshot({ path: file('held-round'), fullPage: true });
-    head.includes('Nobody turned Argus. The pot rolled into the next round.') ? pass(name, `round ${r.id}`) : fail(name, `round ${r.id}: no rolled-over line`);
+    head.includes('Nobody turned Argus. The pot went into the reserve that can only seed later rounds.') ? pass(name, `round ${r.id}`) : fail(name, `round ${r.id}: no rolled-over line`);
   }
 }
 

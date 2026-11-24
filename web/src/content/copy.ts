@@ -374,7 +374,8 @@ export const copy = {
     turnedOn: (n?: number) => `Turned on attempt #${n} by`,
     potPaid: (amount: string) => `The pot of ${amount} was paid to that attacker's wallet by the contract.`,
     payoutTx: 'Payout transaction',
-    heldText: 'Nobody turned Argus. The pot rolled into the next round.',
+    // README "The ladder": a pot nobody wins goes into a reserve that can only seed later rounds.
+    heldText: 'Nobody turned Argus. The pot went into the reserve that can only seed later rounds.',
     openText: 'This round is still open. Attempts so far are below; the full set is final when it closes.',
     download: 'Download as JSONL',
     soFar: ' (so far)',
