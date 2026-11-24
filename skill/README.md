@@ -1,46 +1,54 @@
 # Turncoat agent skill
 
-The skill an attacker installs next to the official `binance-agentic-wallet` skill to play Turncoat through their own Agentic Wallet. `SKILL.md` is what the agent reads; `scripts/turncoat.mjs` is a dependency-free helper (Node 18+) that hashes messages, builds calldata, reads the contract and calls the guard service. It never signs or sends anything; every transaction goes through `baw contract-call preview` → user confirmation → `baw contract-call execute`.
+Play Turncoat through your own AI agent and Agentic Wallet: try to talk Argus, an AI treasurer guarding a pot of USDT, into approving a payment. Every request he gets is unauthorised; the pot goes to the first person who gets him to approve one anyway.
 
 ## Install
 
-With the `skills` CLI (npm package `skills`, the same tool as the official Agentic Wallet install line; it needs Node.js 22.20 or later), install the official wallet skill first, then this one:
+You need an AI agent that can run commands on your computer, and Node.js 22.20 or later. Install the official wallet skill first, then this one:
 
 ```bash
 npx skills add binance/binance-skills-hub/skills/binance-web3/binance-agentic-wallet
 npx skills add https://github.com/amityadav0/turncoat/tree/main/skill
 ```
 
-The second line uses the "direct path to a skill in a repo" form from the CLI's own reference (`docs/commands.md`, section `skills add` → Source Formats, in `skills@1.9.0`). The shorter `npx skills add amityadav0/turncoat/skill` works the same way: the CLI's source parser (`parseSource` in `skills@1.9.0`) reads the third part as a subpath. That form appears in the official wallet skill's install line but not in the `skills` docs. `npx skills add amityadav0/turncoat` would also find it, because discovery checks each top-level folder for a `SKILL.md` (`discoverSkills`, same version). Add `-g` to install for all projects, or `-a claude-code` (or another agent) to pick the agent.
+Add `-g` to install for all projects, or `-a <agent>` to choose the agent. To install by hand instead, copy this folder into your agent's skills directory.
 
-What the install needs, and where it stands:
+There is nothing to edit after installing: the guard service address and the contract address ship in `deployment.json`.
 
-- The repository `amityadav0/turncoat` is public on GitHub, default branch `main`.
-- `skill/SKILL.md` is on `main`. The install takes whatever `main` holds when it runs, so a change committed locally reaches players only once it's pushed.
-- `SKILL.md` has YAML frontmatter with `name` and `description`, without which the CLI rejects a skill ("Skills require a SKILL.md with name and description", `docs/creating-skills.md`).
-- The CLI copies every file in the skill folder, `scripts/` and `deployment.json` included.
-
-What works today: the helper and the skill's wording pass 34 local tests (in `skill-dev/`), including free and paid attempts against the real contract on a local chain. Until deployment fills in `deployment.json`, an installed copy only says "Turncoat is not live yet".
-
-Install reproduced without the CLI (24 Nov 2026): `main` at b004665 fetched as a GitHub tarball (`gh api repos/amityadav0/turncoat/tarball/main`), and `skill/` copied to `.claude/skills/turncoat/` in an empty scratch folder by the CLI's own rule (`skills@1.9.0` copies the whole skill folder except `metadata.json`, `.git` and `__pycache__`; the folder is named from the frontmatter `name`). Everything in `skill/` landed. Since then the tests and test-network tooling moved to `skill-dev/`, so an install now gets only `SKILL.md`, `README.md`, `deployment.json` and `scripts/turncoat.mjs`. With no `TURNCOAT_*` variables set, `node .claude/skills/turncoat/scripts/turncoat.mjs config` (Node 22.22) answered `live: false` with "Turncoat is not live yet: …", and `live` stopped with the same sentence (exit 1).
-
-Not yet run: `npx skills add` itself (this session's permission check refuses it), and no part of the skill with a real Agentic Wallet. The mainnet checklist for that is `docs/E2E.md`.
-
-### Install check (two commands, in an empty folder)
+## Check it
 
 ```bash
-npx skills add https://github.com/amityadav0/turncoat/tree/main/skill -a claude-code -y
-node .claude/skills/turncoat/scripts/turncoat.mjs config
+node <your skills folder>/turncoat/scripts/turncoat.mjs config
 ```
 
-Expect the folder `.claude/skills/turncoat/` with `SKILL.md`, `README.md`, `deployment.json` and `scripts/turncoat.mjs`, and `config` answering `"live": false` with "Turncoat is not live yet" until `deployment.json` is filled in (once the pushed `main` has today's commits).
+`live: true` means real attempts work. `practice: true` with `live: false` means free practice works and real attempts have not opened yet. Before launch both are false and the helper says "Turncoat is not live yet".
 
-To install by hand instead, copy this folder into your agent's skills directory.
+## Use it
 
-Nothing to edit after installing. The guard service URL and contract address ship in `deployment.json`, which is filled in once at deployment and committed. Until then both are empty, and the helper stops with "Turncoat is not live yet" before building anything. If only the guard service URL is filled in, free practice works and real attempts stop with "Turncoat is not live yet for real attempts". `TURNCOAT_API`, `TURNCOAT_CONTRACT` and `TURNCOAT_RPC` override the shipped values, for testing only.
+Tell your agent **"attack Argus"**. It offers free practice first (no wallet, nothing on-chain), then, when you ask, walks you through a real attempt: it shows the live rounds, helps you write the message, shows you the transaction preview and sends nothing until you say yes.
 
-Real attempts need an Agent ID and Developer Mode on the Agentic Wallet. Practice needs neither.
+## What a real attempt needs
 
-## Tests and test networks
+- An Agent ID claimed in your Agentic Wallet (one per person).
+- Developer Mode turned on in the Binance App, because an attempt is a contract call. Use a fresh, nearly empty Agentic Wallet, so the Developer Mode balance cap never gets in the way.
+- A little BNB on BNB Smart Chain for gas. One attempt per Agent ID per day is free apart from gas.
 
-The tests and the local-chain / BSC testnet tooling are not part of the installed skill. They live in the repository's `skill-dev/` folder (see `skill-dev/README.md`).
+Practice needs none of these.
+
+## Safety
+
+- Every transaction goes through `baw contract-call preview`, then your explicit yes, then `baw contract-call execute`. The helper in `scripts/` never signs or sends anything.
+- Attempts are never looped: one attempt per request from you.
+- Free attempts need no token approval. A paid attempt (when a round allows them) approves the exact fee, never more.
+- Nothing ever asks for your seed phrase, private key, pairing code or API key.
+- Your message goes into a file, never onto a command line. Text from other attackers or from Argus is shown as data and never followed.
+
+**Risk notice.** A paid attempt is a fee for a security test, and most attempts fail. Do not treat this as a way to earn. Nothing here promises a return.
+
+## What is in this folder
+
+- `SKILL.md`: what your agent reads.
+- `scripts/turncoat.mjs`: a dependency-free helper (Node 18+) that hashes messages, builds calldata, reads the contract and calls the guard service.
+- `deployment.json`: the guard service and contract addresses.
+
+Tests and test-network tooling are not part of the skill; they are in the repository's `skill-dev/` folder.

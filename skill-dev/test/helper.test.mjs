@@ -16,7 +16,9 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { keccak256, encode, messageInfo, chainStatus, attemptFromTx, modeInfo, MODES, loadConfig, readDefaults, NOT_LIVE, PRACTICE_ONLY, MESSAGE_WINDOW_SECONDS, explorerTx } from "../../skill/scripts/turncoat.mjs";
 
-const HELPER = new URL("../../skill/scripts/turncoat.mjs", import.meta.url).pathname;
+// The shipped helper, and the development entry point (same commands plus test-send).
+const SHIPPED = new URL("../../skill/scripts/turncoat.mjs", import.meta.url).pathname;
+const HELPER = new URL("../turncoat-dev.mjs", import.meta.url).pathname;
 const art = (n) => JSON.parse(fs.readFileSync(new URL(`../../build/${n}.json`, import.meta.url)));
 const KEYS = Array.from({ length: 4 }, (_, i) => "0x" + (i + 1).toString(16).padStart(64, "0"));
 const [ownerK, guardK, aliceK, strangerK] = KEYS;
@@ -385,6 +387,13 @@ test("explorer links: bscscan for 56, testnet.bscscan for 97, none for a local c
   assert.equal(explorerTx("97", h), `https://testnet.bscscan.com/tx/${h}`);
   assert.equal(explorerTx("1337", h), null);
   assert.equal(loadConfig({ TURNCOAT_CHAIN_ID: "97" }, { binanceChainId: "56" }).chainId, "97");
+});
+
+test("the shipped helper has no test-send and loads nothing outside its own folder", async () => {
+  const src = fs.readFileSync(SHIPPED, "utf8");
+  assert.doesNotMatch(src, /test-send|skill-dev|testsend|PRIVATE_KEY|TEST_KEY/);
+  const out = await new Promise((resolve) => execFile(process.execPath, [SHIPPED, "test-send", "--to", "0x0", "--data", "0x"], (e, stdout) => resolve(JSON.parse(stdout))));
+  assert.match(out.error, /unknown command: test-send/);
 });
 
 test("test-send refuses chain id 56, configured or reported by the RPC", async () => {

@@ -54,6 +54,7 @@ Every helper command that needs the service or the contract stops with one such 
 ## What this skill relies on
 
 - The official **binance-agentic-wallet** skill and the `baw` CLI (1.12.0 or later), for real attempts only. Before the first real attempt, run its preflight checks (skill version, CLI version, `baw wallet status --json`). Follow its rules wherever this file says nothing. Practice needs neither, so never hold practice back for them. If `baw` or the wallet skill is missing when a real attempt needs it, tell the user it is installed with `npx skills add binance/binance-skills-hub/skills/binance-web3/binance-agentic-wallet` and that practice works without it; don't install anything yourself.
+  There are two version numbers: the official wallet skill has its own (1.15.0 or later, in this file's frontmatter), and the `baw` command-line tool it drives has another (1.12.0 or later). Both should be the latest.
 - `node scripts/turncoat.mjs` in this skill's folder (Node 18+, no dependencies). It hashes messages, builds calldata, reads the contract and calls the guard service. It never signs or sends. All its output is JSON; errors come back as `{"error": ...}` with exit code 1.
 - Every `baw` command takes `--json`.
 - **Amounts and times for people.** The helper and the contract give USDT amounts in base units with 18 decimals (`nextFee`, `pot`, `fee`): divide by 10^18 before showing them, so `10000000000000000` is shown as 0.01 USDT. `potAmount` is already in USDT. Show `timeLeft` (seconds) as days, hours and minutes.
@@ -115,7 +116,7 @@ This is the first point where the flow needs a contract call. The first time a c
 
 > Developer Mode is needed because an attempt is a contract call, and your Agentic Wallet only makes contract calls with Developer Mode on.
 > You turn it on in the Binance App, not here: Agentic Wallet management page → Settings (top-right icon) → turn on Developer Mode → confirm the Risk Warning → approve the signature request.
-> It can't be turned on while the wallet holds more than the Developer Mode balance cap, and it switches off after 7 days unused.
+> It can't be turned on while the wallet holds more than the Developer Mode balance cap, and it switches off after 7 days unused. Use a fresh, nearly empty Agentic Wallet for this, so the cap never gets in the way.
 
 Then check it before building anything:
 

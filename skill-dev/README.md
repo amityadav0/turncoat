@@ -25,11 +25,11 @@ export TURNCOAT_CHAIN_ID=97                           # 97 = BSC testnet; a loca
 
 Reads, calldata and `attempt-id` work the same on any chain. `explorerUrl` links to bscscan.com for 56, testnet.bscscan.com for 97, and is `null` for any other chain.
 
-`baw` supports mainnet only, so off mainnet the transaction step uses a **test-only sender** instead of `baw contract-call preview` / `execute`. Real players never use it: it lives here in `skill-dev/testsend.mjs`, outside `skill/`, so `npx skills add` never installs it, and `skill/scripts/turncoat.mjs` loads it for its `test-send` command only when this repository checkout is present (an installed copy answers that the command is not part of the installed skill).
+`baw` supports mainnet only, so off mainnet the transaction step uses a **test-only sender** instead of `baw contract-call preview` / `execute`. Real players never use it: it lives here in `skill-dev/testsend.mjs`, outside `skill/`, so `npx skills add` never installs it. Run it through the development entry point `node skill-dev/turncoat-dev.mjs`, which runs every helper command exactly as `skill/scripts/turncoat.mjs` does and adds `test-send`. The shipped helper has no `test-send` and loads nothing outside its own folder (a test checks this).
 
 ```bash
 export TURNCOAT_TEST_KEY_FILE=/path/to/test-key      # a file holding a 0x… test private key
-node skill/scripts/turncoat.mjs test-send --to <to> --data <inputData> [--value <wei>]
+node skill-dev/turncoat-dev.mjs test-send --to <to> --data <inputData> [--value <wei>]
 ```
 
 - It takes `to` and `inputData` straight from `attempt-calldata`, `approve-calldata` or `settle-calldata`, and sends only to the Turncoat contract or its token.

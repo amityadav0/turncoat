@@ -185,7 +185,7 @@ export const NOT_LIVE = "Turncoat is not live yet: this skill has no guard servi
 
 export const PRACTICE_ONLY = "Turncoat is not live yet for real attempts: this skill has no contract address until deployment. Free practice works.";
 
-function need(cfg, ...fields) {
+export function need(cfg, ...fields) {
   // api/contract are empty placeholders until deployment: stop with one sentence, before any transaction is built.
   // Practice needs only the api; real attempts need both.
   if (fields.includes("api") && !cfg.api) throw new Error(NOT_LIVE);
@@ -384,7 +384,7 @@ export async function deliver(cfg, roundId, attemptId, message, { deliverBy, txH
 
 // ------------------------------------------------------------------ CLI
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const [cmd, ...rest] = argv;
   const opts = {};
   for (let i = 0; i < rest.length; i++) {
@@ -398,7 +398,7 @@ function parseArgs(argv) {
   }
   return { cmd, opts };
 }
-const req = (o, k) => { if (o[k] === undefined) throw new Error(`--${k} is required`); return o[k]; };
+export const req = (o, k) => { if (o[k] === undefined) throw new Error(`--${k} is required`); return o[k]; };
 const intArg = (o, k) => { const v = req(o, k); if (!/^\d+$/.test(v)) throw new Error(`--${k} must be a non-negative integer`); return v; };
 const readMessage = (o) => {
   const text = fs.readFileSync(req(o, "message-file"), "utf8");
@@ -428,6 +428,11 @@ const HELP = `turncoat.mjs <command> [options]
   practice  --level N --message-file F           POST /practice (free, no wallet, nothing on-chain)
 `;
 
+/** The contract's payment token (read from the contract). */
+export async function tokenOf(cfg) {
+  return asAddr(words(await call(cfg, cfg.contract, selector(SIG.token)))[0]);
+}
+
 export async function main(argv) {
   const { cmd, opts } = parseArgs(argv);
   const cfg = loadConfig();
@@ -450,8 +455,8 @@ export async function main(argv) {
       return api(cfg, "GET", "/rounds/current");
     case "live":
       need(cfg, "api");
-      if (opts.address) need(cfg, "contract", "rpc");
-      return liveRounds(cfg, opts.address);
+      // Rounds come from the guard service; the per-address fee needs the contract, so without one it is left out.
+      return liveRounds(cfg, cfg.contract && cfg.rpc ? opts.address : undefined);
     case "mode":
       return modeInfo(req(opts, "mode"));
     case "attempt-calldata": {
@@ -486,13 +491,6 @@ export async function main(argv) {
     case "settle-calldata":
       need(cfg, "contract");
       return { binanceChainId: cfg.chainId, to: cfg.contract, value: "0", inputData: encode.settle(intArg(opts, "round"), intArg(opts, "attempt"), req(opts, "signature")) };
-    case "test-send": {
-      // Development only: the module lives in the repo's skill-dev/ folder and is not part of the installed skill.
-      const dev = new URL("../../skill-dev/testsend.mjs", import.meta.url);
-      if (!fs.existsSync(fileURLToPath(dev))) throw new Error("test-send is a development command of the Turncoat repository and is not part of the installed skill");
-      const { runCli } = await import(dev.href);
-      return runCli(cfg, opts, { need, req, explorerTx, tokenOf: async (c) => asAddr(words(await call(c, c.contract, selector(SIG.token)))[0]) });
-    }
     case "practice":
       need(cfg, "api");
     {
