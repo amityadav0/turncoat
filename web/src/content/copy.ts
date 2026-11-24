@@ -206,13 +206,18 @@ export const copy = {
           'In the Binance App: Agentic Wallet management page → Settings (top-right icon) → turn on Developer Mode → read and confirm the Risk Warning → approve the signature request.',
         ],
         see: 'Ask your agent to check. It runs baw wallet settings --json and shows devMode.enabled: true.',
-        fail: 'It cannot be turned on while the wallet holds more than the Developer Mode balance cap, so keep this wallet small. It switches off after 7 days without use; turn it on again.',
+        fail: "It cannot be turned on while the wallet holds more than the Developer Mode balance cap, so keep this wallet small. Binance's public docs don't state the figure; the App tells you the cap when you try to turn it on. It switches off after 7 days without use; turn it on again.",
       },
       {
-        title: 'Keep a little BNB for gas',
-        do: ['Hold a small amount of BNB on BNB Smart Chain in this wallet. The free attempt costs gas only.'],
-        see: 'Your agent shows your BSC address (baw wallet address --json).',
-        fail: 'No BNB: the transaction cannot be sent. Too much in the wallet: Developer Mode refuses it (step 4).',
+        title: 'Put a little BNB in the wallet for gas',
+        do: [
+          'Ask your agent for your wallet address. It runs:',
+          'cmd:baw wallet address --json',
+          'In the Binance App, withdraw or send BNB from your Binance account to that address, on BNB Smart Chain (BEP20). Check the network before you confirm.',
+          'About 0.001 BNB is plenty. An attempt used about 175,000 gas on testnet; at today\'s BNB Smart Chain gas price (0.05 gwei on 24 Nov) that is under 0.00001 BNB. The free attempt costs gas only.',
+        ],
+        see: 'Ask your agent for your balance. The BNB shows up on BNB Smart Chain within a minute or so.',
+        fail: 'Sent on the wrong network: the BNB is not on BNB Smart Chain and the transaction cannot be paid for. Too much in the wallet: Developer Mode refuses it (step 4).',
       },
       {
         title: 'Install the Turncoat skill',
