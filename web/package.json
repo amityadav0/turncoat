@@ -8,7 +8,8 @@
     "dev:mock": "VITE_MOCK=1 vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "walk": "node e2e/walk.mjs"
+    "walk": "node e2e/walk.mjs",
+    "og": "node e2e/og-images.mjs"
   },
   "dependencies": {
     "react": "18.3.1",

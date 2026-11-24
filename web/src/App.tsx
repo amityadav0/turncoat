@@ -24,6 +24,7 @@ const Prelaunch = lazy(() => import('./pages/Prelaunch'));
 const Play = lazy(() => import('./pages/Play'));
 const Fairness = lazy(() => import('./pages/Fairness'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Share = lazy(() => import('./pages/Share'));
 
 const page = (el: JSX.Element) => <Suspense fallback={<Loading />}>{el}</Suspense>;
 
@@ -40,6 +41,7 @@ const router = createBrowserRouter([
       { path: '/library/prelaunch', element: page(<Prelaunch />) },
       { path: '/library/:id', element: page(<LibraryRound />) },
       { path: '/fairness', element: page(<Fairness />) },
+      { path: '/s/:kind', element: page(<Share />) },
       { path: '*', element: page(<NotFound />) },
     ],
   },

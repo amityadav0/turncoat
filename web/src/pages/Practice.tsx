@@ -4,6 +4,7 @@ import { api, type PracticeResult } from '../api';
 import { ClaimAgentId } from '../components/ClaimAgentId';
 import { BreakKindTag, DecisionTag } from '../components/bits';
 import { HostileText } from '../components/HostileText';
+import { SharePanel } from '../components/SharePanel';
 import { copy, LEVELS, levelName } from '../content/copy';
 
 const t = copy.practice;
@@ -21,6 +22,7 @@ export default function Practice() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [sharing, setSharing] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
   const { state } = useLocation();
 
@@ -39,6 +41,7 @@ export default function Practice() {
       const result = await api.practice(level, text);
       setTurns((prev) => [{ level, message: text, result }, ...prev]);
       setMessage('');
+      setSharing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : copy.common.requestFailed);
     } finally {
@@ -100,7 +103,11 @@ export default function Practice() {
             )}
             {last.result.broken && last.result.breakKind === 'misfire' && <p className="small">{t.misfire}</p>}
             {last.result.broken && <p className="small">{t.realRound}</p>}
+            <button type="button" className="linkish" aria-expanded={sharing} onClick={() => setSharing(!sharing)}>
+              {sharing ? copy.attempt.closeShare : copy.share.sharePractice}
+            </button>
           </div>
+          {sharing && <SharePanel kind="practice" outcome={last.result.broken ? 'turned' : 'held'} />}
           <ClaimAgentId />
         </section>
       )}

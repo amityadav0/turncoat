@@ -3,6 +3,28 @@
   command = "npm run build"
   publish = "dist"
 
+# Shared links: each kind has its own page with link-preview tags (vite.config.ts sharePages).
+# Listed before the SPA fallback so X and Telegram get those tags, not the home page's.
+[[redirects]]
+  from = "/s/turned"
+  to = "/s/turned/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/s/held"
+  to = "/s/held/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/s/practice-turned"
+  to = "/s/practice-turned/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/s/practice-held"
+  to = "/s/practice-held/index.html"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

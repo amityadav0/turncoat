@@ -4,6 +4,7 @@ import { api, isClosed, type RoundDetail } from '../api';
 import { AttemptCard } from '../components/AttemptCard';
 import { Ext, Failed, Loading, Risk, Signer, StatusTag, Who } from '../components/bits';
 import { Postmortem } from '../components/Postmortem';
+import { SharePanel } from '../components/SharePanel';
 import { copy, roundLevelLine } from '../content/copy';
 
 const t = copy.library;
@@ -94,6 +95,7 @@ export default function LibraryRound() {
               {pm && <a href="#pm">{t.readPostmortem}</a>}
             </p>
             {paid !== undefined && paid > 0n && <Risk paidEnabled={r.paidEnabled} />}
+            {r.winningAttempt !== undefined && <ShareRound roundId={r.id} attemptId={r.winningAttempt} />}
           </>
         )}
         {roundLevelLine(r) && <p className="muted">{roundLevelLine(r)}</p>}
@@ -149,5 +151,18 @@ export default function LibraryRound() {
         )}
       </section>
     </>
+  );
+}
+
+/** A broken round's share: the winning attempt's card and link. */
+function ShareRound({ roundId, attemptId }: { roundId: number; attemptId: number }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="share-round">
+      <button type="button" className="linkish" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? copy.attempt.closeShare : copy.share.shareRound}
+      </button>
+      {open && <SharePanel kind="attempt" roundId={roundId} attemptId={attemptId} outcome="turned" />}
+    </div>
   );
 }

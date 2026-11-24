@@ -267,20 +267,29 @@ export const copy = {
 
   share: {
     drawing: 'Drawing the card…',
-    alt: (a: number, r: number, o: string) => `Share card: attempt ${a}, round ${r}, ${o}.`,
+    alt: (c: { kind: string; outcome: string; roundId?: number; attemptId?: number }) =>
+      c.kind === 'practice' ? `Share card: practice, ${c.outcome}.` : `Share card: attempt ${c.attemptId}, round ${c.roundId}, ${c.outcome}.`,
     post: 'Post on X',
+    telegram: 'Share on Telegram',
     download: 'Download',
     shareImage: 'Share image',
-    note: 'X opens with the post filled in. To include the card, attach the downloaded image.',
-    demoNote: 'Posting is off on demo data, so nothing made up ends up on X.',
+    note: 'The link shows a preview card on X and Telegram. To post this exact card, attach the downloaded image.',
+    demoNote: 'Posting is off on demo data, so nothing made up ends up on X or Telegram.',
     failed: 'Could not draw the card',
     logoFailed: 'Logo failed to load',
     cardWordmark: 'TURNCOAT',
     cardMeta: (a: number, r: number) => `ATTEMPT #${a}  ·  ROUND ${r}`,
+    cardPractice: 'PRACTICE  ·  NO POT',
     cardDemo: 'DEMO DATA · NOT A REAL ROUND',
-    // The X post. Never includes the attacker's message.
-    post_text: (a: number, r: number, turned: boolean, link: string) =>
-      `Attempt #${a}, round ${r}. ${turned ? 'Argus was turned.' : 'Argus held.'}\n\n${ONE_LINE}\n\n${link}\n\n#BinanceWalletHackathon #AgenticWallet`,
+    cardTest: 'TEST NETWORK · NO REAL VALUE',
+    // Post text. Never includes the attacker's message.
+    attemptText: (a: number, r: number, turned: boolean) =>
+      `Attempt #${a}, round ${r}. ${turned ? 'Argus was turned.' : 'Argus held.'}\n\n${ONE_LINE}`,
+    practiceText: (turned: boolean) => (turned ? `I turned Argus in practice. ${ONE_LINE}` : `Argus held against me in practice. ${ONE_LINE}`),
+    shareRound: 'Share this round',
+    sharePractice: 'Share this result',
+    // /s/<kind>: the page a shared link lands on before it opens the attempt.
+    opening: 'Opening…',
     hashtags: '#BinanceWalletHackathon #AgenticWallet',
   },
 
@@ -421,3 +430,32 @@ export const copy = {
     badHeader: 'The committed bytes start with a header that does not follow the documented layout. Only the bytes as a whole are checked.',
   },
 };
+
+// Link-preview tags for shared links (/s/<kind>). vite.config.ts writes one HTML page per kind with
+// these, because X and Telegram read the HTML and never run the site's script. Images: web/public/og-*.png
+// (drawn by `npm run og`, the same card as the in-page share). Keys match ShareKind in lib/shareCard.ts.
+const PRACTICE_DESC =
+  "Argus is an AI agent with a pot of USDT. He must approve the payments he should and reject the ones he shouldn't. Practice against him free: no wallet, no sign-in.";
+export const UNFURL: Record<string, { title: string; description: string; alt: string }> = {
+  turned: {
+    title: `Argus was turned. ${ONE_LINE}`,
+    description: 'Someone talked Argus, an AI agent guarding a pot of USDT, into a payment he should have rejected. The attack, his reply and the payout are public.',
+    alt: 'Turncoat share card: TURNED.',
+  },
+  held: {
+    title: `Argus held. ${ONE_LINE}`,
+    description: 'An attempt to talk Argus, an AI agent guarding a pot of USDT, into a payment he should reject. He held. Read it, then try him yourself: practice is free.',
+    alt: 'Turncoat share card: HELD.',
+  },
+  'practice-turned': {
+    title: `Turned Argus in practice. ${ONE_LINE}`,
+    description: PRACTICE_DESC,
+    alt: 'Turncoat share card: practice, TURNED.',
+  },
+  'practice-held': {
+    title: `Argus held in practice. ${ONE_LINE}`,
+    description: PRACTICE_DESC,
+    alt: 'Turncoat share card: practice, HELD.',
+  },
+};
+export const UNFURL_TEST_PREFIX = 'Test network: ';

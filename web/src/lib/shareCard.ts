@@ -22,13 +22,32 @@ function loadImage(src: string) {
   });
 }
 
-export interface CardInput {
-  roundId: number;
-  attemptId: number;
-  outcome: 'held' | 'turned';
+/** What a card is for. Practice cards carry no round or attempt: practice has no pot and nothing on-chain. */
+export type CardInput =
+  | { kind: 'attempt'; roundId: number; attemptId: number; outcome: Outcome }
+  | { kind: 'practice'; outcome: Outcome };
+export type Outcome = 'held' | 'turned';
+
+/** The share kinds that get their own unfurl page (/s/<kind>, built by vite.config.ts). Keep in sync. */
+export type ShareKind = 'turned' | 'held' | 'practice-turned' | 'practice-held';
+export const shareKind = (c: CardInput): ShareKind => (c.kind === 'practice' ? `practice-${c.outcome}` : c.outcome);
+
+/** What gets drawn: the small line above the word, and an optional label box (demo data, test network). */
+export interface CardSpec {
+  meta: string;
+  outcome: Outcome;
+  label?: string | null;
 }
 
-export async function renderShareCard({ roundId, attemptId, outcome }: CardInput): Promise<Blob> {
+export const cardSpec = (c: CardInput): CardSpec => ({
+  meta: c.kind === 'practice' ? copy.share.cardPractice : copy.share.cardMeta(c.attemptId, c.roundId),
+  outcome: c.outcome,
+  // Demo cards must never pass for a real result; test-network cards must never pass for real value.
+  label: config.mock ? copy.share.cardDemo : config.testNetwork ? copy.share.cardTest : null,
+});
+
+export async function renderShareCard(input: CardInput | CardSpec): Promise<Blob> {
+  const { meta, outcome, label } = 'kind' in input ? cardSpec(input) : input;
   await Promise.all([
     document.fonts.load(`900 180px ${HEAVY}`),
     document.fonts.load(`700 52px ${HEAVY}`),
@@ -59,7 +78,7 @@ export async function renderShareCard({ roundId, attemptId, outcome }: CardInput
   ctx.textBaseline = 'alphabetic';
   ctx.globalAlpha = 0.65;
   ctx.font = `600 26px ${MONO}`;
-  ctx.fillText(copy.share.cardMeta(attemptId, roundId), pad, 296);
+  ctx.fillText(meta, pad, 296);
   ctx.globalAlpha = 1;
 
   ctx.fillStyle = outcome === 'turned' ? SIGNAL : BONE;
@@ -70,11 +89,9 @@ export async function renderShareCard({ roundId, attemptId, outcome }: CardInput
   ctx.font = `700 50px ${HEAVY}`;
   ctx.fillText(ONE_LINE, pad, CARD_H - pad + 6);
 
-  if (config.mock) {
-    // Demo cards must never pass for a real result.
+  if (label) {
     ctx.save();
     ctx.font = `800 30px ${HEAVY}`;
-    const label = copy.share.cardDemo;
     const w = ctx.measureText(label).width + 40;
     ctx.fillStyle = BONE;
     ctx.fillRect(CARD_W - pad - w, pad + 30, w, 52);
@@ -89,8 +106,20 @@ export async function renderShareCard({ roundId, attemptId, outcome }: CardInput
   );
 }
 
-export function xIntentUrl({ roundId, attemptId, outcome }: CardInput) {
-  const link = `${window.location.origin}/library/${roundId}#attempt-${attemptId}`;
-  const text = copy.share.post_text(attemptId, roundId, outcome === 'turned', link);
+/** The link a share points at: a small page per outcome whose preview tags X and Telegram can read, which then opens the attempt. */
+export function shareLink(c: CardInput) {
+  const q = c.kind === 'attempt' ? `?r=${c.roundId}&a=${c.attemptId}` : '';
+  return `${window.location.origin}/s/${shareKind(c)}${q}`;
+}
+
+const postText = (c: CardInput) =>
+  c.kind === 'practice' ? copy.share.practiceText(c.outcome === 'turned') : copy.share.attemptText(c.attemptId, c.roundId, c.outcome === 'turned');
+
+export function xIntentUrl(c: CardInput) {
+  const text = `${postText(c)}\n\n${shareLink(c)}\n\n${copy.share.hashtags}`;
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
+}
+
+export function telegramShareUrl(c: CardInput) {
+  return `https://t.me/share/url?url=${encodeURIComponent(shareLink(c))}&text=${encodeURIComponent(postText(c))}`;
 }

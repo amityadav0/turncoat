@@ -40,7 +40,7 @@ export function AttemptCard({ attempt: a, now, compact }: { attempt: Attempt; no
         )}
         {explorer.tx(a.tx) && <Ext href={explorer.tx(a.tx)}>{t.tx}</Ext>}
       </footer>
-      {sharing && answered && <SharePanel roundId={a.roundId} attemptId={a.id} outcome={a.outcome === 'broken' ? 'turned' : 'held'} />}
+      {sharing && answered && <SharePanel kind="attempt" roundId={a.roundId} attemptId={a.id} outcome={a.outcome === 'broken' ? 'turned' : 'held'} />}
     </article>
   );
 }
