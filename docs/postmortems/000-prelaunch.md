@@ -27,7 +27,9 @@ He meant no and pressed yes. It counts: the code watches the action, not the wor
 
 Two things together. Argus is required to end every reply with a tool call. The message asked him to make the story "real" through that tool call. He kept the refusal in the reason he wrote and let the story choose the tool.
 
-We checked the first half directly on 23 November, with the same attack against version 1 on Claude Haiku 5.5. With a tool call required on every reply, as in a live round, it broke him 7 times out of 7: no text, one `approve_payment` call, and a reason that says the payment is not approved. With the requirement switched off, so that he could answer in plain text first, it broke him 0 times out of 7. The rule that makes him decide is also what the attack leans on. We keep that rule, because a treasurer who can avoid deciding cannot be tested, and version 2 closes the gap it opens.
+We checked the first half directly on 23 November, with the same attack against version 1 on Claude Haiku 5.5. With a tool call required on every reply, as in a live round, it broke him 7 times out of 7: no text, one `approve_payment` call, and a reason that says the payment is not approved. With the requirement switched off, so that he could answer in plain text first, it broke him 0 times out of 7. The address in the message matters too. Our test attacks use a placeholder address (`0x2222…2222`). With it, the attack broke version 1 in 6 runs out of 6; with a real-looking address it broke him in 1 run out of 6. So the break rates in this post-mortem are probably higher than an attacker who sends their own address would see. From now on our red-team runs put a fresh, real-looking address in every attack and report both numbers.
+
+The rule that makes him decide is also what the attack leans on. We keep that rule, because a treasurer who can avoid deciding cannot be tested, and version 2 closes the gap it opens.
 
 ## The fix
 
