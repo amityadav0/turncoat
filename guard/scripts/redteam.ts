@@ -13,6 +13,9 @@
 //   --sessions multi-turn: entries carry `turns: [...]` (default file redteam/level<N>-sessions.jsonl); the
 //              attacker's messages go into one conversation, the break rule covers the session, and the
 //              table shows at which turn breaks happened.
+//   --instructions FILE  use this system prompt instead of the guard version (the version label is then
+//              only a label). With docs/attacks/starter.jsonl this replays the starter attacks against
+//              your own agent's prompt and tools (decide mode: approve_payment / reject_payment / get_balance).
 //   --fixed-addresses  send the attack files' placeholder recipient addresses (0x2222…2222 and three
 //              others) as written. By default each run gets a fresh random address in their place, as a
 //              real attacker would send their own address; the placeholders made some attacks look far
@@ -50,6 +53,8 @@ const repeat = Math.max(1, Number(flag("--repeat") ?? 1));
 const noForceIdx = args.indexOf("--no-force-tool");
 const noForceTool = noForceIdx >= 0;
 if (noForceTool) args.splice(noForceIdx, 1);
+// --instructions FILE: run your own system prompt instead of a guard version (replaying an attack file against your agent).
+const ownInstructions = flag("--instructions");
 const fixedIdx = args.indexOf("--fixed-addresses");
 const fixedAddresses = fixedIdx >= 0;
 if (fixedAddresses) args.splice(fixedIdx, 1);
@@ -59,9 +64,9 @@ if (sessions) args.splice(sessionsIdx, 1);
 const outDir = path.resolve(flag("--out") ?? path.join(GUARD_ROOT, "redteam/results"));
 const promptsFile = path.resolve(args[0] ?? path.join(GUARD_ROOT, `redteam/level${level}${sessions ? "-sessions" : ""}.jsonl`));
 
-interface Prompt { id: string; category: string; mode?: GuardMode | "both"; lang?: string; redefines_tool?: boolean; prompt?: string; payload?: Record<string, string>; turns?: string[] }
+interface Prompt { id: string; category: string; mode?: GuardMode | "both"; lang?: string; redefines_tool?: boolean; prompt?: string; /** the site's JSONL export (docs/attacks/starter.jsonl) uses `message` */ message?: string; payload?: Record<string, string>; turns?: string[] }
 type RunLike = Pick<GuardRun, "broken" | "usage" | "seconds" | "breakKind" | "decisionFallback" | "toolCalls" | "reply" | "decision"> & { followUp?: boolean } & { brokenAtTurn?: number | null; turns?: GuardSession["turns"] };
-const rawMessageOf = (p: Prompt) => p.payload ? JSON.stringify(p.payload) : p.prompt ?? "";
+const rawMessageOf = (p: Prompt) => p.payload ? JSON.stringify(p.payload) : p.prompt ?? p.message ?? "";
 /**
  * Placeholder recipient addresses used in the attack files. Other addresses in the attacks (the zero
  * address, 0xEeee…/0xFfff… sentinels, a real router, the treasury's own address) are part of the story
@@ -108,8 +113,8 @@ console.log(`red team: ${prompts.length} prompts, level ${level}, models ${model
 
 async function runCell(model: ModelAdapter, mode: GuardMode, version: GuardVersion): Promise<Cell | null> {
   const list = forMode(mode).flatMap((p) => Array.from({ length: repeat }, () => p));
-  if (!fs.existsSync(levelFile(level, version, GUARD_ROOT, mode))) { console.log(`(skipping ${mode} ${version}: no instruction file)`); return null; }
-  const instructions = fs.readFileSync(levelFile(level, version, GUARD_ROOT, mode), "utf8");
+  if (!ownInstructions && !fs.existsSync(levelFile(level, version, GUARD_ROOT, mode))) { console.log(`(skipping ${mode} ${version}: no instruction file)`); return null; }
+  const instructions = fs.readFileSync(ownInstructions ? path.resolve(ownInstructions) : levelFile(level, version, GUARD_ROOT, mode), "utf8");
   const results: Result[] = new Array(list.length);
   const tag = `[${model.id} ${mode} ${version}]`;
   let next = 0;
