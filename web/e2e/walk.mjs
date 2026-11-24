@@ -352,6 +352,56 @@ await revealCheck('Reveal from the service', 'service', "guard service's record"
   sim(!banner, name, `every /rounds read answered 429 in the browser: banner ${banner ? 'shown' : 'not shown'}`);
 }
 
+// ---------- share ----------
+// The panel must draw a card and link to /s/<kind>; that page's HTML must carry the kind's preview tags
+// (what X and Telegram read, without running the site's script). A deployed site (--site) is fetched at
+// /s/<kind>, which tests the netlify.toml rewrite; a local build at the file the rewrite points to.
+const UNFURL_TITLE = { turned: 'Argus was turned.', held: 'Argus held.', 'practice-turned': 'in practice', 'practice-held': 'in practice' };
+async function shareCheck(name, kind, scope) {
+  await scope.locator('.share-panel img').first().waitFor({ timeout: 15000 }).catch(() => {});
+  const img = await scope.locator('.share-panel img').count();
+  const x = (await scope.locator('.share-panel a', { hasText: 'Post on X' }).first().getAttribute('href').catch(() => null)) ?? '';
+  const tg = (await scope.locator('.share-panel a', { hasText: 'Telegram' }).first().getAttribute('href').catch(() => null)) ?? '';
+  const want = encodeURIComponent(`/s/${kind}`);
+  const html = await fetch(`${SITE}/s/${kind}${args.site ? '' : '/index.html'}`, { headers: { 'User-Agent': 'TelegramBot (like TwitterBot)' } }).then((r) => r.text(), () => '');
+  const tag = (k) => html.match(new RegExp(`<meta (?:property|name)="${k}" content="([^"]*)"`))?.[1] ?? '';
+  const problems = [
+    !img && 'no card drawn',
+    !x.includes(want) && 'X link does not point at the share page',
+    !tg.startsWith('https://t.me/share/url') && 'no Telegram link',
+    tg && !tg.includes(want) && 'Telegram link does not point at the share page',
+    !tag('og:title').includes(UNFURL_TITLE[kind]) && `og:title is "${tag('og:title')}"`,
+    !/^https:\/\/.+\/og-.+\.png$/.test(tag('og:image')) && `og:image is "${tag('og:image')}"`,
+    tag('twitter:card') !== 'summary_large_image' && 'no summary_large_image card',
+    !tag('og:description') && 'no og:description',
+  ].filter(Boolean);
+  problems.length ? fail(name, problems.join('; ')) : pass(name, `card drawn; X and Telegram link /s/${kind}; preview "${tag('og:title')}" with ${tag('og:image').split('/').pop()}`);
+}
+{
+  const name = 'Share a broken round';
+  const won = (x) => details[x.id]?.round?.winningAttempt ?? x.winningAttempt;
+  const r = rounds.find((x) => x.status === 'broken' && won(x) !== undefined && won(x) !== null);
+  if (!r) missing(name, 'no broken round with a winning attempt');
+  else {
+    await go(`/library/${r.id}`);
+    await page.getByRole('button', { name: 'Share this round' }).click().catch(() => {});
+    await shareCheck(name, 'turned', page.locator('.share-round'));
+    await page.locator('.share-round').screenshot({ path: file('share-broken') }).catch(() => {});
+  }
+}
+{
+  const name = 'Share a held attempt';
+  const a = attempts.find((x) => x.outcome === 'held' && !x.hidden);
+  if (!a) missing(name, 'no held attempt');
+  else {
+    await go(`/library/${a.roundId}`);
+    const card = page.locator(`#attempt-${a.id}`);
+    await card.getByRole('button', { name: 'Share', exact: true }).click().catch(() => {});
+    await shareCheck(name, 'held', card);
+    await card.screenshot({ path: file('share-held') }).catch(() => {});
+  }
+}
+
 // ---------- practice ----------
 {
   const name = 'Practice';
@@ -361,7 +411,12 @@ await revealCheck('Reveal from the service', 'service', "guard service's record"
   const got = await page.waitForSelector('.verdict, .notice[role=alert]', { timeout: 90000 }).then((e) => e.innerText(), () => '');
   await page.screenshot({ path: file('practice'), fullPage: true });
   const verdict = await page.locator('.verdict').count();
-  if (verdict) pass(name, got.split('\n')[0]);
+  if (verdict) {
+    pass(name, got.split('\n')[0]);
+    const turned = /turned/i.test(await text('.verdict-word'));
+    await page.getByRole('button', { name: 'Share this result' }).click().catch(() => {});
+    await shareCheck('Share the practice verdict', turned ? 'practice-turned' : 'practice-held', page.locator('section[aria-live]'));
+  }
   else if (/try again|429|too many/i.test(got)) missing(name, `rate limited: ${got.slice(0, 120)}`);
   else fail(name, got ? got.slice(0, 160) : 'no reply within 90 s');
 }

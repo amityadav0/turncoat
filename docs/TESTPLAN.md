@@ -61,6 +61,7 @@ Owned by the web session. Each row is one line (W1 the `INFO build` line) from `
 | W12 | Service down and recovery (SIM, plus the real `/health` as it is) | Banner on 503 / `ok: false`; cleared on the next 30 s poll | pass: real /health 200, no banner; SIM 503 → banner, cleared on the next poll | pass: real /health 200, no banner; SIM 503 → banner, cleared on the next poll. The real 503 window (17:01–17:16 UTC 23 Nov, row 10) predates this walk | not run |
 | W13 | 429 on reads (SIM) | No down banner | pass (SIM): no banner | pass (SIM): no banner | not run |
 | W14 | Practice | A verdict from the service | pass: verdict "He held." | pass: verdict "He held." from the testnet service | not run |
+| W15 | Share: broken round, held attempt, practice verdict | A card is drawn; X and Telegram links point at `/s/<kind>`; that page's HTML has the kind's og:title, og:description, an https og:image and `summary_large_image` | not run (added after the local run) | pass: round 10 (turned), round 1 #0 (held), practice (held); test-network titles and `og-*-test.png` images | not run |
 
 ## What only mainnet can prove (the mainnet smoke test)
 
