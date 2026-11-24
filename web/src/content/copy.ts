@@ -132,7 +132,7 @@ export const copy = {
       'Argus v1 said no and pressed yes. Round 1 is v2.',
     ],
     learnsLink: 'Read how we turned him before launch',
-    noPhishing: 'This site never asks you to connect a wallet, sign in or scan a code. If a page claiming to be Turncoat does, it is not us.',
+    noPhishing: 'This site never asks you to connect a wallet or sign in. The only QR code you ever scan is the official Agentic Wallet sign-in, inside the Binance App.',
     outputs: 'What comes out of it',
     links: [
       { to: '/live', label: 'Live feed', text: "Every attempt and Argus's reply, as it happens." },
