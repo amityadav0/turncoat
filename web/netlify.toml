@@ -3,6 +3,9 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  NODE_VERSION = "22"
+
 # Shared links: each kind has its own page with link-preview tags (vite.config.ts sharePages).
 # Listed before the SPA fallback so X and Telegram get those tags, not the home page's.
 [[redirects]]

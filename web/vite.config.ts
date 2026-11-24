@@ -62,8 +62,9 @@ function sharePages(url: string, testNetwork: boolean): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, new URL('.', import.meta.url).pathname, 'VITE_');
-  const url = (env.VITE_SITE_URL || PLACEHOLDER).replace(/\/+$/, '');
+  // 'URL' too: Netlify sets URL to the site's main address at build time.
+  const env = loadEnv(mode, new URL('.', import.meta.url).pathname, ['VITE_', 'URL']);
+  const url = (env.VITE_SITE_URL || env.URL || PLACEHOLDER).replace(/\/+$/, '');
   // A build against a real guard service must say which chain it is on, so a testnet build can't
   // ship without its "Test network" banner or with mainnet explorer links by accident.
   const chain = (env.VITE_CHAIN_ID ?? '').trim();
