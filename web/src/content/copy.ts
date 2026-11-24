@@ -160,6 +160,8 @@ export const copy = {
     title: 'How to play',
     lede: 'From nothing to your first real attempt. Each step says what to do, what you should see, and what usually goes wrong.',
     cost: 'One free attempt per Agent ID per day. You pay network gas only.',
+    // README "How it works": the contract pays the pot to the attacker whose attempt Argus approves; the round then closes.
+    pot: 'The whole pot of a round goes to the first person who turns Argus in that round.',
     doLabel: 'Do',
     seeLabel: 'You should see',
     failLabel: 'If it fails',

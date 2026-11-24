@@ -20,6 +20,7 @@ export default function Play() {
         <h1>{t.title}</h1>
         <p className="lede">{t.lede}</p>
         <p className="risk-inline">{t.cost}</p>
+        <p>{t.pot}</p>
       </header>
 
       <ol className="play-steps">
