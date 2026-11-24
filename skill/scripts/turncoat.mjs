@@ -268,8 +268,8 @@ export async function attemptFromTx(cfg, txHash, { waitMs = Number(process.env.T
   // so a missing receipt is polled for a short while before reporting "pending".
   const until = Date.now() + waitMs;
   let r = await rpc(cfg, "eth_getTransactionReceipt", [txHash]);
-  while (!r && Date.now() + Math.min(pollMs, waitMs) <= until) {
-    await new Promise((res) => setTimeout(res, Math.min(pollMs, waitMs)));
+  while (!r && Date.now() < until) {
+    await new Promise((res) => setTimeout(res, Math.max(1, Math.min(pollMs, until - Date.now()))));
     r = await rpc(cfg, "eth_getTransactionReceipt", [txHash]);
   }
   if (!r) return { found: false, pending: true, note: "transaction not mined yet; try again shortly" };
