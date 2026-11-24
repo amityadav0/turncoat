@@ -178,15 +178,8 @@ nav {
   gap: 0 4px;
   margin-left: -10px;
 }
-@media (max-width: 639px) {
-  nav {
-    gap: 0;
-    margin-left: -8px;
-  }
-  nav a {
-    padding: 8px;
-    font-size: 0.9rem;
-  }
+.play-step a.ext {
+  white-space: normal;
 }
 nav a {
   text-decoration: none;
@@ -202,6 +195,26 @@ nav a.active {
 }
 nav a:hover {
   color: var(--bone);
+}
+
+@media (max-width: 639px) {
+  /* One line of links on a phone: five items fit at 360 px and up; anything narrower scrolls sideways
+     inside the bar instead of wrapping onto a second line or widening the page. */
+  nav {
+    gap: 0;
+    margin-left: -5px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar {
+    display: none;
+  }
+  nav a {
+    padding: 8px 5px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
 }
 
 @media (min-width: 640px) {

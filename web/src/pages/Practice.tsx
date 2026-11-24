@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api, type PracticeResult } from '../api';
-import type { Rung } from '../api/types';
+import type { PracticeRung, Rung } from '../api/types';
 import { ClaimAgentId } from '../components/ClaimAgentId';
 import { BreakKindTag, DecisionTag } from '../components/bits';
 import { HostileText } from '../components/HostileText';
@@ -25,9 +25,17 @@ export default function Practice() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [sharing, setSharing] = useState(false);
   const [rung, setRung] = useState<Rung>('lighter');
-  // The rung picker appears once the service has shown it reports which guard answered (G-028);
-  // an older service ignores the rung, and a picker it ignores would claim a model that didn't run.
-  const rungs = turns.some((x) => x.result.model && x.result.guardVersion !== undefined);
+  // The rungs the service offers, before the first message. null = an older service that does not
+  // list them: the page then offers no picker, because a picker it ignores would claim a model that didn't run.
+  const [rungList, setRungList] = useState<PracticeRung[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.practiceRungs().then((r) => live && setRungList(r && r.length ? r : null), () => live && setRungList(null));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const rungs = rungList !== null && rungList.length > 1;
   const box = useRef<HTMLTextAreaElement>(null);
   const { state } = useLocation();
 
@@ -81,9 +89,10 @@ export default function Practice() {
         {rungs && (
           <div className="rung-pick" role="radiogroup" aria-label={t.rungLegend}>
             <span className="muted small">{t.rungLegend}</span>
-            {(['lighter', 'top'] as const).map((r) => (
-              <label key={r}>
-                <input type="radio" name="rung" value={r} checked={rung === r} onChange={() => setRung(r)} /> {t.rungs[r]}
+            {rungList!.map((r) => (
+              <label key={r.rung}>
+                <input type="radio" name="rung" value={r.rung} checked={rung === r.rung} onChange={() => setRung(r.rung)} />{' '}
+                {r.model && r.guardVersion !== undefined ? t.rungWith(t.rungs[r.rung], r.guardVersion, copy.round.tab({ id: 0, model: r.model })) : t.rungs[r.rung]}
               </label>
             ))}
           </div>
@@ -113,6 +122,7 @@ export default function Practice() {
             <p className="mono small practice-ran">
               {last.result.model && last.result.guardVersion !== undefined ? t.ran(last.result.guardVersion, copy.round.tab({ id: 0, model: last.result.model })) : t.ranUnknown}
             </p>
+            {last.result.model && /^(demo|fake)\//.test(last.result.model) && <p className="small muted">{t.scripted}</p>}
             <p className="verdict-word">{last.result.broken ? t.turned : t.held}</p>
             {last.result.broken && last.result.action && (
               <p className="small">

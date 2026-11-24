@@ -44,7 +44,7 @@ The game is the incentive. The product is what comes out of it.
 | **Guard rulebook** | Skill developers | Each guard version and the rule it added, in `guard/levels/level1-decide/` with its CHANGELOG. Copy the rules into your own skill. |
 | **Model record** | Anyone choosing a model for a wallet agent | Each round names the model Argus runs on. As rounds close, the library shows which models held and against what. |
 | **Practice mode** | Anyone | Level 1, free, no pot, no transaction and no wallet. Learn what an attack looks like before it happens to your own agent. |
-| **Tester record** | Attackers | Attempts made and guards broken, recorded on-chain against your Agent ID wallet. The site shows it under your .ai name. |
+| **Tester record** | Attackers | Attempts made and times you turned Argus, recorded on-chain against your Agent ID wallet. The site shows it under your .ai name. |
 
 ## Play
 

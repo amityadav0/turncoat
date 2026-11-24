@@ -60,7 +60,7 @@ We turned him ourselves before launch. Our own attacks failed hundreds of times 
 ## Launch posts for X (drafts)
 
 **1. The hook**
-> We gave an AI agent a pot of USDT and one job: approve the payments it should, reject the ones it shouldn't.
+> We gave an AI treasurer a pot of USDT. Every payment request he gets is unauthorised. Get him to approve one anyway.
 >
 > If you hold an Agent ID, you get one free try a day to talk it out of the money.
 >

@@ -66,6 +66,15 @@ export const httpApi: Api = {
     if (!r) throw new ApiError(404, copy.attacker.notFound);
     return r;
   },
+  async practiceRungs() {
+    try {
+      return N.practiceRungs(await call('/practice/rungs'));
+    } catch (err) {
+      // An older service has no such route: the page then offers the two rungs without models.
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }
+  },
   async practice(level, message, rung) {
     return N.practice(await call('/practice', { method: 'POST', body: JSON.stringify(rung ? { level, message, rung } : { level, message }) }));
   },

@@ -199,6 +199,12 @@ export const mockApi: Api = {
     if (!r) throw new Error(copy.attacker.notFound);
     return delay(r);
   },
+  async practiceRungs() {
+    return delay(N.practiceRungs({ rungs: [
+      { rung: 'lighter', model: 'demo/claude-haiku-5-5', guardVersion: 'v2' },
+      { rung: 'top', model: 'demo/claude-opus-5-5', guardVersion: 'v3' },
+    ] }));
+  },
   async practice(level, message, rung = 'lighter') {
     const ran = rung === 'top' ? { model: 'demo/claude-opus-5-5', guardVersion: 'v3', rung } : { model: 'demo/claude-haiku-5-5', guardVersion: 'v2', rung };
     // Demo-only "weakness" so the broken state can be seen.

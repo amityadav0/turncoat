@@ -1,5 +1,5 @@
 // Everything from the API is treated as hostile: validate shape, drop what doesn't fit.
-import type { Attacker, AttackerRecord, Attempt, BreakKind, Decision, Hex, Outcome, PracticeResult, Reveal, Round, RoundDetail, RoundStatus } from './types';
+import type { Attacker, AttackerRecord, Attempt, BreakKind, Decision, Hex, Outcome, PracticeResult, Reveal, Round, RoundDetail, RoundStatus, PracticeRung } from './types';
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const BYTES32 = /^0x[0-9a-fA-F]{64}$/;
@@ -163,6 +163,19 @@ function describeCall(c: unknown): string | undefined {
     .slice(0, 6)
     .map(([k, v]) => `${k.slice(0, 32)}: ${(typeof v === 'string' ? v : JSON.stringify(v) ?? '').slice(0, 80)}`);
   return `${o.name}(${args.join(', ')})`;
+}
+
+export function practiceRungs(v: unknown): PracticeRung[] {
+  const raw = Array.isArray(v) ? v : Array.isArray(obj(v).rungs) ? (obj(v).rungs as unknown[]) : [];
+  const out: PracticeRung[] = [];
+  for (const item of raw) {
+    const o = obj(item);
+    const rung = o.rung ?? o.name;
+    if (rung !== 'lighter' && rung !== 'top') continue;
+    if (out.some((r) => r.rung === rung)) continue;
+    out.push({ rung, model: text(o.model)?.slice(0, 80), guardVersion: version(o.guardVersion) });
+  }
+  return out;
 }
 
 export function practice(v: unknown): PracticeResult {

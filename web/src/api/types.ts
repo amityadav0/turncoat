@@ -102,6 +102,13 @@ export interface AttackerRecord {
 /** A rung of the ladder: the lighter round's model and version, or the top round's. */
 export type Rung = 'lighter' | 'top';
 
+/** One practice rung the service offers (GET /practice/rungs). */
+export interface PracticeRung {
+  rung: Rung;
+  model?: string;
+  guardVersion?: number;
+}
+
 export interface Api {
   currentRound(): Promise<Round | null>;
   /** Every round accepting attempts: one per rung of the ladder. */
@@ -110,6 +117,8 @@ export interface Api {
   round(id: number): Promise<RoundDetail>;
   attempts(roundId: number, after?: number): Promise<Attempt[]>;
   practice(level: number, message: string, rung?: Rung): Promise<PracticeResult>;
+  /** The rungs practice can run; null when the service does not say (older service). */
+  practiceRungs(): Promise<PracticeRung[] | null>;
   attacker(address: string): Promise<AttackerRecord>;
 }
 

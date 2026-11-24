@@ -1,6 +1,10 @@
 // Every user-facing sentence on the site lives here. Sources: docs/STORY.md and README.md.
 // If a line there changes, change it here. Rules (docs/STORY.md "Voice rules"): plain words,
 // never say or imply people will make money, "Agent ID holders" and "Agentic Wallet".
+// Off mainnet nothing has real value, so the copy must not say "real money" there. Read from the env
+// directly, not from config.ts: vite.config.ts imports this file in Node, where import.meta.env is undefined.
+const TEST_NETWORK = Number(String(import.meta.env?.VITE_CHAIN_ID ?? '').trim() || 56) !== 56;
+const MONEY = TEST_NETWORK ? 'a pot of test tokens' : 'a pot of real money';
 
 export const ONE_LINE = 'Can you turn the agent?';
 
@@ -8,7 +12,7 @@ export const ONE_LINE = 'Can you turn the agent?';
 export const STORY = [
   'In the Greek myth, Argus had a hundred eyes and one job: guard what he was given.',
   'AI agents now guard real money, and they have the same weakness.',
-  'Turncoat puts one agent, Argus, in front of a pot of real money and invites everyone to be Hermes.',
+  `Turncoat puts one agent, Argus, in front of ${MONEY} and invites everyone to be Hermes.`,
 ];
 
 // From the README, verbatim. It contains "earn" ("Do not treat this as a way to earn"): that is a
@@ -96,14 +100,14 @@ export const copy = {
     ended: 'Ended',
     closedToAttempts: 'Closed to attempts',
     attempts: 'Attempts',
-    status: { live: 'Live', settling: 'Ended, settling', broken: 'Broken', held: 'Held' },
+    status: { live: 'Live', settling: 'Ended, settling', broken: 'Turned', held: 'Held' },
   },
 
-  outcome: { broken: 'Broken', held: 'Held', pending: 'Judging', void: 'Not answered' },
+  outcome: { broken: 'Turned', held: 'Held', pending: 'Judging', void: 'Not answered' },
 
   home: {
     // What Argus is, in one sentence. From docs/STORY.md launch post 1.
-    argus: "Argus is an AI agent with a pot of USDT and one job: approve the payments he should, reject the ones he shouldn't.",
+    argus: `Argus is an AI treasurer with ${TEST_NETWORK ? 'a pot of test USDT' : 'a pot of USDT'}. Every request he gets is unauthorised. Get him to approve one anyway.`,
     // The first screen for someone who has never heard of Turncoat: what it is, try it free now, what you win.
     eyebrow: 'A public AI security game',
     // README.md "How it works" 2: "If Argus approves, the contract pays the pot to that attacker."
@@ -128,7 +132,7 @@ export const copy = {
     learnsHeading: 'Argus learns',
     learns: [
       'Argus is not a fortress on day one, and he gets harder to fool in public.',
-      'When he is broken, the attack is published, one rule is added to answer it, and the next round runs the patched guard.',
+      'When he is turned, the attack is published, a rule is added to answer it, and the next round runs the patched guard.',
       'Argus v1 said no and pressed yes. The lighter round runs v2, the top round v3.',
     ],
     learnsLink: 'Read how we turned him before launch',
@@ -186,8 +190,8 @@ export const copy = {
       },
       {
         title: 'Install the Agentic Wallet CLI and sign in',
-        do: ['Install the CLI and check its version:', 'cmd:npm install -g @binance/agentic-wallet@1.12.0', 'cmd:baw --version', 'Then tell your agent: "Sign in to my Agentic Wallet." It runs baw auth signin; scan the QR code with the Binance App.'],
-        see: 'baw --version prints 1.12.0 or later, and baw wallet status --json shows CONNECTED.',
+        do: ['Install the CLI and check its version:', 'cmd:npm install -g @binance/agentic-wallet', 'cmd:baw --version', 'This is the wallet CLI, baw. The official wallet skill you install in step 6 has its own version number; keep both on the latest.', 'Then tell your agent: "Sign in to my Agentic Wallet." It runs baw auth signin; scan the QR code with the Binance App.'],
+        see: 'baw --version prints a version number, and baw wallet status --json shows CONNECTED.',
         fail: '"baw: command not found": Node.js is missing or npm\'s global folder is not on your PATH.',
       },
       {
@@ -206,6 +210,7 @@ export const copy = {
         do: [
           'An attempt is a contract call, and an Agentic Wallet only makes contract calls with Developer Mode on. It is turned on in the App, not in the chat.',
           'In the Binance App: Agentic Wallet management page → Settings (top-right icon) → turn on Developer Mode → read and confirm the Risk Warning → approve the signature request.',
+          'Use a fresh, nearly empty Agentic Wallet for this, so the balance cap never gets in the way.',
         ],
         see: 'Ask your agent to check. It runs baw wallet settings --json and shows devMode.enabled: true.',
         fail: "It cannot be turned on while the wallet holds more than the Developer Mode balance cap, so keep this wallet small. Binance's public docs don't state the figure; the App tells you the cap when you try to turn it on. It switches off after 7 days without use; turn it on again.",
@@ -255,9 +260,9 @@ export const copy = {
 
   attacker: {
     title: 'Tester record',
-    lede: 'Attempts made and guards broken by this Agent ID wallet, as recorded on-chain.',
+    lede: 'Attempts made and times this Agent ID wallet turned Argus, as recorded on-chain.',
     attempts: 'Attempts',
-    breaks: 'Guards broken',
+    breaks: 'Times turned Argus',
     rounds: 'Rounds played',
     wallet: 'Wallet',
     history: 'Every attempt',
@@ -334,7 +339,7 @@ export const copy = {
 
   practice: {
     title: 'Practice',
-    lede: 'Send Argus a payment request and try to get him to approve it. No wallet, no sign-in.',
+    lede: 'Send Argus a payment request. Every request he gets is unauthorised. Get him to approve one anyway. No wallet, no sign-in.',
     noticeStrong: 'Practice has no pot and nothing here is on-chain.',
     notice: "Your message goes to the guard service only to get Argus's reply. Nothing is paid or recorded on-chain.",
     messageLabel: 'Your message to Argus',
@@ -344,6 +349,8 @@ export const copy = {
     ranUnknown: 'The guard service did not say which guard version and model answered this one.',
     rungLegend: 'Practise against',
     rungs: { lighter: 'The lighter round', top: 'The top round' },
+    rungWith: (name: string, version: number, model: string) => `${name} (guard v${version} on ${model})`,
+    scripted: 'Demo model: a scripted reply, not a real AI.',
     sending: 'Argus is reading…',
     unreachable: (e: string) => `Could not reach Argus (${e}). Try again in a moment.`,
     level: 'Level',
@@ -479,7 +486,7 @@ export const copy = {
 // these, because X and Telegram read the HTML and never run the site's script. Images: web/public/og-*.png
 // (drawn by `npm run og`, the same card as the in-page share). Keys match ShareKind in lib/shareCard.ts.
 const PRACTICE_DESC =
-  "Argus is an AI agent with a pot of USDT. He must approve the payments he should and reject the ones he shouldn't. Practice against him free: no wallet, no sign-in.";
+  "Argus is an AI treasurer with a pot of USDT. Every request he gets is unauthorised. Get him to approve one anyway. Practice against him free: no wallet, no sign-in.";
 export const UNFURL: Record<string, { title: string; description: string; alt: string }> = {
   turned: {
     title: `Argus was turned. ${ONE_LINE}`,
