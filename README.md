@@ -39,7 +39,7 @@ The game is the incentive. The product is what comes out of it.
 
 | Output | Who uses it | How |
 |---|---|---|
-| **Attack library** | Skill developers | Every attempt from every finished round, downloadable as JSONL. Replay it against your own agent as a test suite. Empty until the first round closes; the attacks we used before launch are in `guard/redteam/`. |
+| **Attack library** | Skill developers | Every attempt from every finished round, downloadable as JSONL. Replay it against your own agent as a test suite. Empty until the first round closes. A starter set of 50 attacks that both launch guards hold, with replay instructions, is in [`docs/attacks/`](docs/attacks/). |
 | **Post-mortems** | Everyone | One short write-up per break: the attack, the cause, the fix. |
 | **Guard rulebook** | Skill developers | Each guard version and the rule it added, in `guard/levels/level1-decide/` with its CHANGELOG. Copy the rules into your own skill. |
 | **Model record** | Anyone choosing a model for a wallet agent | Each round names the model Argus runs on. As rounds close, the library shows which models held and against what. |
