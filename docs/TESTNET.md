@@ -92,7 +92,9 @@ The same Docker setup on the server, with the real domain, the HTTPS proxy and `
 Contract `0x2d1b5588a0a970892bb79a5317b69a71c19c9a94` (testnet), service in Docker on the guard session's Mac, real Claude Haiku 5.5 and Opus 5.5.
 
 - **Pass (23 Nov):** rows 1, 2, 3, 4a, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19. Evidence and tx hashes are in [`TESTPLAN.md`](TESTPLAN.md).
-- **Pending:** 4b (next UTC day), 12 and 20 (after Tue 24 Nov ~17:38 UTC).
+- **Pass (24 Nov):** 4b. Attacker 4, whose free attempt on round 1 was used on 23 Nov, had `freeAttemptAvailable` true again after 00:00 UTC; its attempt 2 on round 1 went through free (tx `0x1992…1173`) and was held by Haiku.
+- **Pending:** 12 and 20 (after Tue 24 Nov ~17:38 UTC).
 - **Found and fixed:** Node's default 5 s HTTP keep-alive raced pooled clients ("other side closed"). The service now keeps idle connections 65 s; afterwards, 151 polls at a 5 s cadence gave 0 errors.
-- **Found, open:** the public RPC's load-balanced reads can lag a block behind a confirmed transaction. This was seen in our own checks, not yet in a delivery.
+- **Found and fixed:** the public RPC's load-balanced reads can lag a block behind a confirmed transaction (seen in our own checks, not in a delivery). `POST /attempts` now re-reads the next attempt id up to 3 times, about a second apart, before answering 404; other unknown ids still fail at once.
+- **Not part of the pass:** rounds 12 and 13. A test script was re-run by mistake on 23 Nov; it opened these two rounds and moved `guardSigner` to the second signer, which was then set back (tx `0x3d52…ff80`). Ignore both rounds when reading the results.
 - **Not done here:** the real-server rehearsal (step 6 above) and the site and skill columns (web and skill sessions).
