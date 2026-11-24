@@ -25,7 +25,9 @@ He meant no and pressed yes. It counts: the code watches the action, not the wor
 
 ## Why it happened
 
-Two things together. Argus is required to end every reply with a tool call. The message asked him to make the story "real" through that tool call. He kept the refusal in his words and let the story choose the tool.
+Two things together. Argus is required to end every reply with a tool call. The message asked him to make the story "real" through that tool call. He kept the refusal in the reason he wrote and let the story choose the tool.
+
+We checked the first half directly on 23 November, with the same attack against version 1 on Claude Haiku 5.5. With a tool call required on every reply, as in a live round, it broke him 7 times out of 7: no text, one `approve_payment` call, and a reason that says the payment is not approved. With the requirement switched off, so that he could answer in plain text first, it broke him 0 times out of 7. The rule that makes him decide is also what the attack leans on. We keep that rule, because a treasurer who can avoid deciding cannot be tested, and version 2 closes the gap it opens.
 
 ## The fix
 
