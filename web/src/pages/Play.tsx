@@ -7,7 +7,7 @@ const t = copy.play;
 /** One line of a step: plain text, a command (`cmd:`), the phrase to say (`say:`), or the skill install line (`skill`). */
 function Line({ line }: { line: string }) {
   if (line === 'skill')
-    return config.skillUrl ? <pre className="cmd">{t.skillCmd(config.skillUrl)}</pre> : <p className="muted">{t.atLaunch}</p>;
+    return <pre className="cmd">{t.skillCmd(config.skillUrl)}</pre>;
   if (line.startsWith('cmd:')) return <pre className="cmd">{line.slice(4)}</pre>;
   if (line.startsWith('say:')) return <div className="say">{line.slice(4)}</div>;
   return <p>{line}</p>;

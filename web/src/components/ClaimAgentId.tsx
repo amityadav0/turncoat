@@ -19,14 +19,8 @@ export function ClaimAgentId({ heading = t.heading }: { heading?: string }) {
           )}
         </li>
         <li>
-          <strong>{t.step2Strong}</strong>{' '}
-          {config.skillUrl ? (
-            <a href={config.skillUrl} target="_blank" rel="noopener noreferrer" className="ext">
-              {t.step2Link} <span aria-hidden="true">↗</span>
-            </a>
-          ) : (
-            <span className="muted">{t.step2Missing}</span>
-          )}
+          <strong>{t.step2Strong}</strong>
+          <pre className="cmd">{copy.play.skillCmd(config.skillUrl)}</pre>
         </li>
         <li>
           <strong>{t.step3Strong}</strong>

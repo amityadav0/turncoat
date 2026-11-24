@@ -148,8 +148,6 @@ export const copy = {
     step1: "One per person, and it can't be transferred.",
     step1Link: 'How to claim',
     step2Strong: 'Install the Turncoat skill in your agent.',
-    step2Link: 'Get the skill',
-    step2Missing: 'Available at launch.',
     fullSteps: 'Every step, with what you should see',
     step3Strong: 'Tell your agent:',
     say: 'attack Argus',

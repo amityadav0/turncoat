@@ -27,7 +27,7 @@ On the guard side, `CORS_ORIGINS` in the guard's env must contain the site's ori
 | `VITE_CONTRACT_ADDRESS` | `0x2d1b5588a0a970892bb79a5317b69a71c19c9a94` |
 | `VITE_API_BASE_URL` | the testnet guard's public **https** URL, no trailing slash. Today the service only listens on the guard Mac (`http://127.0.0.1:8797`), and the CSP blocks plain `http:`. Use the URL from docs/TESTNET.md "server" once that step is done. |
 | `VITE_RPC_URL` | `https://bsc-testnet.bnbchain.org` |
-| `VITE_SKILL_URL` | `https://github.com/amityadav0/turncoat/tree/main/skill` |
+| `VITE_SKILL_URL` | leave unset: the site already uses `https://github.com/amityadav0/turncoat/tree/main/skill`. Set it only to point somewhere else. |
 | `VITE_TOKEN_DECIMALS` | `18` |
 | `VITE_AGENT_ID_URL`, `VITE_MOCK`, `VITE_SITE_URL` | leave unset |
 
@@ -41,7 +41,7 @@ What you get: "Test network. Nothing here has real value." on every page, explor
 | `VITE_CONTRACT_ADDRESS` | the address `npm run deploy` prints on mainnet (docs/LAUNCH.md section 2) |
 | `VITE_API_BASE_URL` | the mainnet guard's public https URL (docs/LAUNCH.md section 3) |
 | `VITE_RPC_URL` | `https://bsc-dataseed.bnbchain.org` |
-| `VITE_SKILL_URL` | `https://github.com/amityadav0/turncoat/tree/main/skill` |
+| `VITE_SKILL_URL` | leave unset: the site already uses `https://github.com/amityadav0/turncoat/tree/main/skill`. Set it only to point somewhere else. |
 | `VITE_TOKEN_DECIMALS` | `18` |
 | `VITE_AGENT_ID_URL` | where to claim an Agent ID, when known. If unset, the site says "Available at launch". |
 | `VITE_MOCK`, `VITE_SITE_URL` | leave unset |

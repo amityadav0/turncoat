@@ -19,7 +19,8 @@ export const config = {
   testNetwork: chainId !== 56,
   explorer: EXPLORERS[chainId] ?? null,
   rpcUrl: (env.VITE_RPC_URL ?? '').trim(),
-  skillUrl: (env.VITE_SKILL_URL ?? '').trim(),
+  /** Where the Turncoat skill is installed from: public in the repo (skill/README.md). VITE_SKILL_URL overrides it. */
+  skillUrl: (env.VITE_SKILL_URL ?? '').trim() || 'https://github.com/amityadav0/turncoat/tree/main/skill',
   agentIdUrl: (env.VITE_AGENT_ID_URL ?? '').trim(),
   tokenDecimals: Number(env.VITE_TOKEN_DECIMALS || 18),
   tokenSymbol: 'USDT',
