@@ -13,7 +13,8 @@
 //           was queued behind an undelivered blocker before the deadline), waits until it answers the
 //           break, and checks: blocker expired, break `broken` with the "settle deadline has passed" note
 //           and no verdict. The late instance is stopped afterwards.
-// Finally it writes the results into docs/TESTPLAN.md (testnet column) and docs/TESTNET.md (results).
+// Finally it writes the results into docs/TESTPLAN.md (testnet column), docs/TESTNET.md (results) and the
+// README's Status row.
 //
 // Chain 97 only (enforced by --network testnet in every call). Keys come from the gitignored .env.deploy
 // and guard/.env.testnet and are never printed.
@@ -121,6 +122,12 @@ if (!has("no-write")) {
   const line = `- **${results[12].ok && results[20].ok ? "Pass" : "Result"} (${day}, after the settle deadline, run by \`scripts/testnet-wait-rows.mjs\`):** row 12 ${results[12].text}; row 20 ${results[20].text}.`;
   tn = tn.replace(/^- \*\*Pending:\*\* 12 and 20[^\n]*$/m, line);
   fs.writeFileSync(tnFile, tn);
+  // README Status row: the testnet count.
+  const readmeFile = path.join(ROOT, "README.md");
+  const passed = 19 + (results[12].ok ? 1 : 0) + (results[20].ok ? 1 : 0);
+  const rest = [12, 20].filter((r) => !results[r].ok);
+  const readme = fs.readFileSync(readmeFile, "utf8").replace(/\d+ of 21 test-plan rows pass;[^|]*?\. Runbook/, `${passed} of 21 test-plan rows pass${rest.length ? ` (row${rest.length > 1 ? "s" : ""} ${rest.join(" and ")} failed: see the results)` : ""}. Runbook`);
+  fs.writeFileSync(readmeFile, readme);
   log("wrote docs/TESTPLAN.md and docs/TESTNET.md");
 }
 process.exit(results[12].ok && results[20].ok ? 0 : 1);
