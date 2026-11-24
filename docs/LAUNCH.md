@@ -9,11 +9,15 @@ Launch configuration: level 1 in decide mode, as two rounds at once: the lighter
 Run these from the repo root on your own machine (where the owner key lives), except step 4, which runs on the server. `scripts/launch-mainnet.mjs` works only on chain 56. Every step that sends a transaction first prints exactly what it will send (contract, addresses, amounts) and asks `[y/N]` on the terminal; anything but a typed `y` sends nothing, and piped input is refused. Keys are read from the environment and never printed.
 
 ```bash
-# 0. Once: install and build
+# 0. Once: install and build, then make the three fresh keys and the server's env file.
+#    Prints the three ADDRESSES only; keys go to .env.mainnet and guard/.env.server (both gitignored, 600).
 npm install && npm run build && (cd guard && npm install)
+node scripts/mainnet-keys.mjs
+#    Fund the deployer (about 0.01 BNB + the USDT for both pots) and the relayer (about 0.005 BNB).
+#    Put your Anthropic key in guard/.env.server as MODEL_API_KEY.
 
 # 1. Pre-flight (read-only): chain 56, balances, three different keys, the Agent ID registry read
-export DEPLOYER_PRIVATE_KEY=0x…        # the owner key; stays on this machine
+set -a && . ./.env.mainnet && set +a   # loads DEPLOYER_PRIVATE_KEY into this terminal; it stays on this machine
 node scripts/launch-mainnet.mjs preflight --signer 0x<guard signer address> --relayer 0x<relayer address> --agent 0x<any Agent ID holder> --seed <USDT per round>
 
 # 2. Deploy the contract (asks y/N), writes deployments/bsc.json
@@ -22,8 +26,8 @@ node scripts/launch-mainnet.mjs deploy --signer 0x<guard signer address>
 # 3. Commit the two guards (no transaction): Haiku 5.5 decide v2 and Opus 5.5 decide v3
 node scripts/launch-mainnet.mjs commit-rounds
 
-# 4. The guard server. Fill in a guard env file as in section B (gitignored name guard/.env.server;
-#    TURNCOAT_ADDRESS and LOGS_FROM_BLOCK come from deployments/bsc.json), copy it and the commit records over,
+# 4. The guard server. Re-run `node scripts/mainnet-keys.mjs` once: it writes TURNCOAT_ADDRESS and
+#    LOGS_FROM_BLOCK from deployments/bsc.json into guard/.env.server (section B lists every variable). Copy it and the commit records over,
 #    then one command on the server (idempotent: re-run it after changing the env file)
 scp guard/.env.server you@server:~/guard.env && scp -r guard/.secrets/commits you@server:~/turncoat-commits
 ssh you@server 'curl -fsSLO https://raw.githubusercontent.com/amityadav0/turncoat/3c4452dcf4dc3cd0e177a3239aa94d580d4d65aa/deploy/server-setup.sh && bash server-setup.sh --domain guard.example.com --env ~/guard.env --commits ~/turncoat-commits'

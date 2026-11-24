@@ -9,3 +9,4 @@ AGENTS.md
 prompts/
 dist/
 .env.deploy
+.env.mainnet
